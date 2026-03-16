@@ -46,4 +46,10 @@ export class Loadout {
   prevWeapon(): void {
     this.activeIndex = (this.activeIndex - 1 + this.slots.length) % this.slots.length;
   }
+
+  /** Replaces the active weapon slot with a new weapon (full ammo). Used by crate pickups. */
+  replaceActiveWeapon(def: WeaponDef): void {
+    this.slots[this.activeIndex] = { def, ammo: def.ammoMax };
+    this.reloadTimer = 0;
+  }
 }

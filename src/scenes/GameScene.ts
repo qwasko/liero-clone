@@ -14,6 +14,7 @@ import { WeaponSystem } from '../weapons/WeaponSystem';
 import { ExplosionSystem } from '../game/ExplosionSystem';
 import { RopeSystem } from '../game/RopeSystem';
 import { DiggingSystem } from '../game/DiggingSystem';
+import { CrateSystem } from '../game/CrateSystem';
 import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS } from '../game/constants';
@@ -40,6 +41,7 @@ export class GameScene extends Phaser.Scene {
   private explosionSystem!: ExplosionSystem;
   private ropeSystem!: RopeSystem;
   private diggingSystem!: DiggingSystem;
+  private crateSystem!: CrateSystem;
   private activeProjectiles: Projectile[] = [];
 
   private audio!: AudioManager;
@@ -87,6 +89,14 @@ export class GameScene extends Phaser.Scene {
     this.diggingSystem = new DiggingSystem(this.terrainDestroyer);
     this.diggingSystem.registerWorm(worm1);
     this.diggingSystem.registerWorm(worm2);
+
+    this.crateSystem = new CrateSystem(
+      this, this.terrain, this.explosionSystem, this.worms, this.loadouts,
+      (kind, _worm) => {
+        if (kind !== 'booby') this.audio.playPickup();
+        else                  this.audio.playExplosion(false);
+      },
+    );
 
     // ── Input + controllers ────────────────────────────────────────────
     this.inputManager  = new InputManager(this.input.keyboard!);
@@ -137,6 +147,9 @@ export class GameScene extends Phaser.Scene {
     // ── Digging ────────────────────────────────────────────────────────
     this.diggingSystem.update(worm1, input1);
     this.diggingSystem.update(worm2, input2);
+
+    // ── Crates ─────────────────────────────────────────────────────────
+    this.crateSystem.update(dt);
 
     // ── Rope handling (independent of weapon loadout) ──────────────────
     if (this.ropeSystem.handleInput(worm1, input1, this.terrain, dt)) this.audio.playRopeShoot();
