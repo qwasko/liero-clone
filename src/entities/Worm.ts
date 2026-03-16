@@ -12,6 +12,9 @@ export class Worm {
   state: WormState = 'airborne';
   facingRight: boolean = true;
 
+  /** Aim angle in radians. 0 = horizontal, -π/2 = straight up, +π/2 = straight down. */
+  aimAngle: number = 0;
+
   readonly width = WORM_WIDTH;
   readonly height = WORM_HEIGHT;
   readonly playerId: 1 | 2;

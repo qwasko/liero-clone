@@ -2,11 +2,9 @@ import { Worm } from './Worm';
 import { InputState } from '../input/InputState';
 import { MOVE_SPEED, JUMP_VELOCITY } from '../game/constants';
 
-/**
- * Translates an InputState into velocity changes on a Worm.
- * Swapping this class out (for an AI controller, network controller, etc.)
- * is the intended extension point for future game modes.
- */
+/** Aim rotation speed: full 180° arc in ~1 second. */
+const AIM_SPEED = Math.PI; // radians/s
+
 export class WormController {
   private worm: Worm;
 
@@ -14,7 +12,7 @@ export class WormController {
     this.worm = worm;
   }
 
-  update(input: InputState): void {
+  update(input: InputState, dt: number): void {
     const w = this.worm;
     if (w.isDead) return;
 
@@ -34,5 +32,15 @@ export class WormController {
       w.vy = JUMP_VELOCITY;
       w.state = 'airborne';
     }
+
+    // Aim angle (up = more negative, down = more positive)
+    if (input.up) {
+      w.aimAngle = Math.max(-Math.PI / 2, w.aimAngle - AIM_SPEED * dt);
+    } else if (input.down) {
+      w.aimAngle = Math.min(Math.PI / 2, w.aimAngle + AIM_SPEED * dt);
+    }
+
+    // Weapon switching
+    if (input.nextWeapon) w.aimAngle = w.aimAngle; // handled in GameScene via loadout
   }
 }

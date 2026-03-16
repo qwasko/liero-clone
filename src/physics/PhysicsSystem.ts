@@ -1,7 +1,8 @@
 import { Worm } from '../entities/Worm';
+import { Projectile } from '../entities/Projectile';
 import { TerrainMap } from '../terrain/TerrainMap';
 import { CollisionUtils } from './CollisionUtils';
-import { GRAVITY, CANVAS_WIDTH } from '../game/constants';
+import { GRAVITY, CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 
 /** Maximum pixels a worm can "step up" to climb a slope in one frame. */
 const MAX_STEP_HEIGHT = 8;
@@ -112,6 +113,56 @@ export class PhysicsSystem {
           pushes++;
         }
         worm.vy = 0;
+      }
+    }
+  }
+
+  // ── Projectile physics ────────────────────────────────────────────
+
+  /**
+   * Advances all active projectiles and calls onHit when terrain is struck.
+   * Uses a swept pixel check to prevent tunneling at high velocities.
+   */
+  updateProjectiles(
+    projectiles: Projectile[],
+    dt: number,
+    terrain: TerrainMap,
+    onHit: (proj: Projectile, hitX: number, hitY: number) => void,
+  ): void {
+    for (const proj of projectiles) {
+      if (!proj.active) continue;
+
+      proj.vy += GRAVITY * proj.weapon.projectileGravity * dt;
+
+      const dx = proj.vx * dt;
+      const dy = proj.vy * dt;
+
+      // Swept check: sample along the movement vector each pixel step
+      const steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy)));
+      let hit = false;
+
+      for (let i = 1; i <= steps; i++) {
+        const tx = proj.x + dx * (i / steps);
+        const ty = proj.y + dy * (i / steps);
+        if (terrain.isSolid(tx, ty)) {
+          proj.active = false;
+          onHit(proj, tx, ty);
+          hit = true;
+          break;
+        }
+      }
+
+      if (!hit) {
+        proj.x += dx;
+        proj.y += dy;
+
+        // Deactivate if out of bounds
+        if (
+          proj.x < 0 || proj.x > CANVAS_WIDTH ||
+          proj.y < 0 || proj.y > CANVAS_HEIGHT
+        ) {
+          proj.active = false;
+        }
       }
     }
   }
