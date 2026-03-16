@@ -17,6 +17,7 @@ import { DiggingSystem } from '../game/DiggingSystem';
 import { CrateSystem } from '../game/CrateSystem';
 import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
+import { TagSystem } from '../game/TagSystem';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS, DEFAULT_LIVES, RESPAWN_DELAY_MS, WORM_MAX_HP } from '../game/constants';
 
 const WORM_COLORS: Record<1 | 2, number> = { 1: 0x00ff88, 2: 0xff4444 };
@@ -50,21 +51,29 @@ export class GameScene extends Phaser.Scene {
 
   private timeRemaining: number = MATCH_DURATION_SECONDS;
   private matchOver: boolean = false;
+  private gameMode: 'normal' | 'tag' = 'normal';
 
   // Lives + respawn
   private lives: Map<Worm, number> = new Map();
   private respawnTimers: Map<Worm, number | null> = new Map(); // ms remaining, null = not scheduled
 
+  // Tag mode
+  private tagSystem: TagSystem | null = null;
+  private tagItGraphics: Phaser.GameObjects.Text | null = null;
+
   constructor() {
     super({ key: 'GameScene' });
   }
 
-  create(): void {
+  create(data?: { mode?: 'normal' | 'tag' }): void {
+    this.gameMode = data?.mode ?? 'normal';
     this.matchOver = false;
     this.timeRemaining = MATCH_DURATION_SECONDS;
     this.activeProjectiles = [];
     this.lives.clear();
     this.respawnTimers.clear();
+    this.tagSystem = null;
+    this.tagItGraphics = null;
 
     // ── Terrain ────────────────────────────────────────────────────────
     this.terrain = TerrainGenerator.generate(CANVAS_WIDTH, CANVAS_HEIGHT, [SPAWN_P1, SPAWN_P2]);
@@ -103,6 +112,17 @@ export class GameScene extends Phaser.Scene {
         else                  this.audio.playExplosion(false);
       },
     );
+
+    // ── Tag mode ───────────────────────────────────────────────────────
+    if (this.gameMode === 'tag') {
+      this.tagSystem = new TagSystem(this.worms);
+      // "IT" indicator that floats above the tagged worm
+      this.tagItGraphics = this.add.text(0, 0, '★ IT', {
+        fontSize: '11px',
+        color: '#ffaa00',
+        fontFamily: 'monospace',
+      }).setDepth(15).setVisible(false);
+    }
 
     // ── Lives ──────────────────────────────────────────────────────────
     for (const worm of this.worms) {
@@ -155,6 +175,9 @@ export class GameScene extends Phaser.Scene {
     // ── Loadout timers ─────────────────────────────────────────────────
     load1.update(dt);
     load2.update(dt);
+
+    // ── Tag timer ──────────────────────────────────────────────────────
+    this.tagSystem?.update(dt);
 
     // ── Digging ────────────────────────────────────────────────────────
     this.diggingSystem.update(worm1, input1);
@@ -225,6 +248,7 @@ export class GameScene extends Phaser.Scene {
     for (const worm of this.worms) {
       if (!worm.isDead) continue;
       if (this.respawnTimers.get(worm) !== null) continue; // already handled
+      this.tagSystem?.onDeath(worm);
       const remaining = (this.lives.get(worm) ?? 0) - 1;
       this.lives.set(worm, Math.max(0, remaining));
       if (remaining > 0) {
@@ -241,6 +265,18 @@ export class GameScene extends Phaser.Scene {
       rect.setVisible(!worm.isDead);
     }
 
+    // ── Tag "IT" indicator ────────────────────────────────────────────
+    if (this.tagSystem && this.tagItGraphics) {
+      const itWorm = this.tagSystem.it;
+      if (itWorm && !itWorm.isDead) {
+        this.tagItGraphics
+          .setPosition(itWorm.x - 10, itWorm.y - itWorm.height / 2 - 14)
+          .setVisible(true);
+      } else {
+        this.tagItGraphics.setVisible(false);
+      }
+    }
+
     // ── Win condition ─────────────────────────────────────────────────
     this.checkWinCondition();
 
@@ -249,6 +285,7 @@ export class GameScene extends Phaser.Scene {
       worm1, load1, this.lives.get(worm1) ?? 0,
       worm2, load2, this.lives.get(worm2) ?? 0,
       this.timeRemaining,
+      this.tagSystem,
     );
     this.overlayGraphics.clear();
     this.ropeSystem.draw(this.overlayGraphics);
@@ -282,6 +319,27 @@ export class GameScene extends Phaser.Scene {
 
     this.matchOver = true;
 
+    if (this.tagSystem) {
+      // Tag mode: winner = player with least time as "it"
+      // If a player is eliminated, the other wins outright
+      let winner: 0 | 1 | 2;
+      if (eliminated1 && eliminated2) {
+        winner = 0;
+      } else if (eliminated1) {
+        winner = 2;
+      } else if (eliminated2) {
+        winner = 1;
+      } else {
+        winner = this.tagSystem.result(worm1, worm2).winner;
+      }
+      const times = this.tagSystem.result(worm1, worm2).times;
+      this.time.delayedCall(800, () => {
+        this.scene.start('TagOverScene', { winner, times });
+      });
+      return;
+    }
+
+    // Normal mode
     let winner: number;
     if (eliminated1 && eliminated2) {
       winner = 0;

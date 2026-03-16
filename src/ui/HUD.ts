@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Worm } from '../entities/Worm';
 import { Loadout } from '../weapons/Loadout';
+import { TagSystem } from '../game/TagSystem';
 import { WORM_MAX_HP } from '../game/constants';
 
 const BAR_W = 120;
@@ -29,6 +30,7 @@ export class HUD {
   private p1Lives:  Phaser.GameObjects.Text;
   private p2Lives:  Phaser.GameObjects.Text;
   private timer:    Phaser.GameObjects.Text;
+  private tagLine:  Phaser.GameObjects.Text;
 
   // Pre-computed x positions for the two HP bars
   private readonly barX1: number;
@@ -70,12 +72,18 @@ export class HUD {
     this.timer = scene.add.text(W / 2, PAD, '', {
       fontSize: '14px', color: '#ffffff', fontFamily: 'monospace',
     }).setOrigin(0.5, 0).setDepth(DEPTH + 2);
+
+    // Tag mode time-as-it line (hidden in normal mode)
+    this.tagLine = scene.add.text(W / 2, PAD + 16, '', {
+      fontSize: '11px', color: '#ffaa00', fontFamily: 'monospace',
+    }).setOrigin(0.5, 0).setDepth(DEPTH + 2);
   }
 
   update(
     worm1: Worm, load1: Loadout, lives1: number,
     worm2: Worm, load2: Loadout, lives2: number,
     timeRemaining: number,
+    tagSystem?: TagSystem | null,
   ): void {
     this.bars.clear();
 
@@ -94,6 +102,17 @@ export class HUD {
     const ss   = String(secs % 60).padStart(2, '0');
     this.timer.setText(`${mm}:${ss}`);
     this.timer.setColor(timeRemaining < 30 ? '#ff4444' : '#ffffff');
+
+    if (tagSystem) {
+      const t1 = tagSystem.getTime(worm1);
+      const t2 = tagSystem.getTime(worm2);
+      const fmtT = (s: number) => `${Math.floor(s)}s`;
+      const itMark = (w: Worm) => tagSystem.isIt(w) ? ' ★' : '';
+      this.tagLine.setText(`TAG — P1: ${fmtT(t1)}${itMark(worm1)}  P2: ${fmtT(t2)}${itMark(worm2)}`);
+      this.tagLine.setVisible(true);
+    } else {
+      this.tagLine.setVisible(false);
+    }
   }
 
   private drawBar(g: Phaser.GameObjects.Graphics, worm: Worm, x: number): void {
