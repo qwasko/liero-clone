@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Phase 7 — Bonus crates + first aid kits
+## Last completed: Phase 10 — Load+Change (per-slot independent reload timers)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -16,9 +16,11 @@
   - Booby trap: explodes on pickup (looks identical to others)
 - Procedural audio (fire, explosion, jump, pickup, rope)
 - Screen shake on explosions
+- Load+Change: each weapon slot has its own independent reload timer;
+  switching weapons mid-reload never blocks the newly selected weapon
 
 ## Known issues / bugs
 - None currently known
 
 ## Next step
-- Phase 10: Load+Change option (weapon switch while reloading)
+- Phase 11: Game of Tag mode
