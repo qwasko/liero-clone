@@ -8,10 +8,12 @@ import { TerrainMap } from '../terrain/TerrainMap';
 import { TerrainGenerator } from '../terrain/TerrainGenerator';
 import { TerrainRenderer } from '../terrain/TerrainRenderer';
 import { TerrainDestroyer } from '../terrain/TerrainDestroyer';
-import { WeaponRegistry } from '../weapons/WeaponRegistry';
+import { DEFAULT_LOADOUT } from '../weapons/WeaponRegistry';
 import { Loadout } from '../weapons/Loadout';
 import { WeaponSystem } from '../weapons/WeaponSystem';
 import { ExplosionSystem } from '../game/ExplosionSystem';
+import { RopeSystem } from '../game/RopeSystem';
+import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS } from '../game/constants';
 
@@ -22,7 +24,7 @@ const AIM_LINE_LEN = 22;
 
 export class GameScene extends Phaser.Scene {
   private worms!: [Worm, Worm];
-  private controllers: WormController[] = [];
+  private controllers!: [WormController, WormController];
   private wormGraphics: Map<Worm, Phaser.GameObjects.Rectangle> = new Map();
 
   private inputManager!: InputManager;
@@ -35,8 +37,10 @@ export class GameScene extends Phaser.Scene {
   private loadouts: Map<Worm, Loadout> = new Map();
   private weaponSystem!: WeaponSystem;
   private explosionSystem!: ExplosionSystem;
+  private ropeSystem!: RopeSystem;
   private activeProjectiles: Projectile[] = [];
 
+  private audio!: AudioManager;
   private hud!: HUD;
   private overlayGraphics!: Phaser.GameObjects.Graphics;
 
@@ -69,21 +73,24 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── Weapons ────────────────────────────────────────────────────────
-    const bazooka = WeaponRegistry.bazooka;
-    this.loadouts.set(worm1, new Loadout([bazooka]));
-    this.loadouts.set(worm2, new Loadout([bazooka]));
-
+    this.loadouts.set(worm1, new Loadout([...DEFAULT_LOADOUT]));
+    this.loadouts.set(worm2, new Loadout([...DEFAULT_LOADOUT]));
     this.weaponSystem    = new WeaponSystem();
     this.explosionSystem = new ExplosionSystem(this.terrainDestroyer, this.worms);
 
+    this.ropeSystem = new RopeSystem();
+    this.ropeSystem.registerWorm(worm1);
+    this.ropeSystem.registerWorm(worm2);
+
     // ── Input + controllers ────────────────────────────────────────────
-    this.inputManager = new InputManager(this.input.keyboard!);
-    this.controllers  = [new WormController(worm1), new WormController(worm2)];
+    this.inputManager  = new InputManager(this.input.keyboard!);
+    this.controllers   = [new WormController(worm1), new WormController(worm2)];
 
-    // ── Physics ────────────────────────────────────────────────────────
+    // ── Physics + audio ────────────────────────────────────────────────
     this.physicsSystem = new PhysicsSystem();
+    this.audio         = new AudioManager();
 
-    // ── Overlay + HUD (created last so they render on top) ─────────────
+    // ── Overlay + HUD (last → render on top) ──────────────────────────
     this.overlayGraphics = this.add.graphics().setDepth(10);
     this.hud = new HUD(this, CANVAS_WIDTH);
   }
@@ -97,26 +104,63 @@ export class GameScene extends Phaser.Scene {
     const [worm1, worm2] = this.worms;
     const input1 = this.inputManager.getPlayer1();
     const input2 = this.inputManager.getPlayer2();
+    const load1  = this.loadouts.get(worm1)!;
+    const load2  = this.loadouts.get(worm2)!;
 
     // ── Controllers ────────────────────────────────────────────────────
     this.controllers[0].update(input1, dt);
     this.controllers[1].update(input2, dt);
 
+    if (this.controllers[0].justJumped) this.audio.playJump();
+    if (this.controllers[1].justJumped) this.audio.playJump();
+
+    // ── Weapon switching ───────────────────────────────────────────────
+    if (input1.nextWeapon) load1.nextWeapon();
+    if (input1.prevWeapon) load1.prevWeapon();
+    if (input2.nextWeapon) load2.nextWeapon();
+    if (input2.prevWeapon) load2.prevWeapon();
+
     // ── Loadout timers ─────────────────────────────────────────────────
-    this.loadouts.forEach(l => l.update(dt));
+    load1.update(dt);
+    load2.update(dt);
+
+    // ── Rope handling ──────────────────────────────────────────────────
+    const ropeData: Array<{ worm: Worm; load: Loadout; fire: boolean }> = [
+      { worm: worm1, load: load1, fire: input1.fire },
+      { worm: worm2, load: load2, fire: input2.fire },
+    ];
+    for (const { worm, load, fire } of ropeData) {
+      const shot = this.ropeSystem.handleInput(worm, load, fire, this.terrain);
+      if (shot) this.audio.playRopeShoot();
+    }
 
     // ── Weapon fire ────────────────────────────────────────────────────
-    [input1.fire, input2.fire].forEach((fire, i) => {
-      const worm    = this.worms[i];
+    const fireInputs: [boolean, boolean] = [input1.fire, input2.fire];
+    this.worms.forEach((worm, i) => {
       const loadout = this.loadouts.get(worm)!;
-      const proj    = this.weaponSystem.tryFire(worm, loadout, fire);
-      if (proj) this.activeProjectiles.push(proj);
+      const projs   = this.weaponSystem.tryFire(worm, loadout, fireInputs[i]);
+      for (const p of projs) {
+        this.activeProjectiles.push(p);
+        this.spawnMuzzleFlash(p.x, p.y);
+        const large = worm.playerId === 1
+          ? load1.activeWeapon.id === 'minigun'
+          : load2.activeWeapon.id === 'minigun';
+        if (large) this.audio.playMinigunShot();
+        else       this.audio.playFire();
+      }
     });
 
     // ── Physics ────────────────────────────────────────────────────────
     this.physicsSystem.update(this.worms, dt, this.terrain);
+
+    // Rope constraints applied after normal physics
+    this.ropeSystem.applyConstraints(worm1);
+    this.ropeSystem.applyConstraints(worm2);
+    this.ropeSystem.releaseOnDeath(worm1);
+    this.ropeSystem.releaseOnDeath(worm2);
+
     this.physicsSystem.updateProjectiles(
-      this.activeProjectiles, dt, this.terrain,
+      this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
         this.explosionSystem.detonate(
           hitX, hitY,
@@ -124,7 +168,10 @@ export class GameScene extends Phaser.Scene {
           proj.weapon.splashDamage,
           proj.weapon.splashRadius,
         );
-        this.cameras.main.shake(180, 0.008);
+        const big = proj.weapon.explosionRadius >= 20;
+        this.audio.playExplosion(big);
+        if (big) this.cameras.main.shake(180, 0.008);
+        else     this.cameras.main.shake(60,  0.003);
       },
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
@@ -136,35 +183,46 @@ export class GameScene extends Phaser.Scene {
       rect.setVisible(!worm.isDead);
     }
 
-    // ── Win condition check ────────────────────────────────────────────
+    // ── Win condition ─────────────────────────────────────────────────
     this.checkWinCondition();
 
     // ── HUD + overlay ─────────────────────────────────────────────────
-    this.hud.update(worm1, this.loadouts.get(worm1)!, worm2, this.loadouts.get(worm2)!, this.timeRemaining);
+    this.hud.update(worm1, load1, worm2, load2, this.timeRemaining);
     this.overlayGraphics.clear();
+    this.ropeSystem.draw(this.overlayGraphics);
     this.drawAimLines();
     this.drawProjectiles();
+  }
+
+  private spawnMuzzleFlash(x: number, y: number): void {
+    const flash = this.add.circle(x, y, 7, 0xffffff, 1).setDepth(12);
+    this.tweens.add({
+      targets:    flash,
+      alpha:      0,
+      scaleX:     2.5,
+      scaleY:     2.5,
+      duration:   90,
+      onComplete: () => flash.destroy(),
+    });
   }
 
   private checkWinCondition(): void {
     const [worm1, worm2] = this.worms;
     const timedOut = this.timeRemaining <= 0;
-    const bothDead = worm1.isDead && worm2.isDead;
     const oneDead  = worm1.isDead || worm2.isDead;
 
     if (!oneDead && !timedOut) return;
 
     this.matchOver = true;
 
-    let winner: number; // 0 = draw
-    if (bothDead) {
+    let winner: number;
+    if (worm1.isDead && worm2.isDead) {
       winner = 0;
     } else if (worm1.isDead) {
       winner = 2;
     } else if (worm2.isDead) {
       winner = 1;
     } else {
-      // Time ran out — higher HP wins
       if      (worm1.hp > worm2.hp) winner = 1;
       else if (worm2.hp > worm1.hp) winner = 2;
       else                          winner = 0;
@@ -192,7 +250,14 @@ export class GameScene extends Phaser.Scene {
   private drawProjectiles(): void {
     const g = this.overlayGraphics;
     for (const proj of this.activeProjectiles) {
-      g.fillStyle(0xffee44, 1);
+      // Grenades pulse slightly while alive — tint based on fuse remaining
+      if (proj.weapon.behavior === 'bounce' && proj.fuseTimer !== null) {
+        const urgency = 1 - proj.fuseTimer / proj.weapon.fuseMs!;
+        const col = urgency > 0.6 ? 0xff4400 : 0xffcc00;
+        g.fillStyle(col, 1);
+      } else {
+        g.fillStyle(0xffee44, 1);
+      }
       g.fillCircle(proj.x, proj.y, proj.weapon.projectileSize);
     }
   }

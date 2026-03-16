@@ -120,43 +120,76 @@ export class PhysicsSystem {
   // ── Projectile physics ────────────────────────────────────────────
 
   /**
-   * Advances all active projectiles and calls onHit when terrain is struck.
-   * Uses a swept pixel check to prevent tunneling at high velocities.
+   * Advances all active projectiles.
+   * Handles: swept terrain collision, direct worm hits, bounce reflection, fuse timers.
    */
   updateProjectiles(
     projectiles: Projectile[],
     dt: number,
     terrain: TerrainMap,
+    worms: Worm[],
     onHit: (proj: Projectile, hitX: number, hitY: number) => void,
   ): void {
     for (const proj of projectiles) {
       if (!proj.active) continue;
 
+      // ── Fuse timer ──────────────────────────────────────────────────
+      if (proj.fuseTimer !== null) {
+        proj.fuseTimer -= dt * 1000;
+        if (proj.fuseTimer <= 0) {
+          proj.active = false;
+          onHit(proj, proj.x, proj.y);
+          continue;
+        }
+      }
+
       proj.vy += GRAVITY * proj.weapon.projectileGravity * dt;
 
       const dx = proj.vx * dt;
       const dy = proj.vy * dt;
-
-      // Swept check: sample along the movement vector each pixel step
       const steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy)));
-      let hit = false;
+
+      let terrainHit = false;
 
       for (let i = 1; i <= steps; i++) {
         const tx = proj.x + dx * (i / steps);
         const ty = proj.y + dy * (i / steps);
+
+        // ── Direct worm hit ─────────────────────────────────────────
+        for (const worm of worms) {
+          if (worm.isDead) continue;
+          if (
+            Math.abs(tx - worm.x) < worm.width  / 2 + proj.weapon.projectileSize &&
+            Math.abs(ty - worm.y) < worm.height / 2 + proj.weapon.projectileSize
+          ) {
+            proj.active = false;
+            onHit(proj, tx, ty);
+            terrainHit = true;
+            break;
+          }
+        }
+        if (terrainHit) break;
+
+        // ── Terrain hit ─────────────────────────────────────────────
         if (terrain.isSolid(tx, ty)) {
-          proj.active = false;
-          onHit(proj, tx, ty);
-          hit = true;
+          if (
+            proj.weapon.behavior === 'bounce' &&
+            proj.bounceCount < proj.weapon.maxBounces
+          ) {
+            this.bounceProjectile(proj, dx, dy);
+          } else {
+            proj.active = false;
+            onHit(proj, tx, ty);
+          }
+          terrainHit = true;
           break;
         }
       }
 
-      if (!hit) {
+      if (!terrainHit) {
         proj.x += dx;
         proj.y += dy;
 
-        // Deactivate if out of bounds
         if (
           proj.x < 0 || proj.x > CANVAS_WIDTH ||
           proj.y < 0 || proj.y > CANVAS_HEIGHT
@@ -165,6 +198,22 @@ export class PhysicsSystem {
         }
       }
     }
+  }
+
+  private bounceProjectile(proj: Projectile, dx: number, dy: number): void {
+    const DAMPEN = 0.62;
+    // Use the incoming velocity direction to determine which axis to reflect
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      proj.vx = -proj.vx * DAMPEN;
+      proj.vy *=          DAMPEN;
+    } else {
+      proj.vy = -proj.vy * DAMPEN;
+      proj.vx *=          DAMPEN;
+    }
+    proj.bounceCount++;
+    // Nudge back out of terrain
+    proj.x -= Math.sign(dx) * 2;
+    proj.y -= Math.sign(dy) * 2;
   }
 
   // ── Phase 1 fallback: solid floor at bottom ────────────────────────

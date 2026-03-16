@@ -53,3 +53,23 @@ refactor: extract weapon system into separate module
 ## Commands (fill in after project init)
 - `npm run dev` — start dev server
 - `npm run build` — production build
+
+## Session Management
+
+### After every git commit:
+Update STATUS.md with:
+- What was just completed
+- What is currently working
+- Known issues or bugs
+- Exact next step
+
+### At end of every session:
+Update STATUS.md with a clear "STOPPED HERE" section:
+- Last completed task
+- Next task to start
+- Any unfinished work in progress
+- Open decisions that need to be made
+
+### At start of every session:
+Read CLAUDE.md and STATUS.md before doing anything else.
+Summarize current state and confirm next step with me.

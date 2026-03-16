@@ -23,11 +23,13 @@ export class Loadout {
   get isReloading():  boolean   { return this.reloadTimer > 0; }
 
   canFire(): boolean {
-    return this.reloadTimer <= 0 && this.activeAmmo > 0;
+    return this.reloadTimer <= 0 && (this.activeWeapon.infiniteAmmo || this.activeAmmo > 0);
   }
 
   consumeAmmo(): void {
-    this.slots[this.activeIndex].ammo = Math.max(0, this.activeAmmo - 1);
+    if (!this.activeWeapon.infiniteAmmo) {
+      this.slots[this.activeIndex].ammo = Math.max(0, this.activeAmmo - 1);
+    }
     this.reloadTimer = this.activeWeapon.reloadMs;
   }
 

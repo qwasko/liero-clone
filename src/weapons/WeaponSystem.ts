@@ -1,49 +1,64 @@
 import { Worm } from '../entities/Worm';
 import { Projectile } from '../entities/Projectile';
 import { Loadout } from './Loadout';
+import { WeaponDef } from './WeaponDef';
 
-/**
- * Converts a fire-button press into a Projectile.
- * Tracks previous fire state per worm to implement rising-edge detection
- * (single-shot weapons fire once per press, not once per frame held).
- */
 export class WeaponSystem {
   private prevFire = new Map<Worm, boolean>();
 
   /**
-   * Call every frame. Returns a new Projectile if the weapon fired,
-   * or null if the shot was not taken (reloading, no ammo, button held).
+   * Called every frame. Returns newly spawned projectiles (may be >1 for shotgun).
+   * Returns empty array for rope weapons — handled by RopeSystem.
    */
-  tryFire(
-    worm:      Worm,
-    loadout:   Loadout,
-    fireInput: boolean,
-  ): Projectile | null {
+  tryFire(worm: Worm, loadout: Loadout, fireInput: boolean): Projectile[] {
     const wasDown = this.prevFire.get(worm) ?? false;
     this.prevFire.set(worm, fireInput);
 
-    // Rising edge: button just pressed
-    if (!fireInput || wasDown) return null;
-    if (worm.isDead)           return null;
-    if (!loadout.canFire())    return null;
-
-    loadout.consumeAmmo();
+    if (!fireInput || worm.isDead || !loadout.canFire()) return [];
 
     const weapon = loadout.activeWeapon;
 
-    // Fire direction: horizontal component flips with facing
-    const aimX = worm.facingRight
-      ?  Math.cos(worm.aimAngle)
-      : -Math.cos(worm.aimAngle);
-    const aimY = Math.sin(worm.aimAngle);
+    // Single-shot: only fire on the rising edge
+    if (weapon.fireMode === 'single' && wasDown) return [];
 
-    const vx = aimX * weapon.projectileSpeed;
-    const vy = aimY * weapon.projectileSpeed;
+    // Rope weapons are handled entirely by RopeSystem
+    if (weapon.behavior === 'rope') return [];
 
-    // Spawn slightly in front of the worm so it doesn't immediately hit its own terrain
+    loadout.consumeAmmo();
+    return this.spawnPellets(worm, weapon);
+  }
+
+  private spawnPellets(worm: Worm, weapon: WeaponDef): Projectile[] {
+    const result: Projectile[] = [];
+
+    // Base angle: respect facing direction
+    const baseAngle = worm.facingRight ? worm.aimAngle : Math.PI - worm.aimAngle;
+    const aimX = Math.cos(baseAngle);
+    const aimY = Math.sin(baseAngle);
+
     const spawnX = worm.x + aimX * (worm.width  / 2 + 3);
     const spawnY = worm.y + aimY * (worm.height / 2 + 3);
 
-    return new Projectile(spawnX, spawnY, vx, vy, worm.playerId, weapon);
+    for (let i = 0; i < weapon.pellets; i++) {
+      let angleOffset: number;
+      if (weapon.pellets === 1) {
+        // Single pellet: random spread (gives minigun its natural drift)
+        angleOffset = (Math.random() - 0.5) * weapon.spread;
+      } else {
+        // Multiple pellets: evenly distributed across spread arc
+        angleOffset = (i / (weapon.pellets - 1) - 0.5) * weapon.spread;
+      }
+
+      const angle = baseAngle + angleOffset;
+      result.push(new Projectile(
+        spawnX, spawnY,
+        Math.cos(angle) * weapon.projectileSpeed,
+        Math.sin(angle) * weapon.projectileSpeed,
+        worm.playerId,
+        weapon,
+      ));
+    }
+
+    return result;
   }
 }
