@@ -21,4 +21,4 @@
 - None currently known
 
 ## Next step
-- Phase 9: Respawn + lives system
+- Phase 10: Load+Change option (weapon switch while reloading)

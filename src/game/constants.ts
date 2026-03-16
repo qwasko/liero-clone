@@ -13,3 +13,5 @@ export const WORM_MAX_HP = 100;
 
 // Match
 export const MATCH_DURATION_SECONDS = 180;
+export const DEFAULT_LIVES = 3;
+export const RESPAWN_DELAY_MS = 2000; // ms before a dead worm respawns

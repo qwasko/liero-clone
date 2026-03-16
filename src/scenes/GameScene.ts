@@ -17,7 +17,7 @@ import { DiggingSystem } from '../game/DiggingSystem';
 import { CrateSystem } from '../game/CrateSystem';
 import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS } from '../game/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS, DEFAULT_LIVES, RESPAWN_DELAY_MS, WORM_MAX_HP } from '../game/constants';
 
 const WORM_COLORS: Record<1 | 2, number> = { 1: 0x00ff88, 2: 0xff4444 };
 const SPAWN_P1 = { x: 200, y: 220 };
@@ -51,6 +51,10 @@ export class GameScene extends Phaser.Scene {
   private timeRemaining: number = MATCH_DURATION_SECONDS;
   private matchOver: boolean = false;
 
+  // Lives + respawn
+  private lives: Map<Worm, number> = new Map();
+  private respawnTimers: Map<Worm, number | null> = new Map(); // ms remaining, null = not scheduled
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -59,6 +63,8 @@ export class GameScene extends Phaser.Scene {
     this.matchOver = false;
     this.timeRemaining = MATCH_DURATION_SECONDS;
     this.activeProjectiles = [];
+    this.lives.clear();
+    this.respawnTimers.clear();
 
     // ── Terrain ────────────────────────────────────────────────────────
     this.terrain = TerrainGenerator.generate(CANVAS_WIDTH, CANVAS_HEIGHT, [SPAWN_P1, SPAWN_P2]);
@@ -97,6 +103,12 @@ export class GameScene extends Phaser.Scene {
         else                  this.audio.playExplosion(false);
       },
     );
+
+    // ── Lives ──────────────────────────────────────────────────────────
+    for (const worm of this.worms) {
+      this.lives.set(worm, DEFAULT_LIVES);
+      this.respawnTimers.set(worm, null);
+    }
 
     // ── Input + controllers ────────────────────────────────────────────
     this.inputManager  = new InputManager(this.input.keyboard!);
@@ -194,6 +206,34 @@ export class GameScene extends Phaser.Scene {
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
 
+    // ── Respawn timers ────────────────────────────────────────────────
+    for (const worm of this.worms) {
+      if (!worm.isDead) continue;
+      const timer = this.respawnTimers.get(worm);
+      if (timer === undefined || timer === null) continue;
+      const newTimer = timer - dt * 1000;
+      if (newTimer <= 0) {
+        this.respawnTimers.set(worm, null);
+        this.respawnWorm(worm);
+      } else {
+        this.respawnTimers.set(worm, newTimer);
+      }
+    }
+
+    // ── On-death: schedule respawn or eliminate ────────────────────────
+    // Only runs once per death (null = alive/unhandled; >0 = countdown; 0 = eliminated)
+    for (const worm of this.worms) {
+      if (!worm.isDead) continue;
+      if (this.respawnTimers.get(worm) !== null) continue; // already handled
+      const remaining = (this.lives.get(worm) ?? 0) - 1;
+      this.lives.set(worm, Math.max(0, remaining));
+      if (remaining > 0) {
+        this.respawnTimers.set(worm, RESPAWN_DELAY_MS); // countdown
+      } else {
+        this.respawnTimers.set(worm, 0); // sentinel: eliminated permanently
+      }
+    }
+
     // ── Sync worm visuals ─────────────────────────────────────────────
     for (const worm of this.worms) {
       const rect = this.wormGraphics.get(worm)!;
@@ -205,7 +245,11 @@ export class GameScene extends Phaser.Scene {
     this.checkWinCondition();
 
     // ── HUD + overlay ─────────────────────────────────────────────────
-    this.hud.update(worm1, load1, worm2, load2, this.timeRemaining);
+    this.hud.update(
+      worm1, load1, this.lives.get(worm1) ?? 0,
+      worm2, load2, this.lives.get(worm2) ?? 0,
+      this.timeRemaining,
+    );
     this.overlayGraphics.clear();
     this.ropeSystem.draw(this.overlayGraphics);
     this.drawAimLines();
@@ -226,29 +270,69 @@ export class GameScene extends Phaser.Scene {
 
   private checkWinCondition(): void {
     const [worm1, worm2] = this.worms;
-    const timedOut = this.timeRemaining <= 0;
-    const oneDead  = worm1.isDead || worm2.isDead;
+    const lives1 = this.lives.get(worm1) ?? 0;
+    const lives2 = this.lives.get(worm2) ?? 0;
 
-    if (!oneDead && !timedOut) return;
+    // Sentinel 0 means permanently eliminated (set when last life is spent)
+    const eliminated1 = this.respawnTimers.get(worm1) === 0;
+    const eliminated2 = this.respawnTimers.get(worm2) === 0;
+    const timedOut    = this.timeRemaining <= 0;
+
+    if (!eliminated1 && !eliminated2 && !timedOut) return;
 
     this.matchOver = true;
 
     let winner: number;
-    if (worm1.isDead && worm2.isDead) {
+    if (eliminated1 && eliminated2) {
       winner = 0;
-    } else if (worm1.isDead) {
+    } else if (eliminated1) {
       winner = 2;
-    } else if (worm2.isDead) {
+    } else if (eliminated2) {
       winner = 1;
     } else {
-      if      (worm1.hp > worm2.hp) winner = 1;
+      // Time ran out — most lives wins; tie-break on HP
+      if      (lives1 > lives2) winner = 1;
+      else if (lives2 > lives1) winner = 2;
+      else if (worm1.hp > worm2.hp) winner = 1;
       else if (worm2.hp > worm1.hp) winner = 2;
-      else                          winner = 0;
+      else winner = 0;
     }
 
     this.time.delayedCall(800, () => {
       this.scene.start('GameOverScene', { winner });
     });
+  }
+
+  private respawnWorm(worm: Worm): void {
+    const pos = this.findRespawnPosition(worm);
+    worm.x     = pos.x;
+    worm.y     = pos.y;
+    worm.vx    = 0;
+    worm.vy    = 0;
+    worm.hp    = WORM_MAX_HP;
+    worm.state = 'airborne'; // isDead checks state==='dead'||hp<=0; both reset here
+    this.respawnTimers.set(worm, null); // ready to handle next death
+    // Restore loadout ammo
+    this.loadouts.set(worm, new Loadout([...DEFAULT_LOADOUT]));
+  }
+
+  private findRespawnPosition(worm: Worm): { x: number; y: number } {
+    const W = this.terrain.width;
+    const H = this.terrain.height;
+    const enemy = this.worms.find(w => w !== worm);
+
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const x = Math.floor(20 + Math.random() * (W - 40));
+      for (let y = 20; y < H - 20; y++) {
+        if (!this.terrain.isSolid(x, y) && !this.terrain.isSolid(x, y - worm.height)) {
+          // Prefer a spot away from the enemy
+          if (enemy && Math.hypot(x - enemy.x, y - enemy.y) < 80) continue;
+          return { x, y };
+        }
+      }
+    }
+    // Fallback to spawn points
+    return worm.playerId === 1 ? SPAWN_P1 : SPAWN_P2;
   }
 
   private drawAimLines(): void {

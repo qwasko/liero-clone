@@ -26,6 +26,8 @@ export class HUD {
   private p2Hp:     Phaser.GameObjects.Text;
   private p1Weapon: Phaser.GameObjects.Text;
   private p2Weapon: Phaser.GameObjects.Text;
+  private p1Lives:  Phaser.GameObjects.Text;
+  private p2Lives:  Phaser.GameObjects.Text;
   private timer:    Phaser.GameObjects.Text;
 
   // Pre-computed x positions for the two HP bars
@@ -56,11 +58,13 @@ export class HUD {
     scene.add.text(PAD, PAD, 'P1', mono('#00ff88')).setDepth(DEPTH + 2);
     this.p1Hp     = scene.add.text(this.barX1 + BAR_W + 4, PAD,      '', mono('#ffffff')).setDepth(DEPTH + 2);
     this.p1Weapon = scene.add.text(PAD,                    PAD + 16, '', mono('#aaffcc')).setDepth(DEPTH + 2);
+    this.p1Lives  = scene.add.text(this.barX1 + BAR_W + 4, PAD + 16, '', mono('#00ff88')).setDepth(DEPTH + 2);
 
     // P2 — right side
     scene.add.text(W - PAD, PAD, 'P2', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2);
     this.p2Hp     = scene.add.text(this.barX2 - 4,         PAD,      '', mono('#ffffff')).setOrigin(1, 0).setDepth(DEPTH + 2);
     this.p2Weapon = scene.add.text(W - PAD,                PAD + 16, '', mono('#ffaaaa')).setOrigin(1, 0).setDepth(DEPTH + 2);
+    this.p2Lives  = scene.add.text(this.barX2 - 4,         PAD + 16, '', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2);
 
     // Timer — centred
     this.timer = scene.add.text(W / 2, PAD, '', {
@@ -69,8 +73,8 @@ export class HUD {
   }
 
   update(
-    worm1: Worm, load1: Loadout,
-    worm2: Worm, load2: Loadout,
+    worm1: Worm, load1: Loadout, lives1: number,
+    worm2: Worm, load2: Loadout, lives2: number,
     timeRemaining: number,
   ): void {
     this.bars.clear();
@@ -82,6 +86,8 @@ export class HUD {
     this.p2Hp.setText(worm2.isDead ? 'DEAD' : `${worm2.hp}hp`);
     this.p1Weapon.setText(this.weaponLine(load1));
     this.p2Weapon.setText(this.weaponLine(load2));
+    this.p1Lives.setText('♥'.repeat(lives1));
+    this.p2Lives.setText('♥'.repeat(lives2));
 
     const secs = Math.max(0, Math.ceil(timeRemaining));
     const mm   = String(Math.floor(secs / 60)).padStart(2, '0');
