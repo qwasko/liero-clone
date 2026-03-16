@@ -152,8 +152,8 @@ export class GameScene extends Phaser.Scene {
     this.crateSystem.update(dt);
 
     // ── Rope handling (independent of weapon loadout) ──────────────────
-    if (this.ropeSystem.handleInput(worm1, input1, this.terrain, dt)) this.audio.playRopeShoot();
-    if (this.ropeSystem.handleInput(worm2, input2, this.terrain, dt)) this.audio.playRopeShoot();
+    if (this.ropeSystem.handleInput(worm1, input1, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
+    if (this.ropeSystem.handleInput(worm2, input2, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
 
     // ── Weapon fire ────────────────────────────────────────────────────
     const fireInputs: [boolean, boolean] = [input1.fire, input2.fire];

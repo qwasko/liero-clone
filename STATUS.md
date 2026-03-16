@@ -21,4 +21,4 @@
 - None currently known
 
 ## Next step
-- Phase 8: Ninja rope latches onto enemy worm and drags them
+- Phase 9: Respawn + lives system
