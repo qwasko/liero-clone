@@ -6,8 +6,15 @@ export interface InputState {
   down: boolean;
   jump: boolean;
   fire: boolean;
-  nextWeapon: boolean;
-  prevWeapon: boolean;
+  nextWeapon: boolean;  // JustDown — suppressed while weaponModifier held
+  prevWeapon: boolean;  // JustDown — suppressed while weaponModifier held
+  /**
+   * True while the weapon-change key is held.
+   * Used as the rope modifier: hold + jump = toggle rope,
+   * hold + up/down = adjust rope length.
+   * While held, weapon switching is blocked (key conflict).
+   */
+  weaponModifier: boolean;
 }
 
 export function emptyInputState(): InputState {
@@ -20,5 +27,6 @@ export function emptyInputState(): InputState {
     fire: false,
     nextWeapon: false,
     prevWeapon: false,
+    weaponModifier: false,
   };
 }

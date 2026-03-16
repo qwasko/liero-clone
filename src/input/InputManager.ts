@@ -67,14 +67,15 @@ export class InputManager {
 
   private readKeys(keys: typeof this.keys1): InputState {
     const s = emptyInputState();
-    s.left       = keys.left.isDown;
-    s.right      = keys.right.isDown;
-    s.up         = keys.up.isDown;
-    s.down       = keys.down.isDown;
-    s.jump       = keys.jump.isDown;
-    s.fire       = keys.fire.isDown;
-    s.nextWeapon = Phaser.Input.Keyboard.JustDown(keys.nextWeapon);
-    s.prevWeapon = Phaser.Input.Keyboard.JustDown(keys.prevWeapon);
+    s.left           = keys.left.isDown;
+    s.right          = keys.right.isDown;
+    s.up             = keys.up.isDown;
+    s.down           = keys.down.isDown;
+    s.jump           = keys.jump.isDown;
+    s.fire           = keys.fire.isDown;
+    s.weaponModifier = keys.nextWeapon.isDown; // held = rope mode active
+    s.nextWeapon     = Phaser.Input.Keyboard.JustDown(keys.nextWeapon);
+    s.prevWeapon     = Phaser.Input.Keyboard.JustDown(keys.prevWeapon);
     return s;
   }
 }

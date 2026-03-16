@@ -114,25 +114,23 @@ export class GameScene extends Phaser.Scene {
     if (this.controllers[0].justJumped) this.audio.playJump();
     if (this.controllers[1].justJumped) this.audio.playJump();
 
-    // ── Weapon switching ───────────────────────────────────────────────
-    if (input1.nextWeapon) load1.nextWeapon();
-    if (input1.prevWeapon) load1.prevWeapon();
-    if (input2.nextWeapon) load2.nextWeapon();
-    if (input2.prevWeapon) load2.prevWeapon();
+    // ── Weapon switching — blocked while rope is attached ──────────────
+    if (!this.ropeSystem.hasRope(worm1)) {
+      if (input1.nextWeapon) load1.nextWeapon();
+      if (input1.prevWeapon) load1.prevWeapon();
+    }
+    if (!this.ropeSystem.hasRope(worm2)) {
+      if (input2.nextWeapon) load2.nextWeapon();
+      if (input2.prevWeapon) load2.prevWeapon();
+    }
 
     // ── Loadout timers ─────────────────────────────────────────────────
     load1.update(dt);
     load2.update(dt);
 
-    // ── Rope handling ──────────────────────────────────────────────────
-    const ropeData: Array<{ worm: Worm; load: Loadout; fire: boolean }> = [
-      { worm: worm1, load: load1, fire: input1.fire },
-      { worm: worm2, load: load2, fire: input2.fire },
-    ];
-    for (const { worm, load, fire } of ropeData) {
-      const shot = this.ropeSystem.handleInput(worm, load, fire, this.terrain);
-      if (shot) this.audio.playRopeShoot();
-    }
+    // ── Rope handling (independent of weapon loadout) ──────────────────
+    if (this.ropeSystem.handleInput(worm1, input1, this.terrain, dt)) this.audio.playRopeShoot();
+    if (this.ropeSystem.handleInput(worm2, input2, this.terrain, dt)) this.audio.playRopeShoot();
 
     // ── Weapon fire ────────────────────────────────────────────────────
     const fireInputs: [boolean, boolean] = [input1.fire, input2.fire];
@@ -142,11 +140,8 @@ export class GameScene extends Phaser.Scene {
       for (const p of projs) {
         this.activeProjectiles.push(p);
         this.spawnMuzzleFlash(p.x, p.y);
-        const large = worm.playerId === 1
-          ? load1.activeWeapon.id === 'minigun'
-          : load2.activeWeapon.id === 'minigun';
-        if (large) this.audio.playMinigunShot();
-        else       this.audio.playFire();
+        if (p.weapon.id === 'minigun') this.audio.playMinigunShot();
+        else                           this.audio.playFire();
       }
     });
 
@@ -154,8 +149,8 @@ export class GameScene extends Phaser.Scene {
     this.physicsSystem.update(this.worms, dt, this.terrain);
 
     // Rope constraints applied after normal physics
-    this.ropeSystem.applyConstraints(worm1);
-    this.ropeSystem.applyConstraints(worm2);
+    this.ropeSystem.applyConstraint(worm1);
+    this.ropeSystem.applyConstraint(worm2);
     this.ropeSystem.releaseOnDeath(worm1);
     this.ropeSystem.releaseOnDeath(worm2);
 

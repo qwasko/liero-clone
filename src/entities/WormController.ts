@@ -41,11 +41,13 @@ export class WormController {
     }
     this.prevJump = input.jump;
 
-    // Aim angle (up = more negative, down = more positive)
-    if (input.up) {
-      w.aimAngle = Math.max(-Math.PI / 2, w.aimAngle - AIM_SPEED * dt);
-    } else if (input.down) {
-      w.aimAngle = Math.min(Math.PI / 2, w.aimAngle + AIM_SPEED * dt);
+    // Aim angle — skipped while weaponModifier is held (up/down adjusts rope length instead)
+    if (!input.weaponModifier) {
+      if (input.up) {
+        w.aimAngle = Math.max(-Math.PI / 2, w.aimAngle - AIM_SPEED * dt);
+      } else if (input.down) {
+        w.aimAngle = Math.min(Math.PI / 2, w.aimAngle + AIM_SPEED * dt);
+      }
     }
   }
 }

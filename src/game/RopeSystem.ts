@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { Worm } from '../entities/Worm';
-import { Loadout } from '../weapons/Loadout';
+import { InputState } from '../input/InputState';
 import { TerrainMap } from '../terrain/TerrainMap';
 
-const MAX_ROPE_LENGTH = 220; // px
-const ROPE_START_OFFSET = 12; // skip pixels around worm when casting
+const MAX_ROPE_LENGTH  = 220; // px
+const MIN_ROPE_LENGTH  = 20;  // px — can't pull rope shorter than this
+const ROPE_CAST_START  = 14;  // px from worm centre before we start sampling terrain
+const LENGTH_ADJUST_SPEED = 70; // px/s (hold modifier + up/down)
 
 interface Rope {
   anchorX: number;
@@ -13,94 +15,99 @@ interface Rope {
 }
 
 /**
- * Manages the ninja rope for all worms.
+ * Ninja rope — always available, independent of the weapon loadout.
  *
- * Fire press:  shoot rope (attaches to first terrain pixel in aim direction).
- * Fire press again OR weapon change: release rope.
- * While attached: worm swings as a pendulum constrained by rope length.
+ * Activation : hold [weapon-change key] + press [jump]
+ * Release    : hold [weapon-change key] + press [jump] again
+ * Lengthen   : hold [weapon-change key] + down
+ * Shorten    : hold [weapon-change key] + up
+ * Fire       : fully independent — rope state does not affect shooting
+ * Weapons    : cannot be switched while rope is attached (caller responsibility)
  */
 export class RopeSystem {
   private ropes    = new Map<Worm, Rope | null>();
-  private prevFire = new Map<Worm, boolean>();
+  private prevJump = new Map<Worm, boolean>();
 
   registerWorm(worm: Worm): void {
     this.ropes.set(worm, null);
-    this.prevFire.set(worm, false);
+    this.prevJump.set(worm, false);
   }
 
   hasRope(worm: Worm): boolean {
-    return this.ropes.get(worm) !== null;
+    return (this.ropes.get(worm) ?? null) !== null;
   }
 
   /**
-   * Call every frame. Handles shoot / release toggle for this worm.
-   * Returns true if a rope was just fired.
+   * Call every frame before physics.
+   * Returns true if a rope was just fired this frame.
    */
-  handleInput(
-    worm:      Worm,
-    loadout:   Loadout,
-    fireInput: boolean,
-    terrain:   TerrainMap,
-  ): boolean {
-    if (loadout.activeWeapon.behavior !== 'rope') {
-      // Switched away — release if active
+  handleInput(worm: Worm, input: InputState, terrain: TerrainMap, dt: number): boolean {
+    const wasJump   = this.prevJump.get(worm) ?? false;
+    const jumpEdge  = input.jump && !wasJump;
+    this.prevJump.set(worm, input.jump);
+
+    if (worm.isDead) {
       this.ropes.set(worm, null);
-      this.prevFire.set(worm, fireInput);
       return false;
     }
 
-    const wasDown = this.prevFire.get(worm) ?? false;
-    this.prevFire.set(worm, fireInput);
+    const rope = this.ropes.get(worm) ?? null;
 
-    // Rising edge only
-    if (!fireInput || wasDown || worm.isDead) return false;
-
-    if (this.ropes.get(worm)) {
-      // Already attached — release
-      this.ropes.set(worm, null);
-      loadout.consumeAmmo(); // triggers reload cooldown
-      return false;
+    // ── Toggle (modifier + jump rising edge) ─────────────────────────
+    if (input.weaponModifier && jumpEdge) {
+      if (rope) {
+        // Release
+        this.ropes.set(worm, null);
+        return false;
+      }
+      // Shoot: raycast in aim direction
+      return this.shoot(worm, terrain);
     }
 
-    // Shoot: raycast in aim direction
-    if (!loadout.canFire()) return false;
+    // ── Length adjustment (modifier + up/down, while attached) ───────
+    if (rope && input.weaponModifier) {
+      if (input.up) {
+        rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_ADJUST_SPEED * dt);
+      } else if (input.down) {
+        rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_ADJUST_SPEED * dt);
+      }
+    }
 
+    return false;
+  }
+
+  private shoot(worm: Worm, terrain: TerrainMap): boolean {
     const aimX = worm.facingRight ?  Math.cos(worm.aimAngle) : -Math.cos(worm.aimAngle);
     const aimY = Math.sin(worm.aimAngle);
 
-    for (let i = ROPE_START_OFFSET; i <= MAX_ROPE_LENGTH; i++) {
+    for (let i = ROPE_CAST_START; i <= MAX_ROPE_LENGTH; i++) {
       const rx = worm.x + aimX * i;
       const ry = worm.y + aimY * i;
       if (terrain.isSolid(rx, ry)) {
         this.ropes.set(worm, { anchorX: rx, anchorY: ry, length: i });
-        loadout.consumeAmmo();
         return true;
       }
     }
-
-    // No terrain found in range — consume reload cooldown anyway
-    loadout.consumeAmmo();
-    return false;
+    return false; // no terrain found in range
   }
 
   /**
-   * Apply pendulum constraint after normal physics have been integrated.
-   * Call this after PhysicsSystem.update().
+   * Apply pendulum constraint after PhysicsSystem has integrated the worm.
+   * Called once per frame per worm.
    */
-  applyConstraints(worm: Worm): void {
-    const rope = this.ropes.get(worm);
+  applyConstraint(worm: Worm): void {
+    const rope = this.ropes.get(worm) ?? null;
     if (!rope || worm.isDead) return;
 
     const dx   = worm.x - rope.anchorX;
     const dy   = worm.y - rope.anchorY;
     const dist = Math.hypot(dx, dy);
-
     if (dist < 1) return;
 
     const nx = dx / dist;
     const ny = dy / dist;
 
-    // Remove outward radial velocity component (inelastic constraint)
+    // Remove outward radial velocity (inelastic rope constraint)
     const radial = worm.vx * nx + worm.vy * ny;
     if (radial > 0) {
       worm.vx -= radial * nx;
@@ -118,16 +125,14 @@ export class RopeSystem {
     if (worm.isDead) this.ropes.set(worm, null);
   }
 
-  /** Draw all active ropes. Call inside the overlay graphics clear/redraw loop. */
   draw(g: Phaser.GameObjects.Graphics): void {
     this.ropes.forEach((rope, worm) => {
       if (!rope || worm.isDead) return;
-      g.lineStyle(1, 0xcccccc, 0.9);
+      g.lineStyle(1, 0xdddddd, 0.9);
       g.beginPath();
       g.moveTo(worm.x, worm.y);
       g.lineTo(rope.anchorX, rope.anchorY);
       g.strokePath();
-      // Anchor dot
       g.fillStyle(0xffffff, 1);
       g.fillCircle(rope.anchorX, rope.anchorY, 3);
     });

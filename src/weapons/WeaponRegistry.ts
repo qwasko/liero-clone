@@ -54,11 +54,14 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
 
 };
 
-/** Default 5-weapon loadout given to each player. */
+/**
+ * Default 5-weapon loadout given to each player.
+ * Ninja rope is NOT included — it is always available separately via
+ * hold [weapon-change] + [jump].
+ */
 export const DEFAULT_LOADOUT: WeaponDef[] = [
   WeaponRegistry.bazooka,
   WeaponRegistry.minigun,
   WeaponRegistry.grenade,
   WeaponRegistry.shotgun,
-  WeaponRegistry.rope,
 ];
