@@ -157,7 +157,7 @@ export class PhysicsSystem {
 
         // ── Direct worm hit ─────────────────────────────────────────
         for (const worm of worms) {
-          if (worm.isDead) continue;
+          if (worm.isDead || worm.playerId === proj.ownerId) continue;
           if (
             Math.abs(tx - worm.x) < worm.width  / 2 + proj.weapon.projectileSize &&
             Math.abs(ty - worm.y) < worm.height / 2 + proj.weapon.projectileSize
