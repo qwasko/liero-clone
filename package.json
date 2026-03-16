@@ -1,0 +1,20 @@
+{
+  "name": "liero_clone",
+  "version": "1.0.0",
+  "description": "Browser-based Liero clone",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  }
+}
