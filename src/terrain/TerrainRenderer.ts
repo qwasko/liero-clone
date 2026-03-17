@@ -4,6 +4,7 @@ import { TerrainMap } from './TerrainMap';
 // Earth palette
 const COLOR_SURFACE = { r: 82, g: 130, b: 50  };  // dark green — top edge of solid
 const COLOR_EARTH   = { r: 110, g: 75,  b: 40  };  // brown interior
+const COLOR_ROCK    = { r: 85,  g: 85,  b: 95  };  // dark grey — indestructible
 
 /**
  * Maintains a Phaser CanvasTexture that mirrors the TerrainMap bitmap.
@@ -60,9 +61,17 @@ export class TerrainRenderer {
 
     for (let y = y0; y < y1; y++) {
       for (let x = x0; x < x1; x++) {
-        if (data[y * W + x] === 1) {
+        const v = data[y * W + x];
+        if (v === 2) {
+          // Indestructible rock
+          pixels[pi]     = COLOR_ROCK.r;
+          pixels[pi + 1] = COLOR_ROCK.g;
+          pixels[pi + 2] = COLOR_ROCK.b;
+          pixels[pi + 3] = 255;
+        } else if (v === 1) {
           // Surface pixel: solid here, empty above → darker green cap
-          const isSurface = y === 0 || data[(y - 1) * W + x] === 0;
+          const above = y > 0 ? data[(y - 1) * W + x] : 1;
+          const isSurface = above === 0;
           const c = isSurface ? COLOR_SURFACE : COLOR_EARTH;
           pixels[pi]     = c.r;
           pixels[pi + 1] = c.g;
