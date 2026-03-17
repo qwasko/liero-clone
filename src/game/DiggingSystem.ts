@@ -18,11 +18,11 @@ import { TerrainDestroyer } from '../terrain/TerrainDestroyer';
  * Works on ground and while on the ninja rope.
  */
 export class DiggingSystem {
-  /** Radius of each carved circle. Worm is 10x14, so diameter 24 fits comfortably. */
-  private static readonly DIG_RADIUS = 12;
+  /** Radius of each carved circle. Worm is 10x14, diameter 20 fits snugly. */
+  private static readonly DIG_RADIUS = 10;
 
   /** How far ahead of the worm center the tunnel extends. */
-  private static readonly DIG_REACH = 22;
+  private static readonly DIG_REACH = 20;
 
   /** Spacing between circles along the tunnel path. Overlap keeps it connected. */
   private static readonly DIG_STEP = 5;
