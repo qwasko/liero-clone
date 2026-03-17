@@ -179,17 +179,11 @@ export class GameScene extends Phaser.Scene {
 
     // ── Camera follow setup ────────────────────────────────────────────
     // Zone has zero display size — no texture offset to interfere with follow.
-    const initFocusX = (spawnP1.x + spawnP2.x) / 2;
-    const initFocusY = (spawnP1.y + spawnP2.y) / 2;
-    this.cameraFocus = this.add.zone(initFocusX, initFocusY, 1, 1);
+    this.cameraFocus = this.add.zone(spawnP1.x, spawnP1.y, 1, 1);
     this.cameras.main.setBounds(0, 0, level.width, level.height);
     this.cameras.main.startFollow(this.cameraFocus);
-    console.log('[camera init] spawnP1.x:', spawnP1.x, 'spawnP2.x:', spawnP2.x,
-      'focusX:', initFocusX, 'CANVAS_WIDTH:', CANVAS_WIDTH,
-      'expected scrollX:', Math.max(0, initFocusX - CANVAS_WIDTH / 2),
-      'actual scrollX:', this.cameras.main.scrollX);
 
-    // ── Overlay + HUD (last → render on top) ──────────────────────────
+// ── Overlay + HUD (last → render on top) ──────────────────────────
     this.overlayGraphics = this.add.graphics().setDepth(10);
 
     // Screen-space flash rect for explosion feedback (replaces camera shake)
@@ -373,14 +367,8 @@ export class GameScene extends Phaser.Scene {
     // ── Win condition ─────────────────────────────────────────────────
     this.checkWinCondition();
 
-    // ── Camera: move focus point to worm midpoint each frame ─────────
-    {
-      const targets = this.worms.filter(w => !w.isDead);
-      const pool    = targets.length > 0 ? targets : [...this.worms];
-      const midX    = pool.reduce((s, w) => s + w.x, 0) / pool.length;
-      const midY    = pool.reduce((s, w) => s + w.y, 0) / pool.length;
-      this.cameraFocus.setPosition(midX, midY);
-    }
+    // ── Camera: follow P1 worm (both players share one screen) ────────
+    this.cameraFocus.setPosition(worm1.x, worm1.y);
 
     // ── HUD + overlay ─────────────────────────────────────────────────
     this.hud.update(
