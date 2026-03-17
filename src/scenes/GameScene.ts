@@ -105,9 +105,8 @@ export class GameScene extends Phaser.Scene {
     const spawnP1 = this.spawnPoints[0];
     const spawnP2 = this.spawnPoints[1];
 
-    // Camera: zoom out/in so the full map fits the canvas
-    const zoom = CANVAS_WIDTH / level.width;
-    this.cameras.main.setZoom(zoom);
+    // Camera: always 1:1 pixel scale; bounds clamp scrolling to map edges
+    this.cameras.main.setZoom(1);
     this.cameras.main.setBounds(0, 0, level.width, level.height);
 
     // ── Terrain ────────────────────────────────────────────────────────
@@ -352,6 +351,13 @@ export class GameScene extends Phaser.Scene {
 
     // ── Win condition ─────────────────────────────────────────────────
     this.checkWinCondition();
+
+    // ── Camera: follow midpoint between worms (bounds clamp automatically) ──
+    const [w1, w2] = this.worms;
+    this.cameras.main.centerOn(
+      (w1.x + w2.x) / 2,
+      (w1.y + w2.y) / 2,
+    );
 
     // ── HUD + overlay ─────────────────────────────────────────────────
     this.hud.update(

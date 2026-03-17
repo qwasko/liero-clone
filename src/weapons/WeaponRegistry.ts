@@ -19,7 +19,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0.07,           // slight random spread per bullet
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     explosionRadius: 6, splashDamage: 8, splashRadius: 18,
-    ammoMax: 60, infiniteAmmo: false, reloadMs: 75,
+    ammoMax: 10000, infiniteAmmo: false, reloadMs: 75,
   },
 
   grenade: {

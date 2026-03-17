@@ -2,7 +2,7 @@ import { Worm } from '../entities/Worm';
 import { Projectile } from '../entities/Projectile';
 import { TerrainMap } from '../terrain/TerrainMap';
 import { CollisionUtils } from './CollisionUtils';
-import { GRAVITY, CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
+import { GRAVITY } from '../game/constants';
 
 /** Maximum pixels a worm can "step up" to climb a slope in one frame. */
 const MAX_STEP_HEIGHT = 8;
@@ -35,10 +35,11 @@ export class PhysicsSystem {
       this.resolveHorizontal(worm, terrain);
     }
 
-    // Clamp to canvas sides
+    // Clamp to map sides
     const halfW = worm.width / 2;
-    if (worm.x < halfW)                { worm.x = halfW; worm.vx = 0; }
-    if (worm.x > CANVAS_WIDTH - halfW) { worm.x = CANVAS_WIDTH - halfW; worm.vx = 0; }
+    const mapW  = terrain ? terrain.width : 800;
+    if (worm.x < halfW)         { worm.x = halfW; worm.vx = 0; }
+    if (worm.x > mapW - halfW)  { worm.x = mapW - halfW; worm.vx = 0; }
 
     // ── Gravity + vertical move ──────────────────────────────────────
     worm.vy += GRAVITY * dt;
@@ -191,8 +192,8 @@ export class PhysicsSystem {
         proj.y += dy;
 
         if (
-          proj.x < 0 || proj.x > CANVAS_WIDTH ||
-          proj.y < 0 || proj.y > CANVAS_HEIGHT
+          proj.x < 0 || proj.x > terrain.width ||
+          proj.y < 0 || proj.y > terrain.height
         ) {
           proj.active = false;
         }
