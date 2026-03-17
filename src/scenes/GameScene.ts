@@ -62,7 +62,7 @@ export class GameScene extends Phaser.Scene {
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
   // Invisible point that the camera follows; updated each frame to worm midpoint
-  private cameraFocus!: Phaser.GameObjects.Image;
+  private cameraFocus!: Phaser.GameObjects.Zone;
 
   // Explosion flash overlay (screen-space rect, fades out via tween)
   private flashRect!: Phaser.GameObjects.Rectangle;
@@ -178,19 +178,16 @@ export class GameScene extends Phaser.Scene {
     this.audio         = new AudioManager();
 
     // ── Camera follow setup ────────────────────────────────────────────
-    // Invisible focus point — camera follows it; setBounds prevents leaving map.
-    // Initial position set to spawn midpoint so frame 1 is already correct.
+    // Zone has zero display size — no texture offset to interfere with follow.
     const initFocusX = (spawnP1.x + spawnP2.x) / 2;
     const initFocusY = (spawnP1.y + spawnP2.y) / 2;
-    this.cameraFocus = this.add.image(initFocusX, initFocusY, '__DEFAULT')
-      .setVisible(false).setDepth(0);
+    this.cameraFocus = this.add.zone(initFocusX, initFocusY, 1, 1);
     this.cameras.main.setBounds(0, 0, level.width, level.height);
     this.cameras.main.startFollow(this.cameraFocus);
-    // Snap to initial position immediately (no lag on frame 1)
-    this.cameras.main.setScroll(
-      initFocusX - CANVAS_WIDTH  / 2,
-      initFocusY - CANVAS_HEIGHT / 2,
-    );
+    console.log('[camera init] spawnP1.x:', spawnP1.x, 'spawnP2.x:', spawnP2.x,
+      'focusX:', initFocusX, 'CANVAS_WIDTH:', CANVAS_WIDTH,
+      'expected scrollX:', Math.max(0, initFocusX - CANVAS_WIDTH / 2),
+      'actual scrollX:', this.cameras.main.scrollX);
 
     // ── Overlay + HUD (last → render on top) ──────────────────────────
     this.overlayGraphics = this.add.graphics().setDepth(10);
