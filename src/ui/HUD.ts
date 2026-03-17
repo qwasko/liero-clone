@@ -40,13 +40,13 @@ export class HUD {
     const W = canvasWidth;
     const DEPTH = 20;
 
-    // Background strip
-    scene.add.graphics().setDepth(DEPTH)
+    // Background strip — scrollFactor(0) pins it to screen space
+    scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
       .fillStyle(0x000000, 0.72)
       .fillRect(0, 0, W, HUD.HEIGHT);
 
-    // HP bars (redrawn each frame)
-    this.bars = scene.add.graphics().setDepth(DEPTH + 1);
+    // HP bars (redrawn each frame, also pinned to screen)
+    this.bars = scene.add.graphics().setDepth(DEPTH + 1).setScrollFactor(0);
 
     // P1 bar starts after the "P1" label (~20px)
     this.barX1 = PAD + 22;
@@ -57,26 +57,26 @@ export class HUD {
       ({ fontSize: '11px', color, fontFamily: 'monospace' });
 
     // P1 — left side
-    scene.add.text(PAD, PAD, 'P1', mono('#00ff88')).setDepth(DEPTH + 2);
-    this.p1Hp     = scene.add.text(this.barX1 + BAR_W + 4, PAD,      '', mono('#ffffff')).setDepth(DEPTH + 2);
-    this.p1Weapon = scene.add.text(PAD,                    PAD + 16, '', mono('#aaffcc')).setDepth(DEPTH + 2);
-    this.p1Lives  = scene.add.text(this.barX1 + BAR_W + 4, PAD + 16, '', mono('#00ff88')).setDepth(DEPTH + 2);
+    scene.add.text(PAD, PAD, 'P1', mono('#00ff88')).setDepth(DEPTH + 2).setScrollFactor(0);
+    this.p1Hp     = scene.add.text(this.barX1 + BAR_W + 4, PAD,      '', mono('#ffffff')).setDepth(DEPTH + 2).setScrollFactor(0);
+    this.p1Weapon = scene.add.text(PAD,                    PAD + 16, '', mono('#aaffcc')).setDepth(DEPTH + 2).setScrollFactor(0);
+    this.p1Lives  = scene.add.text(this.barX1 + BAR_W + 4, PAD + 16, '', mono('#00ff88')).setDepth(DEPTH + 2).setScrollFactor(0);
 
     // P2 — right side
-    scene.add.text(W - PAD, PAD, 'P2', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2);
-    this.p2Hp     = scene.add.text(this.barX2 - 4,         PAD,      '', mono('#ffffff')).setOrigin(1, 0).setDepth(DEPTH + 2);
-    this.p2Weapon = scene.add.text(W - PAD,                PAD + 16, '', mono('#ffaaaa')).setOrigin(1, 0).setDepth(DEPTH + 2);
-    this.p2Lives  = scene.add.text(this.barX2 - 4,         PAD + 16, '', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2);
+    scene.add.text(W - PAD, PAD, 'P2', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
+    this.p2Hp     = scene.add.text(this.barX2 - 4,         PAD,      '', mono('#ffffff')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
+    this.p2Weapon = scene.add.text(W - PAD,                PAD + 16, '', mono('#ffaaaa')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
+    this.p2Lives  = scene.add.text(this.barX2 - 4,         PAD + 16, '', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
 
     // Timer — centred
     this.timer = scene.add.text(W / 2, PAD, '', {
       fontSize: '14px', color: '#ffffff', fontFamily: 'monospace',
-    }).setOrigin(0.5, 0).setDepth(DEPTH + 2);
+    }).setOrigin(0.5, 0).setDepth(DEPTH + 2).setScrollFactor(0);
 
     // Tag mode time-as-it line (hidden in normal mode)
     this.tagLine = scene.add.text(W / 2, PAD + 16, '', {
       fontSize: '11px', color: '#ffaa00', fontFamily: 'monospace',
-    }).setOrigin(0.5, 0).setDepth(DEPTH + 2);
+    }).setOrigin(0.5, 0).setDepth(DEPTH + 2).setScrollFactor(0);
   }
 
   update(
