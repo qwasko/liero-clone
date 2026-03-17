@@ -178,11 +178,11 @@ export class GameScene extends Phaser.Scene {
     this.audio         = new AudioManager();
 
     // ── Camera follow setup ────────────────────────────────────────────
-    // Invisible focus object that we reposition each frame; camera tracks it.
+    // Invisible focus point — camera follows it directly, bounds prevent leaving map
     this.cameraFocus = this.add.image(spawnP1.x, spawnP1.y, '__DEFAULT')
       .setVisible(false).setDepth(0);
     this.cameras.main.setBounds(0, 0, level.width, level.height);
-    this.cameras.main.startFollow(this.cameraFocus, true, 0.1, 0.1);
+    this.cameras.main.startFollow(this.cameraFocus);
 
     // ── Overlay + HUD (last → render on top) ──────────────────────────
     this.overlayGraphics = this.add.graphics().setDepth(10);
