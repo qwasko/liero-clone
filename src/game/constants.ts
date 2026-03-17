@@ -2,7 +2,7 @@ export const CANVAS_WIDTH = 800;
 export const CANVAS_HEIGHT = 500;
 
 // Physics
-export const GRAVITY = 600;          // px/s²
+export const GRAVITY = 450;          // px/s² (was 600, reduced 25%)
 export const MOVE_SPEED = 90;        // px/s horizontal
 export const JUMP_VELOCITY = -320;   // px/s upward
 
