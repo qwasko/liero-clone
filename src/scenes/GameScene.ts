@@ -61,6 +61,9 @@ export class GameScene extends Phaser.Scene {
   private tagSystem: TagSystem | null = null;
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
+  // Invisible point that the camera follows; updated each frame to worm midpoint
+  private cameraFocus!: Phaser.GameObjects.Image;
+
   // Explosion flash overlay (screen-space rect, fades out via tween)
   private flashRect!: Phaser.GameObjects.Rectangle;
 
@@ -108,10 +111,8 @@ export class GameScene extends Phaser.Scene {
     const spawnP1 = this.spawnPoints[0];
     const spawnP2 = this.spawnPoints[1];
 
-    // Camera: always 1:1 pixel scale; clear any residual bounds from prior session
+    // Camera: 1:1 scale, follow invisible focus point, bounded to map
     this.cameras.main.setZoom(1);
-    this.cameras.main.removeBounds();
-    this.cameras.main.setScroll(0, 0);
 
     // ── Terrain ────────────────────────────────────────────────────────
     this.terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain);
@@ -175,6 +176,13 @@ export class GameScene extends Phaser.Scene {
     // ── Physics + audio ────────────────────────────────────────────────
     this.physicsSystem = new PhysicsSystem();
     this.audio         = new AudioManager();
+
+    // ── Camera follow setup ────────────────────────────────────────────
+    // Invisible focus object that we reposition each frame; camera tracks it.
+    this.cameraFocus = this.add.image(spawnP1.x, spawnP1.y, '__DEFAULT')
+      .setVisible(false).setDepth(0);
+    this.cameras.main.setBounds(0, 0, level.width, level.height);
+    this.cameras.main.startFollow(this.cameraFocus, true, 0.1, 0.1);
 
     // ── Overlay + HUD (last → render on top) ──────────────────────────
     this.overlayGraphics = this.add.graphics().setDepth(10);
@@ -360,19 +368,13 @@ export class GameScene extends Phaser.Scene {
     // ── Win condition ─────────────────────────────────────────────────
     this.checkWinCondition();
 
-    // ── Camera: follow midpoint, clamped to map edges ────────────────
+    // ── Camera: move focus point to worm midpoint each frame ─────────
     {
-      const mw = this.terrain.width;
-      const mh = this.terrain.height;
-      // Use living worm positions only; fall back to all if both dead
       const targets = this.worms.filter(w => !w.isDead);
       const pool    = targets.length > 0 ? targets : [...this.worms];
-      const midX = pool.reduce((s, w) => s + w.x, 0) / pool.length;
-      const midY = pool.reduce((s, w) => s + w.y, 0) / pool.length;
-      // Clamp so camera never shows outside map
-      const sx = Math.max(0, Math.min(mw - CANVAS_WIDTH,  midX - CANVAS_WIDTH  / 2));
-      const sy = Math.max(0, Math.min(mh - CANVAS_HEIGHT, midY - CANVAS_HEIGHT / 2));
-      this.cameras.main.setScroll(sx, sy);
+      const midX    = pool.reduce((s, w) => s + w.x, 0) / pool.length;
+      const midY    = pool.reduce((s, w) => s + w.y, 0) / pool.length;
+      this.cameraFocus.setPosition(midX, midY);
     }
 
     // ── HUD + overlay ─────────────────────────────────────────────────
