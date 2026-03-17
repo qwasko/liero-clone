@@ -20,16 +20,12 @@ interface Rope {
 /**
  * Ninja rope — always available, independent of the weapon loadout.
  *
- * Activation : hold [weapon-change key] + press [jump]
- * Release    : hold [weapon-change key] + press [jump] again
- * Lengthen   : hold [weapon-change key] + down
- * Shorten    : hold [weapon-change key] + up
- * Fire       : fully independent of rope state
- * Weapons    : cannot be switched while rope is attached (GameScene responsibility)
- *
- * Phase 8: rope can latch onto an enemy worm. When latched the rope
- * constrains both worms — the shooter swings toward the target and the
- * target is dragged toward the shooter (equal & opposite impulse split).
+ * Activation  : CHANGE + JUMP  (releases existing rope first if attached)
+ * Release     : JUMP alone     (while rope is attached)
+ * Lengthen    : CHANGE + DOWN  (while attached)
+ * Shorten     : CHANGE + UP    (while attached)
+ * Fire weapon : normal FIRE    (works while on rope, as long as CHANGE is NOT held)
+ * Weapons     : CHANGE + LEFT/RIGHT cycles weapons even while on rope (GameScene handles)
  */
 export class RopeSystem {
   private ropes    = new Map<Worm, Rope | null>();
@@ -44,7 +40,10 @@ export class RopeSystem {
     return (this.ropes.get(worm) ?? null) !== null;
   }
 
-  /** Returns true if a rope was just fired this frame. */
+  /**
+   * Process rope input for one worm.
+   * Returns true if a rope was just fired this frame (for audio).
+   */
   handleInput(
     worm:     Worm,
     input:    InputState,
@@ -60,14 +59,20 @@ export class RopeSystem {
 
     const rope = this.ropes.get(worm) ?? null;
 
-    // ── Toggle (modifier + jump rising edge) ─────────────────────────
-    if (input.weaponModifier && jumpEdge) {
-      if (rope) { this.ropes.set(worm, null); return false; }
+    // ── CHANGE + JUMP → release existing rope (if any) then fire new one ──
+    if (input.change && jumpEdge) {
+      if (rope) this.ropes.set(worm, null);
       return this.shoot(worm, terrain, allWorms);
     }
 
-    // ── Length adjustment (modifier + up/down while attached) ────────
-    if (rope && input.weaponModifier) {
+    // ── JUMP alone → release rope ──────────────────────────────────────
+    if (jumpEdge && !input.change && rope) {
+      this.ropes.set(worm, null);
+      return false;
+    }
+
+    // ── CHANGE + UP/DOWN → adjust rope length while attached ────────────
+    if (rope && input.change) {
       if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_ADJUST_SPEED * dt);
       if (input.down) rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_ADJUST_SPEED * dt);
     }

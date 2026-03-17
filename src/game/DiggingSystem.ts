@@ -6,18 +6,26 @@ import { TerrainDestroyer } from '../terrain/TerrainDestroyer';
  * Digging mechanic — faithful to original Liero.
  *
  * Trigger: hold a direction key + tap (rising edge) the OPPOSITE direction.
- *   dig left  = hold LEFT  + tap RIGHT
- *   dig right = hold RIGHT + tap LEFT
- *   dig up    = hold UP    + tap DOWN
- *   dig down  = hold DOWN  + tap UP
+ *   e.g. hold LEFT + tap RIGHT, or hold UP + tap DOWN
  *
- * Each tap carves one tunnel-sized circle at the worm's leading edge.
- * Works on ground and while on the ninja rope.
- * Suppressed while the weapon-modifier key is held (up/down = rope length there).
+ * The dig is carved in the worm's actual crosshair direction, NOT necessarily
+ * the direction of the held key. This means all four trigger combos produce
+ * the same dig (in aim direction) — matching original Liero behaviour where
+ * you hold toward a wall in your aim direction and tap back.
+ *
+ * Restrictions:
+ *   - Blocked while CHANGE is held (LEFT/RIGHT become weapon cycling)
+ *   - Cannot dig when aiming too close to straight up (within ~30° of -90°)
  */
 export class DiggingSystem {
   /** Radius of the carved circle per dig action. Must fit worm through the hole. */
   private static readonly DIG_RADIUS = 9;
+
+  /**
+   * Minimum aim angle (most upward) at which digging is still allowed.
+   * -π/3 ≈ −60° (30° clearance from straight up at −90°).
+   */
+  private static readonly DIG_BLOCK_ANGLE = -Math.PI / 3;
 
   private prevLeft  = new Map<Worm, boolean>();
   private prevRight = new Map<Worm, boolean>();
@@ -36,21 +44,20 @@ export class DiggingSystem {
   update(worm: Worm, input: InputState): void {
     if (worm.isDead) return;
 
-    // Rising-edge detection for each direction
-    const tapLeft  = input.left  && !(this.prevLeft.get(worm)  ?? false);
-    const tapRight = input.right && !(this.prevRight.get(worm) ?? false);
-    const tapUp    = input.up    && !(this.prevUp.get(worm)    ?? false);
-    const tapDown  = input.down  && !(this.prevDown.get(worm)  ?? false);
+    // Digging is blocked while CHANGE is held (those keys cycle weapons)
+    if (!input.change) {
+      const tapLeft  = input.left  && !(this.prevLeft.get(worm)  ?? false);
+      const tapRight = input.right && !(this.prevRight.get(worm) ?? false);
+      const tapUp    = input.up    && !(this.prevUp.get(worm)    ?? false);
+      const tapDown  = input.down  && !(this.prevDown.get(worm)  ?? false);
 
-    // Horizontal digs (no modifier conflict)
-    if (input.left  && tapRight) this.dig(worm, -1,  0);
-    if (input.right && tapLeft)  this.dig(worm,  1,  0);
+      const triggered =
+        (input.left  && tapRight) ||
+        (input.right && tapLeft)  ||
+        (input.up    && tapDown)  ||
+        (input.down  && tapUp);
 
-    // Vertical digs — suppressed while weapon-modifier is held
-    // (up/down is used for rope-length adjustment in that mode)
-    if (!input.weaponModifier) {
-      if (input.up   && tapDown) this.dig(worm,  0, -1);
-      if (input.down && tapUp)   this.dig(worm,  0,  1);
+      if (triggered) this.tryDig(worm);
     }
 
     this.prevLeft.set(worm,  input.left);
@@ -59,11 +66,20 @@ export class DiggingSystem {
     this.prevDown.set(worm,  input.down);
   }
 
-  private dig(worm: Worm, dx: number, dy: number): void {
-    const r  = DiggingSystem.DIG_RADIUS;
+  private tryDig(worm: Worm): void {
+    // Block digging when aiming too close to straight up
+    if (worm.aimAngle < DiggingSystem.DIG_BLOCK_ANGLE) return;
+
+    const r = DiggingSystem.DIG_RADIUS;
+
+    // Compute aim direction vector (same as weapon spawn direction)
+    const baseAngle = worm.facingRight ? worm.aimAngle : Math.PI - worm.aimAngle;
+    const aimX = Math.cos(baseAngle);
+    const aimY = Math.sin(baseAngle);
+
     // Carve centred at the worm's leading face + half a radius into the terrain
-    const cx = worm.x + dx * (worm.width  / 2 + r * 0.6);
-    const cy = worm.y + dy * (worm.height / 2 + r * 0.6);
+    const cx = worm.x + aimX * (worm.width  / 2 + r * 0.6);
+    const cy = worm.y + aimY * (worm.height / 2 + r * 0.6);
     this.terrainDestroyer.carveCircle(cx, cy, r);
   }
 }

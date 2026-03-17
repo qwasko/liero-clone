@@ -61,6 +61,16 @@ export class GameScene extends Phaser.Scene {
   private tagSystem: TagSystem | null = null;
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
+  // Weapon cycling state for CHANGE + LEFT/RIGHT (per player)
+  // dir: -1=prev, 1=next, 0=idle; holdMs: accumulated hold time; repeatMs: countdown to next repeat
+  private cycleState: [
+    { dir: -1 | 0 | 1; holdMs: number; repeatMs: number },
+    { dir: -1 | 0 | 1; holdMs: number; repeatMs: number },
+  ] = [
+    { dir: 0, holdMs: 0, repeatMs: 0 },
+    { dir: 0, holdMs: 0, repeatMs: 0 },
+  ];
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -155,21 +165,58 @@ export class GameScene extends Phaser.Scene {
     const load1  = this.loadouts.get(worm1)!;
     const load2  = this.loadouts.get(worm2)!;
 
+    // ── Rope input ─────────────────────────────────────────────────────
+    // Must run before WormController so isOnRope reflects the current frame.
+    if (this.ropeSystem.handleInput(worm1, input1, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
+    if (this.ropeSystem.handleInput(worm2, input2, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
+
     // ── Controllers ────────────────────────────────────────────────────
-    this.controllers[0].update(input1, dt);
-    this.controllers[1].update(input2, dt);
+    this.controllers[0].update(input1, dt, this.ropeSystem.hasRope(worm1));
+    this.controllers[1].update(input2, dt, this.ropeSystem.hasRope(worm2));
 
     if (this.controllers[0].justJumped) this.audio.playJump();
     if (this.controllers[1].justJumped) this.audio.playJump();
 
-    // ── Weapon switching — blocked while rope is attached ──────────────
-    if (!this.ropeSystem.hasRope(worm1)) {
-      if (input1.nextWeapon) load1.nextWeapon();
-      if (input1.prevWeapon) load1.prevWeapon();
-    }
-    if (!this.ropeSystem.hasRope(worm2)) {
-      if (input2.nextWeapon) load2.nextWeapon();
-      if (input2.prevWeapon) load2.prevWeapon();
+    // ── Weapon cycling — CHANGE + LEFT/RIGHT with keyboard-repeat acceleration ──
+    // Cycling is allowed even while on rope (per spec).
+    const inputs   = [input1, input2];
+    const loadouts = [load1, load2];
+    for (let p = 0; p < 2; p++) {
+      const inp  = inputs[p];
+      const load = loadouts[p];
+      const cs   = this.cycleState[p];
+
+      if (!inp.change) {
+        cs.dir = 0; cs.holdMs = 0; cs.repeatMs = 0;
+        continue;
+      }
+
+      // Determine desired direction (-1 = prev/left, 1 = next/right, 0 = none)
+      const wantDir: -1 | 0 | 1 =
+        inp.left && !inp.right  ? -1 :
+        inp.right && !inp.left  ?  1 : 0;
+
+      if (wantDir === 0) {
+        cs.dir = 0; cs.holdMs = 0; cs.repeatMs = 0;
+      } else if (wantDir !== cs.dir) {
+        // Direction just started — cycle immediately
+        cs.dir = wantDir;
+        cs.holdMs = 0;
+        cs.repeatMs = 350; // initial repeat delay ms
+        if (wantDir === -1) load.prevWeapon();
+        else                load.nextWeapon();
+      } else {
+        // Same direction held — accumulate and repeat
+        cs.holdMs   += dt * 1000;
+        cs.repeatMs -= dt * 1000;
+        if (cs.repeatMs <= 0) {
+          // Interval shrinks as hold time grows (min 80ms)
+          const interval = Math.max(80, 280 - cs.holdMs * 0.4);
+          cs.repeatMs = interval;
+          if (wantDir === -1) load.prevWeapon();
+          else                load.nextWeapon();
+        }
+      }
     }
 
     // ── Loadout timers ─────────────────────────────────────────────────
@@ -186,12 +233,11 @@ export class GameScene extends Phaser.Scene {
     // ── Crates ─────────────────────────────────────────────────────────
     this.crateSystem.update(dt);
 
-    // ── Rope handling (independent of weapon loadout) ──────────────────
-    if (this.ropeSystem.handleInput(worm1, input1, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
-    if (this.ropeSystem.handleInput(worm2, input2, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
-
-    // ── Weapon fire ────────────────────────────────────────────────────
-    const fireInputs: [boolean, boolean] = [input1.fire, input2.fire];
+    // ── Weapon fire — disabled while CHANGE is held ────────────────────
+    const fireInputs: [boolean, boolean] = [
+      input1.fire && !input1.change,
+      input2.fire && !input2.change,
+    ];
     this.worms.forEach((worm, i) => {
       const loadout = this.loadouts.get(worm)!;
       const projs   = this.weaponSystem.tryFire(worm, loadout, fireInputs[i]);

@@ -6,27 +6,26 @@ export interface InputState {
   down: boolean;
   jump: boolean;
   fire: boolean;
-  nextWeapon: boolean;  // JustDown — suppressed while weaponModifier held
-  prevWeapon: boolean;  // JustDown — suppressed while weaponModifier held
   /**
-   * True while the weapon-change key is held.
-   * Used as the rope modifier: hold + jump = toggle rope,
-   * hold + up/down = adjust rope length.
-   * While held, weapon switching is blocked (key conflict).
+   * True while the CHANGE key is held.
+   * Roles while held:
+   *   - LEFT/RIGHT  → cycle weapons (with acceleration)
+   *   - JUMP        → fire ninja rope (in crosshair direction)
+   *   - UP/DOWN     → still rotates crosshair; also adjusts rope length if on rope
+   *   - FIRE        → disabled
+   *   - Movement    → disabled (LEFT/RIGHT become weapon cycle)
    */
-  weaponModifier: boolean;
+  change: boolean;
 }
 
 export function emptyInputState(): InputState {
   return {
-    left: false,
-    right: false,
-    up: false,
-    down: false,
-    jump: false,
-    fire: false,
-    nextWeapon: false,
-    prevWeapon: false,
-    weaponModifier: false,
+    left:   false,
+    right:  false,
+    up:     false,
+    down:   false,
+    jump:   false,
+    fire:   false,
+    change: false,
   };
 }
