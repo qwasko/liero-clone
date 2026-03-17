@@ -63,6 +63,7 @@ export class GameScene extends Phaser.Scene {
 
   // Invisible point that the camera follows; updated each frame to worm midpoint
   private cameraFocus!: Phaser.GameObjects.Image;
+  private _camLogTimer = 0;
 
   // Explosion flash overlay (screen-space rect, fades out via tween)
   private flashRect!: Phaser.GameObjects.Rectangle;
@@ -181,7 +182,11 @@ export class GameScene extends Phaser.Scene {
     // Invisible focus point — camera follows it directly, bounds prevent leaving map
     this.cameraFocus = this.add.image(spawnP1.x, spawnP1.y, '__DEFAULT')
       .setVisible(false).setDepth(0);
-    this.cameras.main.setBounds(0, 0, level.width, level.height);
+    console.log('[camera] terrain size:', this.terrain.width, 'x', this.terrain.height);
+    console.log('[camera] level size:  ', level.width, 'x', level.height);
+    this.cameras.main.setBounds(-200, 0, level.width + 200, level.height);
+    const b = this.cameras.main.getBounds();
+    console.log('[camera] bounds after setBounds:', b.x, b.y, b.width, b.height);
     this.cameras.main.startFollow(this.cameraFocus);
 
     // ── Overlay + HUD (last → render on top) ──────────────────────────
@@ -375,6 +380,16 @@ export class GameScene extends Phaser.Scene {
       const midX    = pool.reduce((s, w) => s + w.x, 0) / pool.length;
       const midY    = pool.reduce((s, w) => s + w.y, 0) / pool.length;
       this.cameraFocus.setPosition(midX, midY);
+      // Throttled scroll logging — once per second
+      if (!this._camLogTimer) this._camLogTimer = 0;
+      this._camLogTimer -= delta;
+      if (this._camLogTimer <= 0) {
+        this._camLogTimer = 1000;
+        const cam = this.cameras.main;
+        console.log('[camera] scrollX:', cam.scrollX.toFixed(1), 'scrollY:', cam.scrollY.toFixed(1),
+          '| focusX:', midX.toFixed(1), 'focusY:', midY.toFixed(1),
+          '| worldView:', cam.worldView.x.toFixed(1), cam.worldView.y.toFixed(1), cam.worldView.width.toFixed(1), cam.worldView.height.toFixed(1));
+      }
     }
 
     // ── HUD + overlay ─────────────────────────────────────────────────
