@@ -61,10 +61,8 @@ export class GameScene extends Phaser.Scene {
   private tagSystem: TagSystem | null = null;
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
-  // Custom screen shake — offset added to setScroll each frame, avoids
-  // Phaser's built-in shake which can override/reset manual scroll values.
-  private shakeMs        = 0;
-  private shakeIntensity = 0;
+  // Explosion flash overlay (screen-space rect, fades out via tween)
+  private flashRect!: Phaser.GameObjects.Rectangle;
 
   // Weapon cycling state for CHANGE + LEFT/RIGHT (per player)
   // dir: -1=prev, 1=next, 0=idle; holdMs: accumulated hold time; repeatMs: countdown to next repeat
@@ -92,12 +90,10 @@ export class GameScene extends Phaser.Scene {
       { dir: 0, holdMs: 0, repeatMs: 0 },
     ];
 
-    this.gameMode       = data?.mode ?? 'normal';
-    this.matchOver      = false;
-    this.timeRemaining  = MATCH_DURATION_SECONDS;
+    this.gameMode          = data?.mode ?? 'normal';
+    this.matchOver         = false;
+    this.timeRemaining     = MATCH_DURATION_SECONDS;
     this.activeProjectiles = [];
-    this.shakeMs        = 0;
-    this.shakeIntensity = 0;
     this.lives.clear();
     this.respawnTimers.clear();
     this.tagSystem = null;
@@ -182,6 +178,11 @@ export class GameScene extends Phaser.Scene {
 
     // ── Overlay + HUD (last → render on top) ──────────────────────────
     this.overlayGraphics = this.add.graphics().setDepth(10);
+
+    // Screen-space flash rect for explosion feedback (replaces camera shake)
+    this.flashRect = this.add.rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, 0xff2200, 0)
+      .setOrigin(0, 0).setDepth(50).setScrollFactor(0);
+
     this.hud = new HUD(this, CANVAS_WIDTH);
   }
 
@@ -303,8 +304,7 @@ export class GameScene extends Phaser.Scene {
         );
         const big = proj.weapon.explosionRadius >= 20;
         this.audio.playExplosion(big);
-        if (big) { this.shakeMs = Math.max(this.shakeMs, 180); this.shakeIntensity = Math.max(this.shakeIntensity, 6); }
-        else     { this.shakeMs = Math.max(this.shakeMs,  60); this.shakeIntensity = Math.max(this.shakeIntensity, 2); }
+        this.triggerFlash(big ? 0.18 : 0.08);
       },
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
@@ -372,16 +372,7 @@ export class GameScene extends Phaser.Scene {
       // Clamp so camera never shows outside map
       const sx = Math.max(0, Math.min(mw - CANVAS_WIDTH,  midX - CANVAS_WIDTH  / 2));
       const sy = Math.max(0, Math.min(mh - CANVAS_HEIGHT, midY - CANVAS_HEIGHT / 2));
-      // Custom shake: additive offset, decays over time — never touches scroll state
-      let ox = 0;
-      let oy = 0;
-      if (this.shakeMs > 0) {
-        this.shakeMs -= delta;
-        ox = (Math.random() - 0.5) * this.shakeIntensity;
-        oy = (Math.random() - 0.5) * this.shakeIntensity;
-        if (this.shakeMs <= 0) { this.shakeMs = 0; this.shakeIntensity = 0; }
-      }
-      this.cameras.main.setScroll(sx + ox, sy + oy);
+      this.cameras.main.setScroll(sx, sy);
     }
 
     // ── HUD + overlay ─────────────────────────────────────────────────
@@ -395,6 +386,17 @@ export class GameScene extends Phaser.Scene {
     this.ropeSystem.draw(this.overlayGraphics);
     this.drawAimLines();
     this.drawProjectiles();
+  }
+
+  private triggerFlash(alpha: number): void {
+    this.tweens.killTweensOf(this.flashRect);
+    this.flashRect.setAlpha(alpha);
+    this.tweens.add({
+      targets:  this.flashRect,
+      alpha:    0,
+      duration: 120,
+      ease:     'Quad.easeOut',
+    });
   }
 
   private spawnMuzzleFlash(x: number, y: number): void {
