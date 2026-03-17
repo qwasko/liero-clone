@@ -4,10 +4,11 @@ import { InputState } from '../input/InputState';
 import { TerrainMap } from '../terrain/TerrainMap';
 
 const MAX_ROPE_LENGTH     = 220;
-const MIN_ROPE_LENGTH     = 20;
+// MIN_ROPE_LENGTH removed — worm can now climb all the way to anchor (min=1)
 const ROPE_CAST_START     = 14;
 const LENGTH_SHORTEN_SPEED = 200; // px/s
 const LENGTH_EXTEND_SPEED  = 400; // px/s
+const EXTEND_IMPULSE_MULT  = 12;  // ×LENGTH_EXTEND_SPEED — 2× previous value of 6
 const HOOK_SPEED          = 1000; // px/s — visible but fast
 
 interface Rope {
@@ -96,7 +97,8 @@ export class RopeSystem {
 
     // ── CHANGE + UP/DOWN → adjust rope length while attached ────────────
     if (rope && input.change) {
-      if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_SHORTEN_SPEED * dt);
+      // Shorten: clamp to 1px (worm can climb all the way to anchor)
+      if (input.up)   rope.length = Math.max(1, rope.length - LENGTH_SHORTEN_SPEED * dt);
       if (input.down) {
         rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
         // Actively push worm outward along rope so extend feels as responsive as shorten
@@ -104,8 +106,8 @@ export class RopeSystem {
         const dy = worm.y - rope.anchorY;
         const dist = Math.hypot(dx, dy);
         if (dist > 1) {
-          worm.vx += (dx / dist) * LENGTH_EXTEND_SPEED * 6 * dt;
-          worm.vy += (dy / dist) * LENGTH_EXTEND_SPEED * 6 * dt;
+          worm.vx += (dx / dist) * LENGTH_EXTEND_SPEED * EXTEND_IMPULSE_MULT * dt;
+          worm.vy += (dy / dist) * LENGTH_EXTEND_SPEED * EXTEND_IMPULSE_MULT * dt;
         }
       }
     }
@@ -237,6 +239,19 @@ export class RopeSystem {
       target.x  += nx * half;
       target.y  += ny * half;
     }
+  }
+
+  /**
+   * Release any rope whose terrain anchor has been destroyed.
+   * Call each frame after terrain may have changed (after projectile impacts, digging).
+   */
+  checkAnchorDestroyed(terrain: TerrainMap): void {
+    this.ropes.forEach((rope, worm) => {
+      if (!rope || rope.targetWorm) return; // skip worm-anchored ropes
+      if (!terrain.isSolid(rope.anchorX, rope.anchorY)) {
+        this.ropes.set(worm, null);
+      }
+    });
   }
 
   releaseOnDeath(worm: Worm): void {

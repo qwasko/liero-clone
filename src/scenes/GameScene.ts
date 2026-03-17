@@ -181,6 +181,7 @@ export class GameScene extends Phaser.Scene {
     if (this.ropeSystem.handleInput(worm1, input1, dt)) this.audio.playRopeShoot();
     if (this.ropeSystem.handleInput(worm2, input2, dt)) this.audio.playRopeShoot();
     this.ropeSystem.updateHooks(dt, this.terrain, this.worms);
+    this.ropeSystem.checkAnchorDestroyed(this.terrain);
 
     // ── Controllers ────────────────────────────────────────────────────
     this.controllers[0].update(input1, dt, this.ropeSystem.hasRope(worm1));
