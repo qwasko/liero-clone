@@ -76,6 +76,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data?: { mode?: 'normal' | 'tag' }): void {
+    // ── Clean up stale state from previous game ──────────────────────────
+    if (this.textures.exists('terrain')) {
+      this.textures.remove('terrain');
+    }
+    this.wormGraphics.clear();
+    this.loadouts.clear();
+    this.cycleState = [
+      { dir: 0, holdMs: 0, repeatMs: 0 },
+      { dir: 0, holdMs: 0, repeatMs: 0 },
+    ];
+
     this.gameMode = data?.mode ?? 'normal';
     this.matchOver = false;
     this.timeRemaining = MATCH_DURATION_SECONDS;
@@ -165,10 +176,11 @@ export class GameScene extends Phaser.Scene {
     const load1  = this.loadouts.get(worm1)!;
     const load2  = this.loadouts.get(worm2)!;
 
-    // ── Rope input ─────────────────────────────────────────────────────
+    // ── Rope input + hook advancement ──────────────────────────────────
     // Must run before WormController so isOnRope reflects the current frame.
-    if (this.ropeSystem.handleInput(worm1, input1, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
-    if (this.ropeSystem.handleInput(worm2, input2, this.terrain, this.worms, dt)) this.audio.playRopeShoot();
+    if (this.ropeSystem.handleInput(worm1, input1, dt)) this.audio.playRopeShoot();
+    if (this.ropeSystem.handleInput(worm2, input2, dt)) this.audio.playRopeShoot();
+    this.ropeSystem.updateHooks(dt, this.terrain, this.worms);
 
     // ── Controllers ────────────────────────────────────────────────────
     this.controllers[0].update(input1, dt, this.ropeSystem.hasRope(worm1));

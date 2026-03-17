@@ -6,68 +6,90 @@ import { TerrainMap } from '../terrain/TerrainMap';
 const MAX_ROPE_LENGTH     = 220;
 const MIN_ROPE_LENGTH     = 20;
 const ROPE_CAST_START     = 14;
-const LENGTH_ADJUST_SPEED = 70; // px/s
+const LENGTH_ADJUST_SPEED = 250; // px/s — snappy arcade-like
+const HOOK_SPEED          = 1000; // px/s — visible but fast
 
 interface Rope {
-  /** Terrain anchor — used when targetWorm is null. */
   anchorX: number;
   anchorY: number;
   length:  number;
-  /** Set when rope is latched to an enemy worm rather than terrain. */
   targetWorm: Worm | null;
+}
+
+/** In-flight hook that hasn't attached yet. */
+interface RopeHook {
+  startX: number;
+  startY: number;
+  aimX:   number;
+  aimY:   number;
+  dist:   number; // how far the hook has traveled from start
 }
 
 /**
  * Ninja rope — always available, independent of the weapon loadout.
  *
- * Activation  : CHANGE + JUMP  (releases existing rope first if attached)
- * Release     : JUMP alone     (while rope is attached)
- * Lengthen    : CHANGE + DOWN  (while attached)
+ * Activation  : CHANGE + JUMP  → launches a visible hook projectile
+ * Attachment  : hook hits terrain or enemy worm → rope becomes active
+ * Miss        : hook reaches max range with no hit → disappears
+ * Release     : JUMP alone (while rope attached or hook in flight)
+ * Lengthen    : CHANGE + DOWN  (while attached, fast arcade speed)
  * Shorten     : CHANGE + UP    (while attached)
- * Fire weapon : normal FIRE    (works while on rope, as long as CHANGE is NOT held)
- * Weapons     : CHANGE + LEFT/RIGHT cycles weapons even while on rope (GameScene handles)
  */
 export class RopeSystem {
   private ropes    = new Map<Worm, Rope | null>();
+  private hooks    = new Map<Worm, RopeHook | null>();
   private prevJump = new Map<Worm, boolean>();
 
   registerWorm(worm: Worm): void {
     this.ropes.set(worm, null);
+    this.hooks.set(worm, null);
     this.prevJump.set(worm, false);
   }
 
+  /** True only when rope is attached and constraint is active. */
   hasRope(worm: Worm): boolean {
     return (this.ropes.get(worm) ?? null) !== null;
   }
 
+  /** True when a hook projectile is in flight (not yet attached). */
+  hasHook(worm: Worm): boolean {
+    return (this.hooks.get(worm) ?? null) !== null;
+  }
+
   /**
-   * Process rope input for one worm.
-   * Returns true if a rope was just fired this frame (for audio).
+   * Process rope/hook input for one worm.
+   * Returns true if a hook was just launched this frame (for audio).
    */
   handleInput(
-    worm:     Worm,
-    input:    InputState,
-    terrain:  TerrainMap,
-    allWorms: Worm[],
-    dt:       number,
+    worm:  Worm,
+    input: InputState,
+    dt:    number,
   ): boolean {
     const wasJump  = this.prevJump.get(worm) ?? false;
     const jumpEdge = input.jump && !wasJump;
     this.prevJump.set(worm, input.jump);
 
-    if (worm.isDead) { this.ropes.set(worm, null); return false; }
-
-    const rope = this.ropes.get(worm) ?? null;
-
-    // ── CHANGE + JUMP → release existing rope (if any) then fire new one ──
-    if (input.change && jumpEdge) {
-      if (rope) this.ropes.set(worm, null);
-      return this.shoot(worm, terrain, allWorms);
+    if (worm.isDead) {
+      this.ropes.set(worm, null);
+      this.hooks.set(worm, null);
+      return false;
     }
 
-    // ── JUMP alone → release rope ──────────────────────────────────────
-    if (jumpEdge && !input.change && rope) {
+    const rope = this.ropes.get(worm) ?? null;
+    const hook = this.hooks.get(worm) ?? null;
+
+    // ── CHANGE + JUMP → cancel current state, launch new hook ──────────
+    if (input.change && jumpEdge) {
       this.ropes.set(worm, null);
+      this.hooks.set(worm, null);
+      this.launchHook(worm);
+      return true;
+    }
+
+    // ── JUMP alone → release rope / cancel hook ────────────────────────
+    if (jumpEdge && !input.change && (rope || hook)) {
+      this.ropes.set(worm, null);
+      this.hooks.set(worm, null);
       return false;
     }
 
@@ -80,38 +102,74 @@ export class RopeSystem {
     return false;
   }
 
-  private shoot(worm: Worm, terrain: TerrainMap, allWorms: Worm[]): boolean {
+  private launchHook(worm: Worm): void {
     const aimX = worm.facingRight ?  Math.cos(worm.aimAngle) : -Math.cos(worm.aimAngle);
     const aimY = Math.sin(worm.aimAngle);
-
-    for (let i = ROPE_CAST_START; i <= MAX_ROPE_LENGTH; i++) {
-      const rx = worm.x + aimX * i;
-      const ry = worm.y + aimY * i;
-
-      // Check enemy worm hit before terrain
-      for (const other of allWorms) {
-        if (other === worm || other.isDead) continue;
-        if (
-          Math.abs(rx - other.x) < other.width  / 2 &&
-          Math.abs(ry - other.y) < other.height / 2
-        ) {
-          this.ropes.set(worm, { anchorX: rx, anchorY: ry, length: i, targetWorm: other });
-          return true;
-        }
-      }
-
-      if (terrain.isSolid(rx, ry)) {
-        this.ropes.set(worm, { anchorX: rx, anchorY: ry, length: i, targetWorm: null });
-        return true;
-      }
-    }
-    return false;
+    this.hooks.set(worm, {
+      startX: worm.x,
+      startY: worm.y,
+      aimX, aimY,
+      dist: ROPE_CAST_START,
+    });
   }
 
   /**
-   * Apply pendulum / drag constraint after PhysicsSystem has integrated worms.
-   * Must be called once per worm per frame.
+   * Advance all in-flight hooks. Call once per frame from GameScene.
+   * Returns a set of worms whose hooks just attached (for potential audio).
    */
+  updateHooks(
+    dt:       number,
+    terrain:  TerrainMap,
+    allWorms: Worm[],
+  ): void {
+    for (const [worm, hook] of this.hooks) {
+      if (!hook) continue;
+      if (worm.isDead) { this.hooks.set(worm, null); continue; }
+
+      const advance = HOOK_SPEED * dt;
+      // Step pixel by pixel to avoid tunneling
+      const steps = Math.max(1, Math.ceil(advance));
+      const stepSize = advance / steps;
+
+      let attached = false;
+      for (let s = 0; s < steps; s++) {
+        hook.dist += stepSize;
+        const hx = hook.startX + hook.aimX * hook.dist;
+        const hy = hook.startY + hook.aimY * hook.dist;
+
+        // Check enemy worm hit
+        for (const other of allWorms) {
+          if (other === worm || other.isDead) continue;
+          if (
+            Math.abs(hx - other.x) < other.width  / 2 &&
+            Math.abs(hy - other.y) < other.height / 2
+          ) {
+            const len = Math.hypot(worm.x - other.x, worm.y - other.y);
+            this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: len, targetWorm: other });
+            this.hooks.set(worm, null);
+            attached = true;
+            break;
+          }
+        }
+        if (attached) break;
+
+        // Check terrain hit
+        if (terrain.isSolid(hx, hy)) {
+          const len = Math.hypot(worm.x - hx, worm.y - hy);
+          this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: len, targetWorm: null });
+          this.hooks.set(worm, null);
+          attached = true;
+          break;
+        }
+      }
+
+      // Max range reached — miss
+      if (!attached && hook.dist >= MAX_ROPE_LENGTH) {
+        this.hooks.set(worm, null);
+      }
+    }
+  }
+
   applyConstraint(worm: Worm): void {
     const rope = this.ropes.get(worm) ?? null;
     if (!rope || worm.isDead) return;
@@ -143,8 +201,6 @@ export class RopeSystem {
 
   private applyWormConstraint(shooter: Worm, rope: Rope): void {
     const target = rope.targetWorm!;
-
-    // Release if target died
     if (target.isDead) { this.ropes.set(shooter, null); return; }
 
     const dx   = shooter.x - target.x;
@@ -155,7 +211,6 @@ export class RopeSystem {
     const nx = dx / dist;
     const ny = dy / dist;
 
-    // Remove outward relative velocity
     const relVelRadial = (shooter.vx - target.vx) * nx + (shooter.vy - target.vy) * ny;
     if (relVelRadial > 0) {
       shooter.vx -= relVelRadial * 0.5 * nx;
@@ -164,7 +219,6 @@ export class RopeSystem {
       target.vy  += relVelRadial * 0.5 * ny;
     }
 
-    // Position correction split equally between both worms
     if (dist > rope.length) {
       const half = (dist - rope.length) * 0.5;
       shooter.x -= nx * half;
@@ -175,17 +229,20 @@ export class RopeSystem {
   }
 
   releaseOnDeath(worm: Worm): void {
-    if (worm.isDead) this.ropes.set(worm, null);
+    if (worm.isDead) {
+      this.ropes.set(worm, null);
+      this.hooks.set(worm, null);
+    }
   }
 
   draw(g: Phaser.GameObjects.Graphics): void {
+    // Draw attached ropes
     this.ropes.forEach((rope, worm) => {
       if (!rope || worm.isDead) return;
 
       const ax = rope.targetWorm ? rope.targetWorm.x : rope.anchorX;
       const ay = rope.targetWorm ? rope.targetWorm.y : rope.anchorY;
 
-      // Worm-latched rope is orange; terrain rope is grey
       const color = rope.targetWorm ? 0xff8800 : 0xdddddd;
       g.lineStyle(1, color, 0.9);
       g.beginPath();
@@ -197,6 +254,25 @@ export class RopeSystem {
         g.fillStyle(0xffffff, 1);
         g.fillCircle(ax, ay, 3);
       }
+    });
+
+    // Draw in-flight hooks
+    this.hooks.forEach((hook, worm) => {
+      if (!hook || worm.isDead) return;
+
+      const hx = hook.startX + hook.aimX * hook.dist;
+      const hy = hook.startY + hook.aimY * hook.dist;
+
+      // Thin line from worm to hook
+      g.lineStyle(1, 0x888888, 0.5);
+      g.beginPath();
+      g.moveTo(worm.x, worm.y);
+      g.lineTo(hx, hy);
+      g.strokePath();
+
+      // Hook head — bright white dot
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(hx, hy, 2);
     });
   }
 }
