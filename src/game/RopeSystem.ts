@@ -6,9 +6,8 @@ import { TerrainMap } from '../terrain/TerrainMap';
 const MAX_ROPE_LENGTH     = 220;
 const MIN_ROPE_LENGTH     = 20;
 const ROPE_CAST_START     = 14;
-const LENGTH_SHORTEN_SPEED = 200; // px/s — was 250, reduced 20%
-const LENGTH_EXTEND_SPEED  = 200; // px/s — matches shorten speed
-console.log('[RopeSystem] extend speed =', LENGTH_EXTEND_SPEED, '| shorten speed =', LENGTH_SHORTEN_SPEED);
+const LENGTH_SHORTEN_SPEED = 400; // px/s
+const LENGTH_EXTEND_SPEED  = 400; // px/s
 const HOOK_SPEED          = 1000; // px/s — visible but fast
 
 interface Rope {
@@ -98,11 +97,7 @@ export class RopeSystem {
     // ── CHANGE + UP/DOWN → adjust rope length while attached ────────────
     if (rope && input.change) {
       if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_SHORTEN_SPEED * dt);
-      if (input.down) {
-        const before = rope.length;
-        rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
-        console.log('[rope extend] speed=' + LENGTH_EXTEND_SPEED + ' dt=' + dt.toFixed(4) + ' before=' + before.toFixed(2) + ' after=' + rope.length.toFixed(2) + ' delta=' + (rope.length - before).toFixed(4) + ' MAX=' + MAX_ROPE_LENGTH);
-      }
+      if (input.down) rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
     }
 
     return false;
