@@ -19,7 +19,7 @@ import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
 import { TagSystem } from '../game/TagSystem';
 import { LevelPreset, LEVEL_PRESETS } from '../game/LevelPreset';
-import { CANVAS_WIDTH, MATCH_DURATION_SECONDS, DEFAULT_LIVES, RESPAWN_DELAY_MS, WORM_MAX_HP } from '../game/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS, DEFAULT_LIVES, RESPAWN_DELAY_MS, WORM_MAX_HP } from '../game/constants';
 
 const WORM_COLORS: Record<1 | 2, number> = { 1: 0x00ff88, 2: 0xff4444 };
 const AIM_LINE_LEN = 22;
@@ -105,8 +105,10 @@ export class GameScene extends Phaser.Scene {
     const spawnP1 = this.spawnPoints[0];
     const spawnP2 = this.spawnPoints[1];
 
-    // Camera: always 1:1 pixel scale; scroll clamped manually each frame
+    // Camera: always 1:1 pixel scale; clear any residual bounds from prior session
     this.cameras.main.setZoom(1);
+    this.cameras.main.removeBounds();
+    this.cameras.main.setScroll(0, 0);
 
     // ── Terrain ────────────────────────────────────────────────────────
     this.terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain);
@@ -353,17 +355,18 @@ export class GameScene extends Phaser.Scene {
 
     // ── Camera: follow midpoint, clamped to map edges ────────────────
     {
-      const cam = this.cameras.main;
-      const vw  = cam.width;   // viewport width  (always CANVAS_WIDTH)
-      const vh  = cam.height;  // viewport height (always CANVAS_HEIGHT)
-      const mw  = this.terrain.width;
-      const mh  = this.terrain.height;
+      const mw   = this.terrain.width;
+      const mh   = this.terrain.height;
       const [w1, w2] = this.worms;
-      const midX = (w1.x + w2.x) / 2;
-      const midY = (w1.y + w2.y) / 2;
-      // Desired scroll puts midpoint at viewport centre; clamp to map edges
-      cam.scrollX = Math.max(0, Math.min(mw - vw, midX - vw / 2));
-      cam.scrollY = Math.max(0, Math.min(mh - vh, midY - vh / 2));
+      // Use living worm positions only; fall back to both if both dead
+      const liveWorms = this.worms.filter(w => !w.isDead);
+      const targets   = liveWorms.length > 0 ? liveWorms : [w1, w2];
+      const midX = targets.reduce((s, w) => s + w.x, 0) / targets.length;
+      const midY = targets.reduce((s, w) => s + w.y, 0) / targets.length;
+      // Clamp so camera never shows outside map
+      const sx = Math.max(0, Math.min(mw - CANVAS_WIDTH,  midX - CANVAS_WIDTH  / 2));
+      const sy = Math.max(0, Math.min(mh - CANVAS_HEIGHT, midY - CANVAS_HEIGHT / 2));
+      this.cameras.main.setScroll(sx, sy);
     }
 
     // ── HUD + overlay ─────────────────────────────────────────────────
