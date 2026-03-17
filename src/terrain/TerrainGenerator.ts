@@ -27,9 +27,9 @@ export class TerrainGenerator {
   private static readonly TUNNEL_WANDER = 1.0; // radians of random wander
 
   // Rock parameters
-  private static readonly ROCK_CLUSTERS = 35;
-  private static readonly ROCK_R_MIN    = 2;
-  private static readonly ROCK_R_MAX    = 5;
+  private static readonly ROCK_CLUSTERS = 30;
+  private static readonly ROCK_R_MIN    = 6;
+  private static readonly ROCK_R_MAX    = 14;
 
   static generate(
     width: number,
@@ -192,12 +192,12 @@ export class TerrainGenerator {
       if (data[idx] !== 1) continue;
 
       const r = this.ROCK_R_MIN + Math.random() * (this.ROCK_R_MAX - this.ROCK_R_MIN);
-      // Irregular: 2-4 overlapping small circles
-      const blobs = 2 + Math.floor(Math.random() * 3);
+      // Irregular: 3-6 overlapping circles for organic shape
+      const blobs = 3 + Math.floor(Math.random() * 4);
       for (let j = 0; j < blobs; j++) {
-        const bx = cx + (Math.random() - 0.5) * r * 1.5;
-        const by = cy + (Math.random() - 0.5) * r * 1.5;
-        const br = r * (0.4 + Math.random() * 0.6);
+        const bx = cx + (Math.random() - 0.5) * r * 1.4;
+        const by = cy + (Math.random() - 0.5) * r * 1.4;
+        const br = r * (0.5 + Math.random() * 0.5);
         this.stampCircleInData(data, w, h, bx, by, br, 2);
       }
       placed++;
