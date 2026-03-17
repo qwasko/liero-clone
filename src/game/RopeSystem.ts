@@ -97,7 +97,17 @@ export class RopeSystem {
     // ── CHANGE + UP/DOWN → adjust rope length while attached ────────────
     if (rope && input.change) {
       if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_SHORTEN_SPEED * dt);
-      if (input.down) rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
+      if (input.down) {
+        rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
+        // Actively push worm outward along rope so extend feels as responsive as shorten
+        const dx = worm.x - rope.anchorX;
+        const dy = worm.y - rope.anchorY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 1) {
+          worm.vx += (dx / dist) * LENGTH_EXTEND_SPEED * dt;
+          worm.vy += (dy / dist) * LENGTH_EXTEND_SPEED * dt;
+        }
+      }
     }
 
     return false;
