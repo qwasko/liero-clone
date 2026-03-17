@@ -1,38 +1,40 @@
 # Liero Clone — Status
 
-## Last completed: Phase 11 — Game of Tag mode
+## Last completed: Camera follow + level selection system
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
 - Destructible procedural cave terrain
-- Full weapon loadout: Bazooka, Minigun, Grenade, Shotgun
-- Ninja rope (hold weapon-change key + jump; independent of loadout)
-- Terrain digging (hold direction + tap opposite)
-- HP bars, match timer, weapon HUD
+- Full weapon loadout: Bazooka, Minigun (10000 ammo), Grenade, Shotgun
+- Ninja rope (CHANGE+JUMP; climb to anchor, anchor destruction releases rope)
+- Terrain digging in crosshair direction (hold direction + tap opposite)
+  - Block zone reduced to ±10° of straight up only
+- HP bars, match timer, weapon HUD (pinned to screen with setScrollFactor)
 - Lives system (3 lives each) + respawn after 2s
 - Win condition (elimination or timer expiry)
 - Bonus crates: spawn every ~18s, max 5 on map
-  - Weapon crate: replaces active weapon slot
-  - Health crate: restores 10–50 HP
-  - Booby trap: explodes on pickup (looks identical to others)
 - Procedural audio (fire, explosion, jump, pickup, rope)
-- Screen shake on explosions
-- Load+Change: each weapon slot has its own independent reload timer;
-  switching weapons mid-reload never blocks the newly selected weapon
-- Mode selection menu on startup (press 1 = Normal, press 2 = Tag)
-- Game of Tag mode:
-  - First death → that worm becomes "it" (★ floating label above them)
-  - When "it" dies → tag transfers to the other worm
-  - HUD shows cumulative time-as-it for each player
-  - Winner = player with least time as "it" at match end
-  - Dedicated results screen shows exact times (MM:SS.d format)
-- After any match, ENTER returns to mode-selection menu
+- Explosion screen flash (red vignette, replaces camera shake)
+- Load+Change: per-slot independent reload timers
+- Level selection menu (UP/DOWN = mode, LEFT/RIGHT = level, ENTER = start):
+  - Normal: 800×500, ~80% fill, few large caves
+  - Large Open: 1600×1000, ~50% fill, many large caves (2× map size)
+  - Tiny: 400×250, ~90% fill, tight tunnels
+- Camera follows P1 worm via Phaser startFollow + Zone focus point
+  - setBounds clamps to map edges (no black space)
+  - 1:1 pixel scale always (no zoom)
+- Projectiles travel full map width before despawning (not capped at canvas size)
+- Worm edge-clamping uses terrain dimensions (works on all map sizes)
+- Mode selection: Normal Deathmatch or Game of Tag
+- Game of Tag mode with cumulative time tracking and results screen
 
 ## Known issues / bugs
-- None currently known
+- Camera only follows P1; P2 can walk off-screen on large maps
+  (acceptable for same-screen 2-player testing)
 
 ## Session stopped here
-All 11 phases complete. No work in progress.
+Camera system rewritten using Phaser startFollow + invisible Zone target.
+Last commit: `fix: camera follows P1 worm only, not midpoint between worms`
 
 ## Possible next steps (not planned)
 - AI opponent (bot controller for P2)
@@ -40,4 +42,4 @@ All 11 phases complete. No work in progress.
 - Animated worm sprites instead of rectangles
 - Sound effects from files instead of procedural Web Audio
 - Online multiplayer (WebSocket / Socket.io)
-- Splitscreen camera mode
+- Splitscreen camera for proper 2-player experience
