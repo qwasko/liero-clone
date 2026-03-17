@@ -61,6 +61,11 @@ export class GameScene extends Phaser.Scene {
   private tagSystem: TagSystem | null = null;
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
+  // Custom screen shake — offset added to setScroll each frame, avoids
+  // Phaser's built-in shake which can override/reset manual scroll values.
+  private shakeMs        = 0;
+  private shakeIntensity = 0;
+
   // Weapon cycling state for CHANGE + LEFT/RIGHT (per player)
   // dir: -1=prev, 1=next, 0=idle; holdMs: accumulated hold time; repeatMs: countdown to next repeat
   private cycleState: [
@@ -87,10 +92,12 @@ export class GameScene extends Phaser.Scene {
       { dir: 0, holdMs: 0, repeatMs: 0 },
     ];
 
-    this.gameMode = data?.mode ?? 'normal';
-    this.matchOver = false;
-    this.timeRemaining = MATCH_DURATION_SECONDS;
+    this.gameMode       = data?.mode ?? 'normal';
+    this.matchOver      = false;
+    this.timeRemaining  = MATCH_DURATION_SECONDS;
     this.activeProjectiles = [];
+    this.shakeMs        = 0;
+    this.shakeIntensity = 0;
     this.lives.clear();
     this.respawnTimers.clear();
     this.tagSystem = null;
@@ -296,8 +303,8 @@ export class GameScene extends Phaser.Scene {
         );
         const big = proj.weapon.explosionRadius >= 20;
         this.audio.playExplosion(big);
-        if (big) this.cameras.main.shake(180, 0.008);
-        else     this.cameras.main.shake(60,  0.003);
+        if (big) { this.shakeMs = Math.max(this.shakeMs, 180); this.shakeIntensity = Math.max(this.shakeIntensity, 6); }
+        else     { this.shakeMs = Math.max(this.shakeMs,  60); this.shakeIntensity = Math.max(this.shakeIntensity, 2); }
       },
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
@@ -355,18 +362,26 @@ export class GameScene extends Phaser.Scene {
 
     // ── Camera: follow midpoint, clamped to map edges ────────────────
     {
-      const mw   = this.terrain.width;
-      const mh   = this.terrain.height;
-      const [w1, w2] = this.worms;
-      // Use living worm positions only; fall back to both if both dead
-      const liveWorms = this.worms.filter(w => !w.isDead);
-      const targets   = liveWorms.length > 0 ? liveWorms : [w1, w2];
-      const midX = targets.reduce((s, w) => s + w.x, 0) / targets.length;
-      const midY = targets.reduce((s, w) => s + w.y, 0) / targets.length;
+      const mw = this.terrain.width;
+      const mh = this.terrain.height;
+      // Use living worm positions only; fall back to all if both dead
+      const targets = this.worms.filter(w => !w.isDead);
+      const pool    = targets.length > 0 ? targets : [...this.worms];
+      const midX = pool.reduce((s, w) => s + w.x, 0) / pool.length;
+      const midY = pool.reduce((s, w) => s + w.y, 0) / pool.length;
       // Clamp so camera never shows outside map
       const sx = Math.max(0, Math.min(mw - CANVAS_WIDTH,  midX - CANVAS_WIDTH  / 2));
       const sy = Math.max(0, Math.min(mh - CANVAS_HEIGHT, midY - CANVAS_HEIGHT / 2));
-      this.cameras.main.setScroll(sx, sy);
+      // Custom shake: additive offset, decays over time — never touches scroll state
+      let ox = 0;
+      let oy = 0;
+      if (this.shakeMs > 0) {
+        this.shakeMs -= delta;
+        ox = (Math.random() - 0.5) * this.shakeIntensity;
+        oy = (Math.random() - 0.5) * this.shakeIntensity;
+        if (this.shakeMs <= 0) { this.shakeMs = 0; this.shakeIntensity = 0; }
+      }
+      this.cameras.main.setScroll(sx + ox, sy + oy);
     }
 
     // ── HUD + overlay ─────────────────────────────────────────────────
