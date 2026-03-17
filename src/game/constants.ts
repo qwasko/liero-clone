@@ -3,8 +3,8 @@ export const CANVAS_HEIGHT = 500;
 
 // Physics
 export const GRAVITY = 600;          // px/s²
-export const MOVE_SPEED = 90;        // px/s horizontal
-export const JUMP_VELOCITY = -320;   // px/s upward
+export const MOVE_SPEED = 45;        // px/s horizontal (was 90, −50%)
+export const JUMP_VELOCITY = -160;   // px/s upward (was -320, −50%)
 
 // Worm
 export const WORM_WIDTH = 10;

@@ -98,7 +98,11 @@ export class RopeSystem {
     // ── CHANGE + UP/DOWN → adjust rope length while attached ────────────
     if (rope && input.change) {
       if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_SHORTEN_SPEED * dt);
-      if (input.down) rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED  * dt);
+      if (input.down) {
+        const before = rope.length;
+        rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
+        console.log('[rope extend] speed=' + LENGTH_EXTEND_SPEED + ' dt=' + dt.toFixed(4) + ' before=' + before.toFixed(2) + ' after=' + rope.length.toFixed(2) + ' delta=' + (rope.length - before).toFixed(4) + ' MAX=' + MAX_ROPE_LENGTH);
+      }
     }
 
     return false;
