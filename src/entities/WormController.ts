@@ -39,11 +39,14 @@ export class WormController {
     this.justJumped = false;
     if (w.isDead) return;
 
+    // When both LEFT and RIGHT are pressed simultaneously the player is
+    // triggering a dig (hold direction + tap opposite).  In that case we
+    // must NOT change vx or facingRight — the tap is a dig trigger only.
+    const bothHoriz = input.left && input.right;
+
     if (isOnRope) {
       // ── On rope: accumulate swing impulse, never zero vx ─────────────
-      // Zeroing vx would kill pendulum angular momentum; let physics carry it.
-      // CHANGE + LEFT/RIGHT cycles weapons (handled in GameScene), so no impulse.
-      if (!input.change) {
+      if (!input.change && !bothHoriz) {
         if (input.left) {
           w.vx -= SWING_IMPULSE * dt;
           w.facingRight = false;
@@ -53,10 +56,10 @@ export class WormController {
         }
         // No else — intentionally preserve momentum when no key pressed
       }
-      // With CHANGE held: weapon cycling; don't touch vx so pendulum continues
+      // bothHoriz / CHANGE held: don't touch vx so pendulum continues
     } else {
       // ── Normal movement — blocked while CHANGE is held ────────────────
-      if (!input.change) {
+      if (!input.change && !bothHoriz) {
         if (input.left) {
           w.vx = -MOVE_SPEED;
           w.facingRight = false;
@@ -66,9 +69,11 @@ export class WormController {
         } else {
           w.vx = 0;
         }
-      } else {
+      } else if (!bothHoriz) {
+        // CHANGE held, no dig — stop movement
         w.vx = 0;
       }
+      // bothHoriz on ground: keep current vx (worm continues held direction)
     }
 
     // ── Regular jump — blocked while CHANGE held or while on rope ────────
