@@ -194,7 +194,8 @@ export class RopeSystem {
     const radial = worm.vx * nx + worm.vy * ny;
     if (radial > 0) { worm.vx -= radial * nx; worm.vy -= radial * ny; }
 
-    if (dist > rope.length) {
+    // Snap to rope.length in both directions — shorten pulls in, extend pushes out
+    if (Math.abs(dist - rope.length) > 0.5) {
       worm.x = rope.anchorX + nx * rope.length;
       worm.y = rope.anchorY + ny * rope.length;
     }
