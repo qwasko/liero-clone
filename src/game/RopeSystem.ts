@@ -4,7 +4,7 @@ import { InputState } from '../input/InputState';
 import { TerrainMap } from '../terrain/TerrainMap';
 
 const MAX_ROPE_LENGTH     = 220;
-// MIN_ROPE_LENGTH removed — worm can now climb all the way to anchor (min=1)
+const MIN_ROPE_LENGTH     = 20;   // matches DiggingSystem.DIG_REACH — worm at max climb is within digging range of anchor
 const ROPE_CAST_START     = 14;
 const LENGTH_SHORTEN_SPEED = 200; // px/s
 const LENGTH_EXTEND_SPEED  = 400; // px/s
@@ -98,7 +98,7 @@ export class RopeSystem {
     // ── CHANGE + UP/DOWN → adjust rope length while attached ────────────
     if (rope && input.change) {
       // Shorten: clamp to 1px (worm can climb all the way to anchor)
-      if (input.up)   rope.length = Math.max(1, rope.length - LENGTH_SHORTEN_SPEED * dt);
+      if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_SHORTEN_SPEED * dt);
       if (input.down) {
         rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
         // Actively push worm outward along rope so extend feels as responsive as shorten
