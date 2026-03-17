@@ -28,7 +28,8 @@ export class DiggingSystem {
   private static readonly DIG_STEP = 5;
 
   /** Aim angle threshold — block digging when aiming within 30° of straight up. */
-  private static readonly DIG_BLOCK_ANGLE = -Math.PI / 3;
+  /** Block digging only within 10° of straight up (−80° threshold). */
+  private static readonly DIG_BLOCK_ANGLE = -(Math.PI / 2 - Math.PI / 18);
 
   private prevLeft  = new Map<Worm, boolean>();
   private prevRight = new Map<Worm, boolean>();
