@@ -18,11 +18,10 @@ import { CrateSystem } from '../game/CrateSystem';
 import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
 import { TagSystem } from '../game/TagSystem';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS, DEFAULT_LIVES, RESPAWN_DELAY_MS, WORM_MAX_HP } from '../game/constants';
+import { LevelPreset, LEVEL_PRESETS } from '../game/LevelPreset';
+import { CANVAS_WIDTH, MATCH_DURATION_SECONDS, DEFAULT_LIVES, RESPAWN_DELAY_MS, WORM_MAX_HP } from '../game/constants';
 
 const WORM_COLORS: Record<1 | 2, number> = { 1: 0x00ff88, 2: 0xff4444 };
-const SPAWN_P1 = { x: 200, y: 220 };
-const SPAWN_P2 = { x: 600, y: 220 };
 const AIM_LINE_LEN = 22;
 
 export class GameScene extends Phaser.Scene {
@@ -52,6 +51,7 @@ export class GameScene extends Phaser.Scene {
   private timeRemaining: number = MATCH_DURATION_SECONDS;
   private matchOver: boolean = false;
   private gameMode: 'normal' | 'tag' = 'normal';
+  private spawnPoints!: [{ x: number; y: number }, { x: number; y: number }];
 
   // Lives + respawn
   private lives: Map<Worm, number> = new Map();
@@ -75,7 +75,7 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
-  create(data?: { mode?: 'normal' | 'tag' }): void {
+  create(data?: { mode?: 'normal' | 'tag'; level?: LevelPreset }): void {
     // ── Clean up stale state from previous game ──────────────────────────
     if (this.textures.exists('terrain')) {
       this.textures.remove('terrain');
@@ -96,14 +96,28 @@ export class GameScene extends Phaser.Scene {
     this.tagSystem = null;
     this.tagItGraphics = null;
 
+    // ── Level preset ───────────────────────────────────────────────────
+    const level = data?.level ?? LEVEL_PRESETS[0];
+    this.spawnPoints = [
+      { x: level.width * 0.25, y: level.height * 0.44 },
+      { x: level.width * 0.75, y: level.height * 0.44 },
+    ];
+    const spawnP1 = this.spawnPoints[0];
+    const spawnP2 = this.spawnPoints[1];
+
+    // Camera: zoom out/in so the full map fits the canvas
+    const zoom = CANVAS_WIDTH / level.width;
+    this.cameras.main.setZoom(zoom);
+    this.cameras.main.setBounds(0, 0, level.width, level.height);
+
     // ── Terrain ────────────────────────────────────────────────────────
-    this.terrain = TerrainGenerator.generate(CANVAS_WIDTH, CANVAS_HEIGHT, [SPAWN_P1, SPAWN_P2]);
+    this.terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain);
     this.terrainRenderer = new TerrainRenderer(this, this.terrain);
     this.terrainDestroyer = new TerrainDestroyer(this.terrain, this.terrainRenderer);
 
     // ── Worms ──────────────────────────────────────────────────────────
-    const worm1 = new Worm(SPAWN_P1.x, SPAWN_P1.y, 1);
-    const worm2 = new Worm(SPAWN_P2.x, SPAWN_P2.y, 2);
+    const worm1 = new Worm(spawnP1.x, spawnP1.y, 1);
+    const worm2 = new Worm(spawnP2.x, spawnP2.y, 2);
     this.worms = [worm1, worm2];
 
     for (const worm of this.worms) {
@@ -449,7 +463,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     // Fallback to spawn points
-    return worm.playerId === 1 ? SPAWN_P1 : SPAWN_P2;
+    return worm.playerId === 1 ? this.spawnPoints[0] : this.spawnPoints[1];
   }
 
   private drawAimLines(): void {

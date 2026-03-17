@@ -1,40 +1,27 @@
 import { TerrainMap } from './TerrainMap';
+import { TerrainParams } from '../game/LevelPreset';
 
 interface Point { x: number; y: number }
 
 /**
  * Generates mostly-solid underground terrain with a few large irregular
  * caverns, connecting tunnels, and scattered indestructible rocks.
- *
- * Target: ~80-85% solid fill — claustrophobic, players must dig to move.
  * Cave shapes are built from overlapping random circles for an organic feel.
  */
 export class TerrainGenerator {
-  private static readonly BORDER       = 4;
-  private static readonly SPAWN_CLEAR  = 32;
-
-  // Cave parameters
-  private static readonly EXTRA_CAVES  = 3;  // additional caves beyond spawn caves
-  private static readonly CAVE_MARGIN  = 50; // minimum distance from edge for cave centers
-  private static readonly BLOBS_MIN    = 8;
-  private static readonly BLOBS_MAX    = 14;
-  private static readonly BLOB_R_MIN   = 18;
-  private static readonly BLOB_R_MAX   = 42;
-  private static readonly BLOB_SPREAD  = 40; // max offset from cave center
-
-  // Tunnel parameters
-  private static readonly TUNNEL_R     = 5;
-  private static readonly TUNNEL_WANDER = 1.0; // radians of random wander
-
-  // Rock parameters
-  private static readonly ROCK_CLUSTERS = 30;
-  private static readonly ROCK_R_MIN    = 6;
-  private static readonly ROCK_R_MAX    = 14;
+  private static readonly BORDER      = 4;
+  private static readonly SPAWN_CLEAR = 32;
+  private static readonly CAVE_MARGIN = 50;
+  private static readonly TUNNEL_R    = 5;
+  private static readonly TUNNEL_WANDER = 1.0;
+  private static readonly ROCK_R_MIN  = 6;
+  private static readonly ROCK_R_MAX  = 14;
 
   static generate(
     width: number,
     height: number,
     spawnPoints: Point[],
+    params: TerrainParams,
   ): TerrainMap {
     const map  = new TerrainMap(width, height);
     const data = map.getData();
@@ -44,14 +31,14 @@ export class TerrainGenerator {
 
     // 2. Choose cave centers — spawn points become caves, plus a few extras
     const caves: Point[] = spawnPoints.map(p => ({ x: p.x, y: p.y }));
-    const extra = this.EXTRA_CAVES + Math.floor(Math.random() * 3); // 3-5 extra
+    const extra = params.extraCaves + Math.floor(Math.random() * 3);
     for (let i = 0; i < extra; i++) {
       caves.push(this.randomCaveCenter(width, height, caves));
     }
 
     // 3. Carve cave bubbles
     for (const c of caves) {
-      this.carveCaveBubble(data, width, height, c);
+      this.carveCaveBubble(data, width, height, c, params);
     }
 
     // 4. Connect caves with winding tunnels (spanning tree + 1 extra)
@@ -63,7 +50,7 @@ export class TerrainGenerator {
     }
 
     // 6. Scatter indestructible rock clusters (only in solid dirt, away from spawns)
-    this.scatterRocks(data, width, height, spawnPoints);
+    this.scatterRocks(data, width, height, spawnPoints, params.rockClusters);
 
     // 7. Solid borders (must survive everything above)
     this.fillBorders(data, width, height);
@@ -96,13 +83,13 @@ export class TerrainGenerator {
 
   /** Carve one large irregular cavern from overlapping circles. */
   private static carveCaveBubble(
-    data: Uint8Array, w: number, h: number, center: Point,
+    data: Uint8Array, w: number, h: number, center: Point, params: TerrainParams,
   ): void {
-    const n = this.BLOBS_MIN + Math.floor(Math.random() * (this.BLOBS_MAX - this.BLOBS_MIN + 1));
+    const n = params.blobsMin + Math.floor(Math.random() * (params.blobsMax - params.blobsMin + 1));
     for (let i = 0; i < n; i++) {
-      const r  = this.BLOB_R_MIN + Math.random() * (this.BLOB_R_MAX - this.BLOB_R_MIN);
-      const ox = (Math.random() - 0.5) * 2 * this.BLOB_SPREAD;
-      const oy = (Math.random() - 0.5) * 2 * this.BLOB_SPREAD;
+      const r  = params.blobRMin + Math.random() * (params.blobRMax - params.blobRMin);
+      const ox = (Math.random() - 0.5) * 2 * params.blobSpread;
+      const oy = (Math.random() - 0.5) * 2 * params.blobSpread;
       this.carveInData(data, w, h, center.x + ox, center.y + oy, r);
     }
   }
@@ -176,12 +163,12 @@ export class TerrainGenerator {
   // ── Rocks ───────────────────────────────────────────────────────────
 
   private static scatterRocks(
-    data: Uint8Array, w: number, h: number, spawnPoints: Point[],
+    data: Uint8Array, w: number, h: number, spawnPoints: Point[], rockClusters: number,
   ): void {
     const margin = 20;
     let placed = 0;
 
-    for (let attempt = 0; attempt < this.ROCK_CLUSTERS * 4 && placed < this.ROCK_CLUSTERS; attempt++) {
+    for (let attempt = 0; attempt < rockClusters * 4 && placed < rockClusters; attempt++) {
       const cx = margin + Math.random() * (w - 2 * margin);
       const cy = margin + Math.random() * (h - 2 * margin);
 
