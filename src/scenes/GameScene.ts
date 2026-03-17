@@ -105,9 +105,8 @@ export class GameScene extends Phaser.Scene {
     const spawnP1 = this.spawnPoints[0];
     const spawnP2 = this.spawnPoints[1];
 
-    // Camera: always 1:1 pixel scale; bounds clamp scrolling to map edges
+    // Camera: always 1:1 pixel scale; scroll clamped manually each frame
     this.cameras.main.setZoom(1);
-    this.cameras.main.setBounds(0, 0, level.width, level.height);
 
     // ── Terrain ────────────────────────────────────────────────────────
     this.terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain);
@@ -352,12 +351,20 @@ export class GameScene extends Phaser.Scene {
     // ── Win condition ─────────────────────────────────────────────────
     this.checkWinCondition();
 
-    // ── Camera: follow midpoint between worms (bounds clamp automatically) ──
-    const [w1, w2] = this.worms;
-    this.cameras.main.centerOn(
-      (w1.x + w2.x) / 2,
-      (w1.y + w2.y) / 2,
-    );
+    // ── Camera: follow midpoint, clamped to map edges ────────────────
+    {
+      const cam = this.cameras.main;
+      const vw  = cam.width;   // viewport width  (always CANVAS_WIDTH)
+      const vh  = cam.height;  // viewport height (always CANVAS_HEIGHT)
+      const mw  = this.terrain.width;
+      const mh  = this.terrain.height;
+      const [w1, w2] = this.worms;
+      const midX = (w1.x + w2.x) / 2;
+      const midY = (w1.y + w2.y) / 2;
+      // Desired scroll puts midpoint at viewport centre; clamp to map edges
+      cam.scrollX = Math.max(0, Math.min(mw - vw, midX - vw / 2));
+      cam.scrollY = Math.max(0, Math.min(mh - vh, midY - vh / 2));
+    }
 
     // ── HUD + overlay ─────────────────────────────────────────────────
     this.hud.update(
