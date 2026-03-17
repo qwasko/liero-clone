@@ -6,7 +6,7 @@ import { TerrainMap } from '../terrain/TerrainMap';
 const MAX_ROPE_LENGTH     = 220;
 const MIN_ROPE_LENGTH     = 20;
 const ROPE_CAST_START     = 14;
-const LENGTH_SHORTEN_SPEED = 400; // px/s
+const LENGTH_SHORTEN_SPEED = 200; // px/s
 const LENGTH_EXTEND_SPEED  = 400; // px/s
 const HOOK_SPEED          = 1000; // px/s — visible but fast
 
@@ -104,8 +104,8 @@ export class RopeSystem {
         const dy = worm.y - rope.anchorY;
         const dist = Math.hypot(dx, dy);
         if (dist > 1) {
-          worm.vx += (dx / dist) * LENGTH_EXTEND_SPEED * 3 * dt;
-          worm.vy += (dy / dist) * LENGTH_EXTEND_SPEED * 3 * dt;
+          worm.vx += (dx / dist) * LENGTH_EXTEND_SPEED * 6 * dt;
+          worm.vy += (dy / dist) * LENGTH_EXTEND_SPEED * 6 * dt;
         }
       }
     }
