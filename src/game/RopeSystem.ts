@@ -104,8 +104,8 @@ export class RopeSystem {
         const dy = worm.y - rope.anchorY;
         const dist = Math.hypot(dx, dy);
         if (dist > 1) {
-          worm.vx += (dx / dist) * LENGTH_EXTEND_SPEED * dt;
-          worm.vy += (dy / dist) * LENGTH_EXTEND_SPEED * dt;
+          worm.vx += (dx / dist) * LENGTH_EXTEND_SPEED * 3 * dt;
+          worm.vy += (dy / dist) * LENGTH_EXTEND_SPEED * 3 * dt;
         }
       }
     }
