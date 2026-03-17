@@ -6,7 +6,9 @@ import { TerrainMap } from '../terrain/TerrainMap';
 const MAX_ROPE_LENGTH     = 220;
 const MIN_ROPE_LENGTH     = 20;
 const ROPE_CAST_START     = 14;
-const LENGTH_ADJUST_SPEED  = 250; // px/s — same speed both directions
+const LENGTH_SHORTEN_SPEED = 200; // px/s — was 250, reduced 20%
+const LENGTH_EXTEND_SPEED  = 200; // px/s — matches shorten speed
+console.log('[RopeSystem] extend speed =', LENGTH_EXTEND_SPEED, '| shorten speed =', LENGTH_SHORTEN_SPEED);
 const HOOK_SPEED          = 1000; // px/s — visible but fast
 
 interface Rope {
@@ -95,8 +97,8 @@ export class RopeSystem {
 
     // ── CHANGE + UP/DOWN → adjust rope length while attached ────────────
     if (rope && input.change) {
-      if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_ADJUST_SPEED * dt);
-      if (input.down) rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_ADJUST_SPEED * dt);
+      if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_SHORTEN_SPEED * dt);
+      if (input.down) rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED  * dt);
     }
 
     return false;
