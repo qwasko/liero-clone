@@ -11,6 +11,13 @@ const AIM_SPEED = Math.PI;
  */
 const AIM_MAX = Math.PI / 3;
 
+/**
+ * Horizontal acceleration applied per second while LEFT/RIGHT is held on a rope.
+ * This adds angular momentum for pendulum swing rather than forcing a fixed speed.
+ * Gravity (600 px/s²) naturally accelerates the swing at the bottom of the arc.
+ */
+const SWING_IMPULSE = 200; // px/s²
+
 export class WormController {
   private worm: Worm;
   private prevJump: boolean = false;
@@ -32,19 +39,36 @@ export class WormController {
     this.justJumped = false;
     if (w.isDead) return;
 
-    // ── Horizontal movement — blocked while CHANGE is held ──────────────
-    if (!input.change) {
-      if (input.left) {
-        w.vx = -MOVE_SPEED;
-        w.facingRight = false;
-      } else if (input.right) {
-        w.vx = MOVE_SPEED;
-        w.facingRight = true;
+    if (isOnRope) {
+      // ── On rope: accumulate swing impulse, never zero vx ─────────────
+      // Zeroing vx would kill pendulum angular momentum; let physics carry it.
+      // CHANGE + LEFT/RIGHT cycles weapons (handled in GameScene), so no impulse.
+      if (!input.change) {
+        if (input.left) {
+          w.vx -= SWING_IMPULSE * dt;
+          w.facingRight = false;
+        } else if (input.right) {
+          w.vx += SWING_IMPULSE * dt;
+          w.facingRight = true;
+        }
+        // No else — intentionally preserve momentum when no key pressed
+      }
+      // With CHANGE held: weapon cycling; don't touch vx so pendulum continues
+    } else {
+      // ── Normal movement — blocked while CHANGE is held ────────────────
+      if (!input.change) {
+        if (input.left) {
+          w.vx = -MOVE_SPEED;
+          w.facingRight = false;
+        } else if (input.right) {
+          w.vx = MOVE_SPEED;
+          w.facingRight = true;
+        } else {
+          w.vx = 0;
+        }
       } else {
         w.vx = 0;
       }
-    } else {
-      w.vx = 0;
     }
 
     // ── Regular jump — blocked while CHANGE held or while on rope ────────
