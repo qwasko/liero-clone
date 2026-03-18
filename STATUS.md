@@ -1,23 +1,27 @@
 # Liero Clone — Status
 
-## Last completed: Particle system + weapon expansion
+## Last completed: Weapon & particle balance rework
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
 - Destructible procedural cave terrain
 - Full weapon loadout (9 weapons, cycle with CHANGE+LEFT/RIGHT):
-  - Bazooka — arc shot with minor velocity variance
-  - Minigun (10000 ammo) — rapid fire, ±5° spread
-  - Grenade — bounces up to 4×, 3s fuse
-  - Shotgun — 8 pellets, wide random spread (~49°)
-  - Bouncy Larpa — bounces up to 3×, 3s fuse, purple
-  - Zimm — no gravity, infinite elastic terrain bounces, white; explodes on worm hit only
-  - Cluster Bomb — spawns 7 bomblets on explosion, each with 1.2s fuse
-  - Mine — deployes on terrain landing, triggers on enemy proximity (22px), blinks red
-  - Chiquita Bomb — on explosion spawns 11 banana fragments flying outward
-- Object-pooled particle system (400 particle pool):
-  - 20–50 square particles per explosion, weapon-coloured palette
-  - Gravity-affected, bounce once off terrain, fade out over 0.5–1s
+  - Bazooka — arc shot, ±8% velocity variance, 35 dmg
+  - Minigun (10000 ammo) — rapid fire, ±5° spread, 4 dmg/bullet, 2px crater, no particles
+  - Grenade — 4 bounces, 3s fuse, 50 dmg → spawns 7 fragments on explosion
+  - Shotgun — 8 pellets, ±20° random spread, 9 dmg/pellet
+  - Bouncy Larpa — 3 bounces, 3s fuse, 42 dmg
+  - Zimm — no gravity, infinite elastic bounces, white; explodes on worm hit only, 27 dmg
+  - Cluster Bomb — spawns 5 bomblets on explosion; each bomblet spawns 5 fragments (2-level chain)
+  - Mine — deploys on terrain, 700ms arm delay, triggers any worm proximity (22px), 56 dmg
+  - Chiquita Bomb — spawns 7 fragments on explosion, 20 dmg primary
+- Fragment weapon (internal): 17px explosion radius, 6 dmg, used by grenade/cluster/chiquita
+- Object-pooled particle system (200 pool):
+  - 6-10 dark shrapnel pieces per primary explosion
+  - 2-3 per shotgun pellet, 3-4 per fragment/bomblet, 0 for minigun
+  - Each particle: gravity, 2px terrain carve on hit, 1-2 HP worm damage on hit, then disappears
+  - Impact burst: 8-12px bright orange/white flash circle lasting 0.1s on every impact
+- Self-damage: 50% of splash damage when owner worm is caught in own explosion
 - Ninja rope (CHANGE+JUMP; climb to anchor, anchor destruction releases rope)
 - Terrain digging in crosshair direction; block zone ±10° of straight up only
 - HP bars, match timer, weapon HUD (pinned to screen with setScrollFactor)
@@ -36,19 +40,21 @@
 ## Known issues / bugs
 - Camera only follows P1; P2 can walk off-screen on large maps
   (acceptable for same-screen 2-player testing)
-- No sounds for new weapons (larpa, zimm, cluster, mine, chiquita) — they use
-  the generic fire/explosion sounds
+- No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita)
+  — they use generic fire/explosion audio
 
 ## Session stopped here
-Weapon variety pass complete. Particle system added (object pool).
-5 new weapons + shotgun upgrade + bazooka spread variance.
-Last commit: `feat: particle system + 5 new weapons (Larpa/Zimm/Cluster/Mine/Chiquita)`
+Weapon balance and particle system rework complete.
+Last commits:
+  `balance: damage reduction, self-damage 50%, particle burst, weapon tuning`
+  `refactor: particle cleanup — shrapnel physics, 6-10 count, dark colour`
+  `fix: Larpa OOB detonation, mine arm delay, particle physics damage`
 
 ## Possible next steps (not planned)
 - AI opponent (bot controller for P2)
+- Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
 - Flamethrower / homing missile (spec: do not implement yet)
 - Animated worm sprites instead of circle-segments
 - Sound effects from files instead of procedural Web Audio
 - Online multiplayer (WebSocket / Socket.io)
 - Splitscreen camera for proper 2-player experience
-- Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
