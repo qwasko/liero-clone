@@ -21,13 +21,13 @@ import { TagSystem } from '../game/TagSystem';
 import { LevelPreset, LEVEL_PRESETS } from '../game/LevelPreset';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, MATCH_DURATION_SECONDS, DEFAULT_LIVES, RESPAWN_DELAY_MS, WORM_MAX_HP } from '../game/constants';
 
-const WORM_COLORS: Record<1 | 2, number> = { 1: 0x00ff88, 2: 0xff4444 };
+
 const AIM_LINE_LEN = 22;
 
 export class GameScene extends Phaser.Scene {
   private worms!: [Worm, Worm];
   private controllers!: [WormController, WormController];
-  private wormGraphics: Map<Worm, Phaser.GameObjects.Rectangle> = new Map();
+  private wormLayer!: Phaser.GameObjects.Graphics;
 
   private inputManager!: InputManager;
   private physicsSystem!: PhysicsSystem;
@@ -86,7 +86,6 @@ export class GameScene extends Phaser.Scene {
     if (this.textures.exists('terrain')) {
       this.textures.remove('terrain');
     }
-    this.wormGraphics.clear();
     this.loadouts.clear();
     this.cycleState = [
       { dir: 0, holdMs: 0, repeatMs: 0 },
@@ -124,11 +123,7 @@ export class GameScene extends Phaser.Scene {
     const worm2 = new Worm(spawnP2.x, spawnP2.y, 2);
     this.worms = [worm1, worm2];
 
-    for (const worm of this.worms) {
-      const rect = this.add.rectangle(worm.x, worm.y, worm.width, worm.height, WORM_COLORS[worm.playerId])
-        .setDepth(5);
-      this.wormGraphics.set(worm, rect);
-    }
+    this.wormLayer = this.add.graphics().setDepth(5);
 
     // ── Weapons ────────────────────────────────────────────────────────
     this.loadouts.set(worm1, new Loadout([...DEFAULT_LOADOUT]));
@@ -345,12 +340,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // ── Sync worm visuals ─────────────────────────────────────────────
-    for (const worm of this.worms) {
-      const rect = this.wormGraphics.get(worm)!;
-      rect.setPosition(worm.x, worm.y);
-      rect.setVisible(!worm.isDead);
-    }
+    // ── Worm sprites ──────────────────────────────────────────────────
+    this.drawWorms();
 
     // ── Tag "IT" indicator ────────────────────────────────────────────
     if (this.tagSystem && this.tagItGraphics) {
@@ -492,6 +483,50 @@ export class GameScene extends Phaser.Scene {
     }
     // Fallback to spawn points
     return worm.playerId === 1 ? this.spawnPoints[0] : this.spawnPoints[1];
+  }
+
+  private drawWorms(): void {
+    const g = this.wormLayer;
+    g.clear();
+    for (const worm of this.worms) {
+      if (worm.isDead) continue;
+      this.drawWormSprite(g, worm);
+    }
+  }
+
+  private drawWormSprite(g: Phaser.GameObjects.Graphics, worm: Worm): void {
+    const p1        = worm.playerId === 1;
+    const bodyCol   = p1 ? 0x1fa854 : 0xbb2b25;
+    const hlCol     = p1 ? 0x55ff99 : 0xff5555;
+
+    const x = worm.x;
+    const y = worm.y;
+
+    // Aim direction vector — determines where the eye looks
+    const aimDX = worm.facingRight ? Math.cos(worm.aimAngle) : -Math.cos(worm.aimAngle);
+    const aimDY = Math.sin(worm.aimAngle);
+
+    // 1. Dark outline (1px larger each side)
+    g.fillStyle(0x111111, 1);
+    g.fillEllipse(x, y, 12, 14);
+
+    // 2. Main body
+    g.fillStyle(bodyCol, 1);
+    g.fillEllipse(x, y, 10, 12);
+
+    // 3. Highlight: small bright spot, top of head
+    g.fillStyle(hlCol, 0.55);
+    g.fillEllipse(x - 1, y - 3, 4, 3);
+
+    // 4. Eye white — offset along aim direction
+    const ex = x + aimDX * 3;
+    const ey = y + aimDY * 3 - 1;
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(ex, ey, 2);
+
+    // 5. Pupil — slightly further along aim direction
+    g.fillStyle(0x111111, 1);
+    g.fillCircle(ex + aimDX, ey + aimDY, 1);
   }
 
   private drawAimLines(): void {
