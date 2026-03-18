@@ -44,16 +44,23 @@ export class WeaponSystem {
       if (weapon.pellets === 1) {
         // Single pellet: random spread (gives minigun its natural drift)
         angleOffset = (Math.random() - 0.5) * weapon.spread;
+      } else if (weapon.randomSpread) {
+        // Random per-pellet spread — shotgun chaos
+        angleOffset = (Math.random() - 0.5) * weapon.spread;
       } else {
         // Multiple pellets: evenly distributed across spread arc
         angleOffset = (i / (weapon.pellets - 1) - 0.5) * weapon.spread;
       }
 
+      const speedMult = weapon.velocityVariance
+        ? 1 + (Math.random() - 0.5) * weapon.velocityVariance
+        : 1;
+
       const angle = baseAngle + angleOffset;
       result.push(new Projectile(
         spawnX, spawnY,
-        Math.cos(angle) * weapon.projectileSpeed,
-        Math.sin(angle) * weapon.projectileSpeed,
+        Math.cos(angle) * weapon.projectileSpeed * speedMult,
+        Math.sin(angle) * weapon.projectileSpeed * speedMult,
         worm.playerId,
         weapon,
       ));

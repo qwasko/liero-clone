@@ -8,8 +8,9 @@ import { TerrainMap } from '../terrain/TerrainMap';
 import { TerrainGenerator } from '../terrain/TerrainGenerator';
 import { TerrainRenderer } from '../terrain/TerrainRenderer';
 import { TerrainDestroyer } from '../terrain/TerrainDestroyer';
-import { DEFAULT_LOADOUT } from '../weapons/WeaponRegistry';
+import { DEFAULT_LOADOUT, WeaponRegistry } from '../weapons/WeaponRegistry';
 import { Loadout } from '../weapons/Loadout';
+import { ParticleSystem } from '../game/ParticleSystem';
 import { WeaponSystem } from '../weapons/WeaponSystem';
 import { ExplosionSystem } from '../game/ExplosionSystem';
 import { RopeSystem } from '../game/RopeSystem';
@@ -43,6 +44,8 @@ export class GameScene extends Phaser.Scene {
   private diggingSystem!: DiggingSystem;
   private crateSystem!: CrateSystem;
   private activeProjectiles: Projectile[] = [];
+  private particleSystem!: ParticleSystem;
+  private particleLayer!: Phaser.GameObjects.Graphics;
 
   private audio!: AudioManager;
   private hud!: HUD;
@@ -96,6 +99,7 @@ export class GameScene extends Phaser.Scene {
     this.matchOver         = false;
     this.timeRemaining     = MATCH_DURATION_SECONDS;
     this.activeProjectiles = [];
+    this.particleSystem    = new ParticleSystem();
     this.lives.clear();
     this.respawnTimers.clear();
     this.tagSystem = null;
@@ -179,6 +183,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.cameraFocus);
 
 // ── Overlay + HUD (last → render on top) ──────────────────────────
+    this.particleLayer   = this.add.graphics().setDepth(9);
     this.overlayGraphics = this.add.graphics().setDepth(10);
 
     // Screen-space flash rect for explosion feedback (replaces camera shake)
@@ -304,12 +309,57 @@ export class GameScene extends Phaser.Scene {
           proj.weapon.splashDamage,
           proj.weapon.splashRadius,
         );
+
+        // ── Cluster bomb: spray bomblets ──────────────────────────────
+        if (proj.weapon.clusterCount && proj.weapon.clusterWeapon) {
+          const bombletDef = WeaponRegistry[proj.weapon.clusterWeapon];
+          if (bombletDef) {
+            for (let i = 0; i < proj.weapon.clusterCount; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 90 + Math.random() * 160;
+              this.activeProjectiles.push(new Projectile(
+                hitX, hitY,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                proj.ownerId,
+                bombletDef,
+              ));
+            }
+          }
+        }
+
+        // ── Chiquita: spray banana fragments ─────────────────────────
+        if (proj.weapon.chiquitaFragments) {
+          const fragDef = WeaponRegistry['chiquita_fragment'];
+          if (fragDef) {
+            const total = proj.weapon.chiquitaFragments;
+            for (let i = 0; i < total; i++) {
+              const angle = (i / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+              const speed = 180 + Math.random() * 220;
+              this.activeProjectiles.push(new Projectile(
+                hitX, hitY,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                proj.ownerId,
+                fragDef,
+              ));
+            }
+          }
+        }
+
+        // ── Particles ─────────────────────────────────────────────────
+        this.spawnExplosionParticles(hitX, hitY, proj.weapon.id, proj.weapon.explosionRadius);
+
         const big = proj.weapon.explosionRadius >= 20;
         this.audio.playExplosion(big);
         this.triggerFlash(big ? 0.18 : 0.08);
       },
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
+
+    // ── Particles ──────────────────────────────────────────────────────
+    this.particleSystem.update(dt, this.terrain);
+    this.particleSystem.draw(this.particleLayer);
 
     // ── Respawn timers ────────────────────────────────────────────────
     for (const worm of this.worms) {
@@ -383,6 +433,27 @@ export class GameScene extends Phaser.Scene {
       duration: 120,
       ease:     'Quad.easeOut',
     });
+  }
+
+  private spawnExplosionParticles(x: number, y: number, weaponId: string, radius: number): void {
+    // Color palettes per weapon
+    const palettes: Record<string, number[]> = {
+      bazooka:           [0xff4400, 0xff8800, 0xffcc00, 0xffffff],
+      minigun:           [0xffcc00, 0xffee44],
+      grenade:           [0xff4400, 0xff6600, 0xffcc00, 0xffffff],
+      shotgun:           [0xff8800, 0xffcc44, 0xffffff],
+      larpa:             [0xcc44ff, 0xff66ff, 0xffffff],
+      zimm:              [0x44eeff, 0x88ffff, 0xffffff],
+      cluster_bomb:      [0xff3300, 0xff6600, 0xffcc00],
+      cluster_bomblet:   [0xff5500, 0xffaa00, 0xffee44],
+      mine:              [0x88dd22, 0xccff44, 0xffff88],
+      chiquita:          [0xffee00, 0xffcc22, 0xffffff],
+      chiquita_fragment: [0xffdd00, 0xffcc44],
+    };
+    const colors = palettes[weaponId] ?? [0xff8800, 0xffcc00, 0xffffff];
+    // Bigger explosions = more particles
+    const count = Math.round(5 + radius * 0.9 + Math.random() * 15);
+    this.particleSystem.spawnExplosion(x, y, Math.min(count, 50), colors);
   }
 
   private spawnMuzzleFlash(x: number, y: number): void {
@@ -560,14 +631,29 @@ export class GameScene extends Phaser.Scene {
   private drawProjectiles(): void {
     const g = this.overlayGraphics;
     for (const proj of this.activeProjectiles) {
-      // Grenades pulse slightly while alive — tint based on fuse remaining
-      if (proj.weapon.behavior === 'bounce' && proj.fuseTimer !== null) {
-        const urgency = 1 - proj.fuseTimer / proj.weapon.fuseMs!;
-        const col = urgency > 0.6 ? 0xff4400 : 0xffcc00;
-        g.fillStyle(col, 1);
-      } else {
-        g.fillStyle(0xffee44, 1);
+      if (!proj.active) continue;
+
+      // ── Mine: deployed → draw as small brown rectangle ───────────
+      if (proj.weapon.behavior === 'mine' && proj.deployed) {
+        g.fillStyle(0x8B5513, 1);
+        g.fillRect(proj.x - 5, proj.y - 3, 10, 6);
+        // Blinking red light
+        const blink = Math.floor(this.time.now / 300) % 2 === 0;
+        if (blink) {
+          g.fillStyle(0xff2200, 1);
+          g.fillCircle(proj.x, proj.y - 3, 1.5);
+        }
+        continue;
       }
+
+      // ── Bounce weapons with fuse: pulse red when nearly expiring ─
+      let color = proj.weapon.projectileColor;
+      if (proj.fuseTimer !== null && proj.weapon.fuseMs !== null) {
+        const urgency = 1 - proj.fuseTimer / proj.weapon.fuseMs;
+        if (urgency > 0.65) color = 0xff3300;
+      }
+
+      g.fillStyle(color, 1);
       g.fillCircle(proj.x, proj.y, proj.weapon.projectileSize);
     }
   }

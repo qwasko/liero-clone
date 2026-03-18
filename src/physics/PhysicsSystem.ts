@@ -134,6 +134,20 @@ export class PhysicsSystem {
     for (const proj of projectiles) {
       if (!proj.active) continue;
 
+      // ── Mine: deployed → proximity check only, skip movement ────────
+      if (proj.weapon.behavior === 'mine' && proj.deployed) {
+        for (const worm of worms) {
+          if (worm.isDead || worm.playerId === proj.ownerId) continue;
+          const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
+          if (dist <= (proj.weapon.mineProximity ?? 20)) {
+            proj.active = false;
+            onHit(proj, proj.x, proj.y);
+            break;
+          }
+        }
+        continue;
+      }
+
       // ── Fuse timer ──────────────────────────────────────────────────
       if (proj.fuseTimer !== null) {
         proj.fuseTimer -= dt * 1000;
@@ -173,11 +187,21 @@ export class PhysicsSystem {
 
         // ── Terrain hit ─────────────────────────────────────────────
         if (terrain.isSolid(tx, ty)) {
-          if (
-            proj.weapon.behavior === 'bounce' &&
-            proj.bounceCount < proj.weapon.maxBounces
-          ) {
+          if (proj.weapon.behavior === 'bounce' && proj.bounceCount < proj.weapon.maxBounces) {
             this.bounceProjectile(proj, dx, dy);
+          } else if (proj.weapon.behavior === 'zimm') {
+            // Zimm: elastic infinite bounce off terrain, only explodes on worm hit
+            this.bounceZimm(proj, dx, dy);
+          } else if (proj.weapon.behavior === 'mine' && !proj.deployed) {
+            // Mine: stop and deploy on first terrain contact
+            const len = Math.hypot(dx, dy);
+            if (len > 0) {
+              proj.x -= dx / len * 3;
+              proj.y -= dy / len * 3;
+            }
+            proj.deployed = true;
+            proj.vx = 0;
+            proj.vy = 0;
           } else {
             proj.active = false;
             onHit(proj, tx, ty);
@@ -203,7 +227,6 @@ export class PhysicsSystem {
 
   private bounceProjectile(proj: Projectile, dx: number, dy: number): void {
     const DAMPEN = 0.62;
-    // Use the incoming velocity direction to determine which axis to reflect
     if (Math.abs(dx) >= Math.abs(dy)) {
       proj.vx = -proj.vx * DAMPEN;
       proj.vy *=          DAMPEN;
@@ -212,9 +235,19 @@ export class PhysicsSystem {
       proj.vx *=          DAMPEN;
     }
     proj.bounceCount++;
-    // Nudge back out of terrain
     proj.x -= Math.sign(dx) * 2;
     proj.y -= Math.sign(dy) * 2;
+  }
+
+  /** Zimm: elastic (no dampen) infinite bounce — terrain never detonates it. */
+  private bounceZimm(proj: Projectile, dx: number, dy: number): void {
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      proj.vx = -proj.vx;
+    } else {
+      proj.vy = -proj.vy;
+    }
+    proj.x -= Math.sign(dx) * 3;
+    proj.y -= Math.sign(dy) * 3;
   }
 
   // ── Phase 1 fallback: solid floor at bottom ────────────────────────

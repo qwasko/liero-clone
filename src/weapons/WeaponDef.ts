@@ -13,13 +13,26 @@ export interface WeaponDef {
   readonly projectileSpeed:   number;  // px/s
   readonly projectileGravity: number;  // multiplier of global GRAVITY
   readonly projectileSize:    number;  // visual radius px
+  readonly projectileColor:   number;  // hex colour for rendering
   readonly pellets:           number;  // >1 for shotgun-style spread
   readonly spread:            number;  // total spread arc in radians
+  readonly randomSpread?:     boolean; // true = per-pellet random spread (shotgun chaos)
+  readonly velocityVariance?: number;  // fractional speed randomness, e.g. 0.1 = ±10%
 
   // Projectile behaviour
-  readonly behavior:    'normal' | 'bounce' | 'rope';
+  readonly behavior:    'normal' | 'bounce' | 'zimm' | 'mine' | 'rope';
   readonly maxBounces:  number;        // 'bounce' only — explode after this many bounces
   readonly fuseMs:      number | null; // null = explode on terrain hit; number = timed fuse
+
+  // Cluster: spawn child projectiles on explosion
+  readonly clusterWeapon?: string; // id of the child weapon in WeaponRegistry
+  readonly clusterCount?:  number; // how many children to spawn
+
+  // Chiquita: spawn banana fragments on explosion
+  readonly chiquitaFragments?: number;
+
+  // Mine: proximity trigger radius in px (behavior === 'mine' only)
+  readonly mineProximity?: number;
 
   // Explosion
   readonly explosionRadius: number;

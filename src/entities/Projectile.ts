@@ -13,6 +13,9 @@ export class Projectile {
   /** Milliseconds until forced explosion. null if the weapon has no fuse. */
   fuseTimer: number | null;
 
+  /** Mine-only: true once the projectile has landed and is waiting to trigger. */
+  deployed: boolean = false;
+
   readonly ownerId: 1 | 2;
   readonly weapon:  WeaponDef;
 

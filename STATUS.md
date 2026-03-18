@@ -1,45 +1,54 @@
 # Liero Clone — Status
 
-## Last completed: Camera follow + level selection system
+## Last completed: Particle system + weapon expansion
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
 - Destructible procedural cave terrain
-- Full weapon loadout: Bazooka, Minigun (10000 ammo), Grenade, Shotgun
+- Full weapon loadout (9 weapons, cycle with CHANGE+LEFT/RIGHT):
+  - Bazooka — arc shot with minor velocity variance
+  - Minigun (10000 ammo) — rapid fire, ±5° spread
+  - Grenade — bounces up to 4×, 3s fuse
+  - Shotgun — 8 pellets, wide random spread (~49°)
+  - Bouncy Larpa — bounces up to 3×, 3s fuse, purple
+  - Zimm — no gravity, infinite elastic terrain bounces, white; explodes on worm hit only
+  - Cluster Bomb — spawns 7 bomblets on explosion, each with 1.2s fuse
+  - Mine — deployes on terrain landing, triggers on enemy proximity (22px), blinks red
+  - Chiquita Bomb — on explosion spawns 11 banana fragments flying outward
+- Object-pooled particle system (400 particle pool):
+  - 20–50 square particles per explosion, weapon-coloured palette
+  - Gravity-affected, bounce once off terrain, fade out over 0.5–1s
 - Ninja rope (CHANGE+JUMP; climb to anchor, anchor destruction releases rope)
-- Terrain digging in crosshair direction (hold direction + tap opposite)
-  - Block zone reduced to ±10° of straight up only
+- Terrain digging in crosshair direction; block zone ±10° of straight up only
 - HP bars, match timer, weapon HUD (pinned to screen with setScrollFactor)
 - Lives system (3 lives each) + respawn after 2s
 - Win condition (elimination or timer expiry)
 - Bonus crates: spawn every ~18s, max 5 on map
 - Procedural audio (fire, explosion, jump, pickup, rope)
-- Explosion screen flash (red vignette, replaces camera shake)
-- Load+Change: per-slot independent reload timers
-- Level selection menu (UP/DOWN = mode, LEFT/RIGHT = level, ENTER = start):
-  - Normal: 800×500, ~80% fill, few large caves
-  - Large Open: 1600×1000, ~50% fill, many large caves (2× map size)
-  - Tiny: 400×250, ~90% fill, tight tunnels
-- Camera follows P1 worm via Phaser startFollow + Zone focus point
-  - setBounds clamps to map edges (no black space)
-  - 1:1 pixel scale always (no zoom)
-- Projectiles travel full map width before despawning (not capped at canvas size)
-- Worm edge-clamping uses terrain dimensions (works on all map sizes)
+- Explosion screen flash (red vignette)
+- Per-slot independent reload timers
+- Level selection menu (Normal / Large Open / Tiny)
+- Camera follows P1 worm; setBounds clamps to map edges
+- Projectiles travel full map dimensions before despawning
+- 4-segment worm sprites with aim-tracking eye (P1 green, P2 red)
 - Mode selection: Normal Deathmatch or Game of Tag
-- Game of Tag mode with cumulative time tracking and results screen
 
 ## Known issues / bugs
 - Camera only follows P1; P2 can walk off-screen on large maps
   (acceptable for same-screen 2-player testing)
+- No sounds for new weapons (larpa, zimm, cluster, mine, chiquita) — they use
+  the generic fire/explosion sounds
 
 ## Session stopped here
-Camera system rewritten using Phaser startFollow + invisible Zone target.
-Last commit: `fix: camera follows P1 worm only, not midpoint between worms`
+Weapon variety pass complete. Particle system added (object pool).
+5 new weapons + shotgun upgrade + bazooka spread variance.
+Last commit: `feat: particle system + 5 new weapons (Larpa/Zimm/Cluster/Mine/Chiquita)`
 
 ## Possible next steps (not planned)
 - AI opponent (bot controller for P2)
-- More weapons (flamethrower, dynamite, homing missile, etc.)
-- Animated worm sprites instead of rectangles
+- Flamethrower / homing missile (spec: do not implement yet)
+- Animated worm sprites instead of circle-segments
 - Sound effects from files instead of procedural Web Audio
 - Online multiplayer (WebSocket / Socket.io)
 - Splitscreen camera for proper 2-player experience
+- Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
