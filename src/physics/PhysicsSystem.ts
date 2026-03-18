@@ -134,15 +134,20 @@ export class PhysicsSystem {
     for (const proj of projectiles) {
       if (!proj.active) continue;
 
-      // ── Mine: deployed → proximity check only, skip movement ────────
+      // ── Mine: deployed → arm delay then proximity check, skip movement ─
       if (proj.weapon.behavior === 'mine' && proj.deployed) {
-        for (const worm of worms) {
-          if (worm.isDead || worm.playerId === proj.ownerId) continue;
-          const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
-          if (dist <= (proj.weapon.mineProximity ?? 20)) {
-            proj.active = false;
-            onHit(proj, proj.x, proj.y);
-            break;
+        if (proj.armTimer > 0) {
+          proj.armTimer -= dt * 1000;
+        } else {
+          // Triggers on ANY worm (including owner) once armed
+          for (const worm of worms) {
+            if (worm.isDead) continue;
+            const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
+            if (dist <= (proj.weapon.mineProximity ?? 20)) {
+              proj.active = false;
+              onHit(proj, proj.x, proj.y);
+              break;
+            }
           }
         }
         continue;
@@ -199,7 +204,8 @@ export class PhysicsSystem {
               proj.x -= dx / len * 3;
               proj.y -= dy / len * 3;
             }
-            proj.deployed = true;
+            proj.deployed  = true;
+            proj.armTimer  = 700; // arm after 700 ms — prevents immediate self-trigger
             proj.vx = 0;
             proj.vy = 0;
           } else {
@@ -220,6 +226,12 @@ export class PhysicsSystem {
           proj.y < 0 || proj.y > terrain.height
         ) {
           proj.active = false;
+          // Bounce and timed weapons detonate at the boundary instead of vanishing
+          if (proj.weapon.behavior !== 'normal' || proj.weapon.fuseMs !== null) {
+            const bx = Math.max(1, Math.min(terrain.width  - 1, proj.x));
+            const by = Math.max(1, Math.min(terrain.height - 1, proj.y));
+            onHit(proj, bx, by);
+          }
         }
       }
     }

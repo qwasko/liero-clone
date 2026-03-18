@@ -358,7 +358,7 @@ export class GameScene extends Phaser.Scene {
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
 
     // ── Particles ──────────────────────────────────────────────────────
-    this.particleSystem.update(dt, this.terrain);
+    this.particleSystem.update(dt, this.terrain, this.worms, this.terrainDestroyer);
     this.particleSystem.draw(this.particleLayer);
 
     // ── Respawn timers ────────────────────────────────────────────────

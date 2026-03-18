@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
+import { Worm } from '../entities/Worm';
 import { TerrainMap } from '../terrain/TerrainMap';
+import { TerrainDestroyer } from '../terrain/TerrainDestroyer';
 import { GRAVITY } from './constants';
 
 const POOL_SIZE = 400;
@@ -19,7 +21,8 @@ interface Particle {
 
 /**
  * Object-pooled 2D particle system for explosion debris.
- * Particles are small squares, affected by gravity, bounce once off terrain.
+ * Particles are small squares, affected by gravity.
+ * Physics: one terrain bounce (carves 1px on contact), worm AABB deals 1-2 HP.
  */
 export class ParticleSystem {
   private pool: Particle[];
@@ -36,7 +39,7 @@ export class ParticleSystem {
     for (const p of this.pool) {
       if (!p.active) return p;
     }
-    return null; // pool exhausted
+    return null;
   }
 
   /**
@@ -66,10 +69,16 @@ export class ParticleSystem {
     }
   }
 
-  update(dt: number, terrain: TerrainMap): void {
+  update(
+    dt:               number,
+    terrain:          TerrainMap,
+    worms:            Worm[],
+    terrainDestroyer: TerrainDestroyer,
+  ): void {
     for (let i = this.live.length - 1; i >= 0; i--) {
       const p = this.live[i];
 
+      // ── Lifetime ──────────────────────────────────────────────────
       p.life -= dt;
       if (p.life <= 0) {
         p.active = false;
@@ -77,13 +86,16 @@ export class ParticleSystem {
         continue;
       }
 
+      // ── Gravity ───────────────────────────────────────────────────
       p.vy += GRAVITY * 0.4 * dt;
 
       const nx = p.x + p.vx * dt;
       const ny = p.y + p.vy * dt;
 
-      // Bounce once off terrain (axis-split detection)
+      // ── Terrain: bounce once, carve on contact ────────────────────
       if (!p.bounced && terrain.isSolid(nx, ny)) {
+        terrainDestroyer.carveCircle(p.x, p.y, 1);
+
         const hitX = terrain.isSolid(nx, p.y);
         const hitY = terrain.isSolid(p.x, ny);
         if (hitX && !hitY) {
@@ -97,19 +109,31 @@ export class ParticleSystem {
           p.vy *= -0.35;
         }
         p.bounced = true;
-        // Don't move this frame — stay put
-        continue;
+        continue; // don't move this frame
       }
 
       p.x = nx;
       p.y = ny;
+
+      // ── Worm hit: 1-2 HP damage, deactivate particle ─────────────
+      for (const worm of worms) {
+        if (worm.isDead) continue;
+        if (
+          Math.abs(p.x - worm.x) < worm.width  / 2 + p.size &&
+          Math.abs(p.y - worm.y) < worm.height / 2 + p.size
+        ) {
+          worm.applyDamage(1 + Math.floor(Math.random() * 2));
+          p.active = false;
+          this.live.splice(i, 1);
+          break;
+        }
+      }
     }
   }
 
   draw(g: Phaser.GameObjects.Graphics): void {
     g.clear();
     for (const p of this.live) {
-      // Fade out over the last 40% of life
       const alpha = Math.min(1, (p.life / p.maxLife) / 0.4);
       g.fillStyle(p.color, alpha);
       g.fillRect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size);

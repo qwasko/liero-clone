@@ -16,6 +16,9 @@ export class Projectile {
   /** Mine-only: true once the projectile has landed and is waiting to trigger. */
   deployed: boolean = false;
 
+  /** Mine-only: ms remaining before the mine arms after deployment (avoids instant self-trigger). */
+  armTimer: number = 0;
+
   readonly ownerId: 1 | 2;
   readonly weapon:  WeaponDef;
 
