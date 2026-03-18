@@ -495,38 +495,52 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawWormSprite(g: Phaser.GameObjects.Graphics, worm: Worm): void {
-    const p1        = worm.playerId === 1;
-    const bodyCol   = p1 ? 0x1fa854 : 0xbb2b25;
-    const hlCol     = p1 ? 0x55ff99 : 0xff5555;
+    const p1 = worm.playerId === 1;
+
+    // Segment colors tail→head (dark to light)
+    const colors = p1
+      ? [0x0a5c25, 0x178a38, 0x22bb4e, 0x33ee66]   // green shades
+      : [0x6b1111, 0x991a1a, 0xcc2727, 0xee4444];   // red shades
 
     const x = worm.x;
     const y = worm.y;
 
-    // Aim direction vector — determines where the eye looks
-    const aimDX = worm.facingRight ? Math.cos(worm.aimAngle) : -Math.cos(worm.aimAngle);
+    // Body axis: tail at back, head at front (in aim direction)
+    const aimDX = worm.facingRight ?  Math.cos(worm.aimAngle) : -Math.cos(worm.aimAngle);
     const aimDY = Math.sin(worm.aimAngle);
+    // Perpendicular axis for S-curve offsets
+    const perpDX = -aimDY;
+    const perpDY =  aimDX;
 
-    // 1. Dark outline (1px larger each side)
-    g.fillStyle(0x111111, 1);
-    g.fillEllipse(x, y, 12, 14);
+    // [along-axis offset, perp offset, radius]
+    const segs: [number, number, number][] = [
+      [-6,  0.5, 2.0],  // tail   (darkest, smallest)
+      [-2, -1.5, 2.5],  // body2
+      [ 2,  1.5, 3.0],  // body1
+      [ 6,  0.0, 3.5],  // head   (brightest, largest)
+    ];
 
-    // 2. Main body
-    g.fillStyle(bodyCol, 1);
-    g.fillEllipse(x, y, 10, 12);
+    // Pass 1: dark outline — draw all slightly larger circles first
+    g.fillStyle(0x0a0a0a, 1);
+    for (const [a, p, r] of segs) {
+      g.fillCircle(x + aimDX * a + perpDX * p, y + aimDY * a + perpDY * p, r + 1.2);
+    }
 
-    // 3. Highlight: small bright spot, top of head
-    g.fillStyle(hlCol, 0.55);
-    g.fillEllipse(x - 1, y - 3, 4, 3);
+    // Pass 2: colored segments, tail first so head renders on top
+    segs.forEach(([a, p, r], i) => {
+      g.fillStyle(colors[i], 1);
+      g.fillCircle(x + aimDX * a + perpDX * p, y + aimDY * a + perpDY * p, r);
+    });
 
-    // 4. Eye white — offset along aim direction
-    const ex = x + aimDX * 3;
-    const ey = y + aimDY * 3 - 1;
+    // Eye: on head surface, looking in aim direction
+    const hx = x + aimDX * 6;  // head centre
+    const hy = y + aimDY * 6;
+    const ex = hx + aimDX * 2.2;
+    const ey = hy + aimDY * 2.2;
     g.fillStyle(0xffffff, 1);
-    g.fillCircle(ex, ey, 2);
-
-    // 5. Pupil — slightly further along aim direction
+    g.fillCircle(ex, ey, 1.5);
     g.fillStyle(0x111111, 1);
-    g.fillCircle(ex + aimDX, ey + aimDY, 1);
+    g.fillCircle(ex + aimDX * 0.6, ey + aimDY * 0.6, 0.8);
   }
 
   private drawAimLines(): void {
