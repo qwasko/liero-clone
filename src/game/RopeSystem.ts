@@ -3,7 +3,7 @@ import { Worm } from '../entities/Worm';
 import { InputState } from '../input/InputState';
 import { TerrainMap } from '../terrain/TerrainMap';
 
-const MAX_ROPE_LENGTH     = 220;
+const MAX_ROPE_LENGTH     = 275; // 220 × 1.25
 const MIN_ROPE_LENGTH     = 20;   // matches DiggingSystem.DIG_REACH — worm at max climb is within digging range of anchor
 const ROPE_CAST_START     = 14;
 const LENGTH_SHORTEN_SPEED = 200; // px/s
