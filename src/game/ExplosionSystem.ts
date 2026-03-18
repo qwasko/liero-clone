@@ -20,16 +20,19 @@ export class ExplosionSystem {
     explosionRadius: number,
     splashDamage:    number,
     splashRadius:    number,
+    ownerId?:        1 | 2,  // if set, owner takes 50% damage
   ): void {
     // Carve terrain
     this.terrainDestroyer.carveCircle(x, y, explosionRadius);
 
-    // Damage worms within splash radius (linear falloff)
+    // Damage worms within splash radius (linear falloff; 50% self-damage)
     for (const worm of this.worms) {
       const dist = Math.hypot(worm.x - x, worm.y - y);
       if (dist < splashRadius) {
         const falloff = 1 - dist / splashRadius;
-        worm.applyDamage(Math.round(splashDamage * falloff));
+        let dmg = Math.round(splashDamage * falloff);
+        if (ownerId !== undefined && worm.playerId === ownerId) dmg = Math.round(dmg * 0.5);
+        worm.applyDamage(dmg);
       }
     }
   }

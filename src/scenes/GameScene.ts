@@ -308,6 +308,7 @@ export class GameScene extends Phaser.Scene {
           proj.weapon.explosionRadius,
           proj.weapon.splashDamage,
           proj.weapon.splashRadius,
+          proj.ownerId,
         );
 
         // ── Cluster bomb: spray bomblets ──────────────────────────────
@@ -348,7 +349,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         // ── Particles ─────────────────────────────────────────────────
-        this.spawnExplosionParticles(hitX, hitY);
+        this.spawnExplosionParticles(hitX, hitY, proj.weapon.id);
 
         const big = proj.weapon.explosionRadius >= 20;
         this.audio.playExplosion(big);
@@ -435,8 +436,19 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private spawnExplosionParticles(x: number, y: number): void {
-    const count = 6 + Math.floor(Math.random() * 5); // 6–10 shrapnel pieces
+  private spawnExplosionParticles(x: number, y: number, weaponId: string): void {
+    // Minigun: no particles — just a tiny bullet impact with no debris
+    if (weaponId === 'minigun') return;
+
+    let count: number;
+    if (weaponId === 'shotgun') {
+      count = 2 + Math.floor(Math.random() * 2);          // 2–3 per pellet
+    } else if (weaponId === 'chiquita_fragment' || weaponId === 'cluster_bomblet') {
+      count = 3 + Math.floor(Math.random() * 2);          // 3–4 (secondary explosions)
+    } else {
+      count = 6 + Math.floor(Math.random() * 5);          // 6–10 (primary explosions)
+    }
+
     this.particleSystem.spawnExplosion(x, y, count);
   }
 
