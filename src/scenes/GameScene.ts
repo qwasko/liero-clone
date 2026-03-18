@@ -348,7 +348,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         // ── Particles ─────────────────────────────────────────────────
-        this.spawnExplosionParticles(hitX, hitY, proj.weapon.id, proj.weapon.explosionRadius);
+        this.spawnExplosionParticles(hitX, hitY);
 
         const big = proj.weapon.explosionRadius >= 20;
         this.audio.playExplosion(big);
@@ -435,25 +435,9 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private spawnExplosionParticles(x: number, y: number, weaponId: string, radius: number): void {
-    // Color palettes per weapon
-    const palettes: Record<string, number[]> = {
-      bazooka:           [0xff4400, 0xff8800, 0xffcc00, 0xffffff],
-      minigun:           [0xffcc00, 0xffee44],
-      grenade:           [0xff4400, 0xff6600, 0xffcc00, 0xffffff],
-      shotgun:           [0xff8800, 0xffcc44, 0xffffff],
-      larpa:             [0xcc44ff, 0xff66ff, 0xffffff],
-      zimm:              [0x44eeff, 0x88ffff, 0xffffff],
-      cluster_bomb:      [0xff3300, 0xff6600, 0xffcc00],
-      cluster_bomblet:   [0xff5500, 0xffaa00, 0xffee44],
-      mine:              [0x88dd22, 0xccff44, 0xffff88],
-      chiquita:          [0xffee00, 0xffcc22, 0xffffff],
-      chiquita_fragment: [0xffdd00, 0xffcc44],
-    };
-    const colors = palettes[weaponId] ?? [0xff8800, 0xffcc00, 0xffffff];
-    // Bigger explosions = more particles
-    const count = Math.round(5 + radius * 0.9 + Math.random() * 15);
-    this.particleSystem.spawnExplosion(x, y, Math.min(count, 50), colors);
+  private spawnExplosionParticles(x: number, y: number): void {
+    const count = 6 + Math.floor(Math.random() * 5); // 6–10 shrapnel pieces
+    this.particleSystem.spawnExplosion(x, y, count);
   }
 
   private spawnMuzzleFlash(x: number, y: number): void {
