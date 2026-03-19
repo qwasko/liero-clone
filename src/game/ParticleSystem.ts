@@ -6,46 +6,53 @@ import { GRAVITY } from './constants';
 
 const POOL_SIZE = 200;
 
-/** Dark shrapnel/debris colours. */
-const SHRAPNEL_COLORS = [0x3a3028, 0x4a3c30, 0x555555, 0x2a2020, 0x6b5040];
-
-/** Bright flash colours for impact bursts. */
-const BURST_COLORS = [0xff8800, 0xffcc44, 0xffffff, 0xff4400];
-
-interface Particle {
-  active:  boolean;
-  x:       number;
-  y:       number;
-  vx:      number;
-  vy:      number;
-  life:    number;
-  maxLife: number;
-  size:    number;
-  color:   number;
+/** Phase enum for 3-phase particle lifecycle. */
+const enum Phase {
+  FLYING,
+  IMPACT,
+  FADEOUT,
 }
 
-interface Burst {
-  x:      number;
-  y:      number;
-  life:   number;   // counts down from 0.1 to 0
-  radius: number;   // 8–12 px
-  color:  number;
+/** Impact ring expanding duration (seconds). */
+const IMPACT_DURATION = 0.12;
+/** Fadeout shrink/fade duration (seconds). */
+const FADEOUT_DURATION = 0.1;
+
+/** Impact ring start / end radius. */
+const IMPACT_RADIUS_START = 4;
+const IMPACT_RADIUS_END = 16;
+
+/** Flying-phase colours. */
+const CORE_COLORS = [0xffcc44, 0xffaa22, 0xffdd66]; // bright orange/yellow
+const EDGE_COLOR = 0x881100; // dark red outline
+
+interface Particle {
+  active:   boolean;
+  x:        number;
+  y:        number;
+  vx:       number;
+  vy:       number;
+  life:     number;
+  maxLife:  number;
+  size:     number;
+  phase:    Phase;
+  phaseT:   number; // time spent in current phase
 }
 
 /**
- * Object-pooled shrapnel system.
- * Every particle has real collision — disappears on first terrain or worm contact.
- * Terrain hit: 2 px carve + impact burst. Worm hit: 1–2 HP + impact burst.
+ * Object-pooled shrapnel system with 3-phase animation.
+ * Phase 1 — FLYING: bright core + dark outline, moves with gravity.
+ * Phase 2 — IMPACT: expanding bright ring on hit (terrain or worm).
+ * Phase 3 — FADEOUT: shrink + fade to transparent, then recycle.
  */
 export class ParticleSystem {
-  private pool:   Particle[];
-  private live:   Particle[] = [];
-  private bursts: Burst[]    = [];
+  private pool: Particle[];
+  private live: Particle[] = [];
 
   constructor() {
     this.pool = Array.from({ length: POOL_SIZE }, () => ({
       active: false, x: 0, y: 0, vx: 0, vy: 0,
-      life: 0, maxLife: 1, size: 2, color: 0,
+      life: 0, maxLife: 1, size: 3, phase: Phase.FLYING, phaseT: 0,
     }));
   }
 
@@ -56,13 +63,12 @@ export class ParticleSystem {
     return null;
   }
 
-  private spawnBurst(x: number, y: number): void {
-    this.bursts.push({
-      x, y,
-      life:   0.1,
-      radius: 8 + Math.random() * 4,
-      color:  BURST_COLORS[Math.floor(Math.random() * BURST_COLORS.length)],
-    });
+  /** Transition a particle to the IMPACT phase (freeze in place). */
+  private toImpact(p: Particle): void {
+    p.phase  = Phase.IMPACT;
+    p.phaseT = 0;
+    p.vx     = 0;
+    p.vy     = 0;
   }
 
   /** Spawn shrapnel pieces at (x, y). count should be 6–10 for normal explosions. */
@@ -72,7 +78,8 @@ export class ParticleSystem {
       if (!p) break;
 
       const angle = Math.random() * Math.PI * 2;
-      const speed = 30 + Math.random() * 100;   // 50% slower than before
+      // Base speed reduced by 33% (×0.67)
+      const speed = (30 + Math.random() * 100) * 0.67;
 
       p.active  = true;
       p.x       = x + (Math.random() - 0.5) * 8;
@@ -81,8 +88,9 @@ export class ParticleSystem {
       p.vy      = Math.sin(angle) * speed;
       p.maxLife = 0.4 + Math.random() * 0.4;
       p.life    = p.maxLife;
-      p.size    = Math.random() > 0.5 ? 3 : 2;
-      p.color   = SHRAPNEL_COLORS[Math.floor(Math.random() * SHRAPNEL_COLORS.length)];
+      p.size    = Math.random() > 0.5 ? 4 : 3;
+      p.phase   = Phase.FLYING;
+      p.phaseT  = 0;
 
       this.live.push(p);
     }
@@ -94,52 +102,62 @@ export class ParticleSystem {
     worms:            Worm[],
     terrainDestroyer: TerrainDestroyer,
   ): void {
-    // ── Bursts ────────────────────────────────────────────────────────
-    for (let i = this.bursts.length - 1; i >= 0; i--) {
-      this.bursts[i].life -= dt;
-      if (this.bursts[i].life <= 0) this.bursts.splice(i, 1);
-    }
-
-    // ── Shrapnel ──────────────────────────────────────────────────────
     for (let i = this.live.length - 1; i >= 0; i--) {
       const p = this.live[i];
+      p.phaseT += dt;
 
-      p.life -= dt;
-      if (p.life <= 0) {
-        p.active = false;
-        this.live.splice(i, 1);
+      // ── FLYING phase ───────────────────────────────────────────────
+      if (p.phase === Phase.FLYING) {
+        p.life -= dt;
+        if (p.life <= 0) {
+          // Ran out of life without hitting anything → impact in place
+          this.toImpact(p);
+          continue;
+        }
+
+        p.vy += GRAVITY * 0.4 * dt;
+        const nx = p.x + p.vx * dt;
+        const ny = p.y + p.vy * dt;
+
+        // Terrain hit: 2 px carve → impact
+        if (terrain.isSolid(nx, ny)) {
+          terrainDestroyer.carveCircle(p.x, p.y, 2);
+          this.toImpact(p);
+          continue;
+        }
+
+        p.x = nx;
+        p.y = ny;
+
+        // Worm hit: 1–2 HP → impact
+        for (const worm of worms) {
+          if (worm.isDead) continue;
+          if (
+            Math.abs(p.x - worm.x) < worm.width  / 2 + p.size &&
+            Math.abs(p.y - worm.y) < worm.height / 2 + p.size
+          ) {
+            worm.applyDamage(1 + Math.floor(Math.random() * 2));
+            this.toImpact(p);
+            break;
+          }
+        }
         continue;
       }
 
-      p.vy += GRAVITY * 0.4 * dt;
-
-      const nx = p.x + p.vx * dt;
-      const ny = p.y + p.vy * dt;
-
-      // ── Terrain hit: 2 px carve + burst, disappear ────────────────
-      if (terrain.isSolid(nx, ny)) {
-        terrainDestroyer.carveCircle(p.x, p.y, 2);
-        this.spawnBurst(p.x, p.y);
-        p.active = false;
-        this.live.splice(i, 1);
+      // ── IMPACT phase ───────────────────────────────────────────────
+      if (p.phase === Phase.IMPACT) {
+        if (p.phaseT >= IMPACT_DURATION) {
+          p.phase  = Phase.FADEOUT;
+          p.phaseT = 0;
+        }
         continue;
       }
 
-      p.x = nx;
-      p.y = ny;
-
-      // ── Worm hit: 1–2 HP + burst, disappear ──────────────────────
-      for (const worm of worms) {
-        if (worm.isDead) continue;
-        if (
-          Math.abs(p.x - worm.x) < worm.width  / 2 + p.size &&
-          Math.abs(p.y - worm.y) < worm.height / 2 + p.size
-        ) {
-          worm.applyDamage(1 + Math.floor(Math.random() * 2));
-          this.spawnBurst(p.x, p.y);
+      // ── FADEOUT phase ──────────────────────────────────────────────
+      if (p.phase === Phase.FADEOUT) {
+        if (p.phaseT >= FADEOUT_DURATION) {
           p.active = false;
           this.live.splice(i, 1);
-          break;
         }
       }
     }
@@ -148,24 +166,48 @@ export class ParticleSystem {
   draw(g: Phaser.GameObjects.Graphics): void {
     g.clear();
 
-    // Shrapnel (dark debris squares)
     for (const p of this.live) {
-      const alpha = Math.min(1, p.life / p.maxLife / 0.35);
-      g.fillStyle(p.color, alpha);
-      g.fillRect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size);
-    }
+      // ── FLYING: bright core + dark outline ─────────────────────
+      if (p.phase === Phase.FLYING) {
+        const alpha = Math.min(1, p.life / p.maxLife / 0.35);
+        const coreColor = CORE_COLORS[Math.floor(Math.random() * CORE_COLORS.length)];
 
-    // Impact bursts (bright circles, drawn on top)
-    for (const b of this.bursts) {
-      const alpha = (b.life / 0.1) * 0.85;
-      g.fillStyle(b.color, alpha);
-      g.fillCircle(b.x, b.y, b.radius);
+        // Dark red outline (1px larger)
+        g.fillStyle(EDGE_COLOR, alpha * 0.9);
+        g.fillCircle(p.x, p.y, p.size * 0.5 + 1);
+
+        // Bright orange/yellow core
+        g.fillStyle(coreColor, alpha);
+        g.fillCircle(p.x, p.y, p.size * 0.5);
+        continue;
+      }
+
+      // ── IMPACT: expanding bright ring ──────────────────────────
+      if (p.phase === Phase.IMPACT) {
+        const t = p.phaseT / IMPACT_DURATION; // 0→1
+        const radius = IMPACT_RADIUS_START + (IMPACT_RADIUS_END - IMPACT_RADIUS_START) * t;
+        const alpha = (1 - t) * 0.85;
+
+        // Bright flash fading orange→dark
+        const flashColor = t < 0.3 ? 0xffffff : t < 0.6 ? 0xff8800 : 0x882200;
+        g.fillStyle(flashColor, alpha);
+        g.fillCircle(p.x, p.y, radius);
+        continue;
+      }
+
+      // ── FADEOUT: shrink + fade ─────────────────────────────────
+      if (p.phase === Phase.FADEOUT) {
+        const t = p.phaseT / FADEOUT_DURATION; // 0→1
+        const alpha = (1 - t) * 0.6;
+        const radius = (1 - t) * 3;
+        g.fillStyle(0x882200, alpha);
+        g.fillCircle(p.x, p.y, radius);
+      }
     }
   }
 
   reset(): void {
     for (const p of this.live) p.active = false;
-    this.live.length   = 0;
-    this.bursts.length = 0;
+    this.live.length = 0;
   }
 }
