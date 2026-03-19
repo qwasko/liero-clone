@@ -13,8 +13,7 @@ const HOOK_SPEED          = 1000; // px/s
 // ── Spring physics constants ─────────────────────────────────────────
 const SPRING_K          = 25;   // Hooke constant — higher = stiffer pull
 const RADIAL_DAMPING    = 3;    // damping coefficient on radial velocity (~0.95/frame at 60fps)
-const MAX_STRETCH_RATIO = 1.5;  // hard clamp at 1.5× rest length (safety net)
-const ROPE_REST_LENGTH  = 50;   // ~3.5 worm heights — fixed rest length on attach
+const ROPE_REST_LENGTH  = 50;   // ~3.5 worm heights — fixed spring rest length
 
 // ── Directional jitter (subtle organic wobble) ──────────────────────
 const JITTER_MAX_ANGLE = 0.07;  // ~4° max offset
@@ -24,8 +23,8 @@ const JITTER_FREQ2     = 7.3;   // rad/s — faster secondary (incommensurate �
 interface Rope {
   anchorX: number;
   anchorY: number;
-  /** Rest length — spring pulls when current distance exceeds this. */
-  length:  number;
+  /** Spring rest length — force pulls worm toward this distance from anchor. */
+  restLength: number;
   targetWorm: Worm | null;
 }
 
@@ -118,8 +117,8 @@ export class RopeSystem {
 
     // ── CHANGE + UP/DOWN → adjust rest length while attached ───────────
     if (rope && input.change) {
-      if (input.up)   rope.length = Math.max(MIN_ROPE_LENGTH, rope.length - LENGTH_SHORTEN_SPEED * dt);
-      if (input.down)  rope.length = Math.min(MAX_ROPE_LENGTH, rope.length + LENGTH_EXTEND_SPEED * dt);
+      if (input.up)   rope.restLength = Math.max(MIN_ROPE_LENGTH, rope.restLength - LENGTH_SHORTEN_SPEED * dt);
+      if (input.down)  rope.restLength = Math.min(MAX_ROPE_LENGTH, rope.restLength + LENGTH_EXTEND_SPEED * dt);
     }
 
     return false;
@@ -165,7 +164,7 @@ export class RopeSystem {
             Math.abs(hx - other.x) < other.width  / 2 &&
             Math.abs(hy - other.y) < other.height / 2
           ) {
-            this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: ROPE_REST_LENGTH, targetWorm: other });
+            this.ropes.set(worm, { anchorX: hx, anchorY: hy, restLength: ROPE_REST_LENGTH, targetWorm: other });
             this.hooks.set(worm, null);
             attached = true;
             break;
@@ -175,7 +174,7 @@ export class RopeSystem {
 
         // Check terrain hit
         if (terrain.isSolid(hx, hy)) {
-          this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: ROPE_REST_LENGTH, targetWorm: null });
+          this.ropes.set(worm, { anchorX: hx, anchorY: hy, restLength: ROPE_REST_LENGTH, targetWorm: null });
           this.hooks.set(worm, null);
           attached = true;
           break;
@@ -217,7 +216,7 @@ export class RopeSystem {
     const nx = dx / dist; // unit vector: anchor → worm
     const ny = dy / dist;
 
-    const extension = dist - rope.length;
+    const extension = dist - rope.restLength;
 
     if (extension > 0) {
       // ── Directional jitter: rotate spring direction by smooth offset ─
@@ -240,11 +239,10 @@ export class RopeSystem {
       worm.vx -= nx * dampAccel * dt;
       worm.vy -= ny * dampAccel * dt;
 
-      // ── Hard clamp at max stretch (safety for extreme speeds) ─────
-      if (dist > rope.length * MAX_STRETCH_RATIO) {
-        const maxDist = rope.length * MAX_STRETCH_RATIO;
-        worm.x = rope.anchorX + nx * maxDist;
-        worm.y = rope.anchorY + ny * maxDist;
+      // ── Hard clamp at max rope range (safety for extreme speeds) ──
+      if (dist > MAX_ROPE_LENGTH) {
+        worm.x = rope.anchorX + nx * MAX_ROPE_LENGTH;
+        worm.y = rope.anchorY + ny * MAX_ROPE_LENGTH;
         // Kill outward radial velocity
         const rv = worm.vx * nx + worm.vy * ny;
         if (rv > 0) {
@@ -271,7 +269,7 @@ export class RopeSystem {
     const nx = dx / dist;
     const ny = dy / dist;
 
-    const extension = dist - rope.length;
+    const extension = dist - rope.restLength;
 
     if (extension > 0) {
       // ── Spring force (split 50/50) ──────────────────────────────
@@ -290,9 +288,8 @@ export class RopeSystem {
       target.vy  += ny * halfDamp * dt;
 
       // ── Hard clamp ──────────────────────────────────────────────
-      const maxDist = rope.length * MAX_STRETCH_RATIO;
-      if (dist > maxDist) {
-        const half = (dist - maxDist) * 0.5;
+      if (dist > MAX_ROPE_LENGTH) {
+        const half = (dist - MAX_ROPE_LENGTH) * 0.5;
         shooter.x -= nx * half;
         shooter.y -= ny * half;
         target.x  += nx * half;
