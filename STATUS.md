@@ -7,8 +7,8 @@
 - Destructible procedural cave terrain
 - **Fullscreen canvas** — Phaser Scale Manager FIT + CENTER_BOTH, fills browser window
 - **Splitscreen** — classic Liero dual-viewport layout:
-  - P1 camera: left half of screen, zoom=3, follows worm 1
-  - P2 camera: right half of screen, zoom=3, follows worm 2
+  - P1 camera: left half of screen, zoom=2.5, follows worm 1
+  - P2 camera: right half of screen, zoom=2.5, follows worm 2
   - HUD camera: full-screen overlay, zoom=1, renders UI only
   - 2px dark divider line at screen center
   - Camera scroll rounded to integer each frame (prevents sub-pixel jitter)
@@ -79,7 +79,7 @@
 - TerrainDestroyer + CrateSystem decoupled from Phaser
 - Splitscreen camera: P1 left half, P2 right half, divider line, both tracked independently
 - Splitscreen HUD: player info at bottom of each viewport, timer at top center
-- Camera zoom increased to 3x for splitscreen
+- Camera zoom set to 2.5x for splitscreen
 
 ### Next task to start
 - No specific task planned — see possible next steps below
