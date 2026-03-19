@@ -13,7 +13,7 @@ const HOOK_SPEED          = 1000; // px/s
 // ── Spring physics constants ─────────────────────────────────────────
 const SPRING_K          = 25;   // Hooke constant — higher = stiffer pull
 const RADIAL_DAMPING    = 3;    // damping coefficient on radial velocity (~0.95/frame at 60fps)
-const ROPE_REST_LENGTH  = 50;   // ~3.5 worm heights — fixed spring rest length
+const ROPE_REST_LENGTH  = 21;   // ~1.5 worm heights — fixed spring rest length
 
 // ── Directional jitter (subtle organic wobble) ──────────────────────
 const JITTER_MAX_ANGLE = 0.07;  // ~4° max offset
