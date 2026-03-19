@@ -92,7 +92,7 @@ export class GameScene extends Phaser.Scene {
     // ── P1 camera (left half) ────────────────────────────────────────────
     const cam1 = this.cameras.main;
     cam1.setViewport(0, 0, halfW, CANVAS_HEIGHT);
-    cam1.setZoom(2);
+    cam1.setZoom(3);
     cam1.setBounds(0, 0, level.width, level.height);
     cam1.setRoundPixels(true);
 
@@ -101,7 +101,7 @@ export class GameScene extends Phaser.Scene {
 
     // ── P2 camera (right half) ───────────────────────────────────────────
     this.p2Camera = this.cameras.add(halfW, 0, halfW, CANVAS_HEIGHT);
-    this.p2Camera.setZoom(2);
+    this.p2Camera.setZoom(3);
     this.p2Camera.setBounds(0, 0, level.width, level.height);
     this.p2Camera.setRoundPixels(true);
 
