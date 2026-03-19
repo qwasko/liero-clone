@@ -15,7 +15,7 @@ const HOOK_SPEED          = 1000; // px/s
 const SPRING_K          = 200;  // Hooke constant — sag=gravity/k=3px, settles ~10px from anchor
 const RADIAL_DAMPING    = 8;    // damping coefficient — raised to match stiffer spring
 const ROPE_REST_LENGTH  = 7;    // ~0.5 worm heights — fixed spring rest length
-const MAX_ROPE_PULL_SPEED = 350; // px/s — cap on velocity added by spring per frame
+const MAX_ROPE_PULL_SPEED = 50;  // px/s — cap on velocity added by spring per frame (test value)
 
 // ── Directional jitter (subtle organic wobble) ──────────────────────
 const JITTER_MAX_ANGLE = 0.07;  // ~4° max offset
@@ -237,7 +237,12 @@ export class RopeSystem {
       const jny = nx * sinJ + ny * cosJ;
 
       // ── Spring force: pull worm toward anchor (with jitter), capped ─
-      const springAccel = Math.min(SPRING_K * extension, MAX_ROPE_PULL_SPEED / dt);
+      const rawAccel = SPRING_K * extension;
+      const springAccel = Math.min(rawAccel, MAX_ROPE_PULL_SPEED / dt);
+      const velDelta = springAccel * dt;
+      console.log(
+        `[rope-pull] raw=${(rawAccel * dt).toFixed(1)} capped=${velDelta.toFixed(1)} cap=${MAX_ROPE_PULL_SPEED}`,
+      );
       worm.vx -= jnx * springAccel * dt;
       worm.vy -= jny * springAccel * dt;
 
