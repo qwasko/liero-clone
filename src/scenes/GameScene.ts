@@ -244,8 +244,8 @@ export class GameScene extends Phaser.Scene {
     this.ropeSystem.checkAnchorDestroyed(this.terrain);
 
     // ── Controllers ────────────────────────────────────────────────────
-    this.controllers[0].update(input1, dt, this.ropeSystem.hasRope(worm1));
-    this.controllers[1].update(input2, dt, this.ropeSystem.hasRope(worm2));
+    this.controllers[0].update(input1, dt, this.ropeSystem.hasRope(worm1) || this.ropeSystem.isRopeTarget(worm1));
+    this.controllers[1].update(input2, dt, this.ropeSystem.hasRope(worm2) || this.ropeSystem.isRopeTarget(worm2));
 
     if (this.controllers[0].justJumped) this.audio.playJump();
     if (this.controllers[1].justJumped) this.audio.playJump();

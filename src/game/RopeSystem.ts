@@ -75,6 +75,14 @@ export class RopeSystem {
     return (this.ropes.get(worm) ?? null) !== null;
   }
 
+  /** True when another worm's rope is attached to this worm. */
+  isRopeTarget(worm: Worm): boolean {
+    for (const rope of this.ropes.values()) {
+      if (rope && rope.targetWorm === worm) return true;
+    }
+    return false;
+  }
+
   /** True when a hook projectile is in flight (not yet attached). */
   hasHook(worm: Worm): boolean {
     return (this.hooks.get(worm) ?? null) !== null;
