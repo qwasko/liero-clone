@@ -25,14 +25,16 @@ export class ExplosionSystem {
     // Carve terrain
     this.terrainDestroyer.carveCircle(x, y, explosionRadius);
 
-    // Damage worms within splash radius (linear falloff; 50% self-damage)
+    // Liero damage: actualDamage = damage * (detectRange - distance) / detectRange
+    // Using splashRadius as detectRange (damage falloff range).
+    // 50% self-damage for owner's own explosions.
     for (const worm of this.worms) {
       const dist = Math.hypot(worm.x - x, worm.y - y);
       if (dist < splashRadius) {
-        const falloff = 1 - dist / splashRadius;
-        let dmg = Math.round(splashDamage * falloff);
+        const power = splashRadius - dist;
+        let dmg = Math.round(splashDamage * power / splashRadius);
         if (ownerId !== undefined && worm.playerId === ownerId) dmg = Math.round(dmg * 0.5);
-        worm.applyDamage(dmg);
+        if (dmg > 0) worm.applyDamage(dmg);
       }
     }
   }

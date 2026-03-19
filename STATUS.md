@@ -75,10 +75,14 @@
 ## STOPPED HERE — end of session 2026-03-19
 
 ### Last completed
-- GameState/Renderer refactoring: pure logic separated from Phaser rendering
-- TerrainDestroyer + CrateSystem decoupled from Phaser
-- Splitscreen camera: P1 left half, P2 right half, divider line, both tracked independently
-- Splitscreen HUD: player info at bottom of each viewport, timer at top center
+- Liero-accurate weapon parameter overhaul (all values from original source analysis)
+- Jitter system: replaced angle-based spread with per-axis velocity jitter (Liero style)
+- Bounce system: Liero bouncePercent formula (perpendicular × -bp/100, cross × 4/5)
+- Explosion damage: Liero distance-based formula (damage × (range-dist)/range)
+- Fragment chain damage: fragments trigger small_explosion on hit
+- Grenade: 50 fragments, Cluster: 20 bomblets, Chiquita: 22 bomblets
+- Chiquita bomblet type: separate from generic fragment, triggers large_explosion
+- All ammo set to 10000 for testing
 - Camera zoom set to 2.5x for splitscreen
 
 ### Next task to start

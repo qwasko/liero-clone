@@ -216,11 +216,13 @@ export class GameState {
           if (bombletDef) {
             for (let i = 0; i < proj.weapon.clusterCount; i++) {
               const angle = Math.random() * Math.PI * 2;
-              const speed = 90 + Math.random() * 160;
+              // Liero: speed=220, speedV=140, dist=10000 → scattered velocity
+              const speed = 56 + Math.random() * 98;     // (220-140..220) * 0.7
+              const dist = 70;                            // Liero 10000 → ~70 px/s
               this.activeProjectiles.push(new Projectile(
                 hitX, hitY,
-                Math.cos(angle) * speed,
-                Math.sin(angle) * speed,
+                Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,
+                Math.sin(angle) * speed + (Math.random() * 2 - 1) * dist,
                 proj.ownerId,
                 bombletDef,
               ));
@@ -228,18 +230,23 @@ export class GameState {
           }
         }
 
-        // ── Chiquita: spray fragments ─────────────────────────────────
+        // ── Chiquita / grenade / bazooka: spray fragments ─────────────
         if (proj.weapon.chiquitaFragments) {
-          const fragDef = WeaponRegistry['chiquita_fragment'];
+          // Chiquita bomb uses stronger chiquita_bomblet; everything else uses chiquita_fragment
+          const isChiquita = proj.weapon.id === 'chiquita';
+          const fragDef = WeaponRegistry[isChiquita ? 'chiquita_bomblet' : 'chiquita_fragment'];
           if (fragDef) {
             const total = proj.weapon.chiquitaFragments;
             for (let i = 0; i < total; i++) {
-              const angle = (i / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-              const speed = 180 + Math.random() * 220;
+              const angle = Math.random() * Math.PI * 2;
+              // Liero particle speed: 160-220 base, speedV=140-180, dist=2000
+              // Scaled: ~56-154 px/s + small jitter
+              const speed = 56 + Math.random() * 98;
+              const dist = 14;                            // Liero 2000 → ~14 px/s
               this.activeProjectiles.push(new Projectile(
                 hitX, hitY,
-                Math.cos(angle) * speed,
-                Math.sin(angle) * speed,
+                Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,
+                Math.sin(angle) * speed + (Math.random() * 2 - 1) * dist,
                 proj.ownerId,
                 fragDef,
               ));

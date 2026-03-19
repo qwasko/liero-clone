@@ -243,13 +243,25 @@ export class PhysicsSystem {
   }
 
   private bounceProjectile(proj: Projectile, dx: number, dy: number): void {
-    const DAMPEN = 0.62;
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      proj.vx = -proj.vx * DAMPEN;
-      proj.vy *=          DAMPEN;
+    // Liero bounce formula: perpendicular vel *= -bouncePercent/100,
+    // cross-axis vel *= 4/5 (20% damping). bouncePercent=100 is perfect elastic.
+    const bp = proj.weapon.bouncePercent ?? 62; // fallback to legacy ~0.62 dampen
+    if (bp === 100) {
+      // Perfect elastic: just negate the collision axis
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        proj.vx = -proj.vx;
+      } else {
+        proj.vy = -proj.vy;
+      }
     } else {
-      proj.vy = -proj.vy * DAMPEN;
-      proj.vx *=          DAMPEN;
+      const factor = bp / 100;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        proj.vx = -proj.vx * factor;
+        proj.vy *= 0.8;                // cross-axis: 4/5
+      } else {
+        proj.vy = -proj.vy * factor;
+        proj.vx *= 0.8;                // cross-axis: 4/5
+      }
     }
     proj.bounceCount++;
     proj.x -= Math.sign(dx) * 2;
