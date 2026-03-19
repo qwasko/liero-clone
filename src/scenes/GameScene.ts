@@ -183,6 +183,7 @@ export class GameScene extends Phaser.Scene {
     // Zone has zero display size — no texture offset to interfere with follow.
     this.cameraFocus = this.add.zone(spawnP1.x, spawnP1.y, 1, 1);
     this.cameras.main.setBounds(0, 0, level.width, level.height);
+    this.cameras.main.setRoundPixels(true);
     this.cameras.main.startFollow(this.cameraFocus);
 
     // ── Overlay + HUD (last → render on top) ──────────────────────────
@@ -441,7 +442,7 @@ export class GameScene extends Phaser.Scene {
     this.checkWinCondition();
 
     // ── Camera: follow P1 worm (both players share one screen) ────────
-    this.cameraFocus.setPosition(worm1.x, worm1.y);
+    this.cameraFocus.setPosition(Math.round(worm1.x), Math.round(worm1.y));
     const cam = this.cameras.main;
     cam.scrollX = Math.round(cam.scrollX);
     cam.scrollY = Math.round(cam.scrollY);

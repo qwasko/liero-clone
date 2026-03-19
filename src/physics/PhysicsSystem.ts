@@ -56,7 +56,7 @@ export class PhysicsSystem {
       const grounded = CollisionUtils.isRowBlocked(
         terrain, worm.left + 1, worm.right - 1, worm.bottom + 1,
       );
-      if (grounded && Math.abs(worm.vy) < 0.5) worm.vy = 0;
+      if (grounded && Math.abs(worm.vy) < 1.0) worm.vy = 0;
       worm.state = grounded ? (worm.vx !== 0 ? 'moving' : 'idle') : 'airborne';
     }
   }
