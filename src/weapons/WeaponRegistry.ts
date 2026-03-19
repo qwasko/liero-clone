@@ -138,8 +138,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 0, projectileGravity: 1.0, projectileSize: 3, projectileColor: 0xff6600,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    fragmentExplosion: true,                             // triggers medium_explosion on hit
-    explosionRadius: 14, splashDamage: 10, splashRadius: 14,  // medium_explosion
+    explosionRadius: 14, splashDamage: 10, splashRadius: 14,  // medium_explosion (carve+damage on hit)
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 
@@ -193,8 +192,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 0, projectileGravity: 0.5, projectileSize: 2, projectileColor: 0xffdd00,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    fragmentExplosion: true,                             // triggers small_explosion on hit!
-    explosionRadius: 8, splashDamage: 5, splashRadius: 8,  // small_explosion: chain damage
+    explosionRadius: 8, splashDamage: 5, splashRadius: 8,  // small_explosion: chain damage (carve+damage on hit)
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 
@@ -208,8 +206,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 0, projectileGravity: 1.0, projectileSize: 3, projectileColor: 0xffcc00,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    fragmentExplosion: true,
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,  // large_explosion!
+    explosionRadius: 20, splashDamage: 15, splashRadius: 20,  // large_explosion! (carve+damage on hit)
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 

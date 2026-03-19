@@ -40,7 +40,7 @@
 - Object-pooled particle system (200 pool) with 3-phase animation:
   - 6-10 shrapnel pieces per primary explosion
   - 2-3 per shotgun pellet, 3-4 per fragment/bomblet, 0 for minigun
-  - Each particle: gravity, 2px terrain carve on hit, 1-2 HP worm damage on hit
+  - Each particle: gravity, terrain carve + small_explosion on hit (4px carve, 3 dmg, 8px splash), 1-2 HP direct worm damage on hit
   - Velocities reduced by 33% (×0.67) for slower, more visible flight
   - Phase 1 FLYING: bright orange/yellow core (3-4px) with dark red outline
   - Phase 2 IMPACT: expanding ring 4→16px over 0.12s, white→orange→dark
@@ -84,6 +84,10 @@
 - Chiquita bomblet type: separate from generic fragment, triggers large_explosion
 - All ammo set to 10000 for testing
 - Camera zoom set to 2.5x for splitscreen
+- Damage system audit: every explosion carves terrain AND deals splash damage
+- ParticleSystem shrapnel triggers real small_explosion on terrain/worm hit (4px carve, 3 dmg, 8px splash)
+- Console.log verification added to: explosions, projectile hits, particle hits, cluster spawns, fragment spawns
+- Removed dead `fragmentExplosion` field from WeaponDef
 
 ### Next task to start
 - No specific task planned — see possible next steps below

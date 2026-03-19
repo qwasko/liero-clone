@@ -2,9 +2,15 @@ import Phaser from 'phaser';
 import { Worm } from '../entities/Worm';
 import { TerrainMap } from '../terrain/TerrainMap';
 import { TerrainDestroyer } from '../terrain/TerrainDestroyer';
+import { ExplosionSystem } from './ExplosionSystem';
 import { GRAVITY } from './constants';
 
 const POOL_SIZE = 200;
+
+/** Particle impact triggers a real small_explosion (Liero: detectRange=8, damage=5). */
+const PARTICLE_IMPACT_RADIUS = 4;
+const PARTICLE_IMPACT_DAMAGE = 3;
+const PARTICLE_IMPACT_SPLASH = 8;
 
 /** Phase enum for 3-phase particle lifecycle. */
 const enum Phase {
@@ -100,7 +106,8 @@ export class ParticleSystem {
     dt:               number,
     terrain:          TerrainMap,
     worms:            Worm[],
-    terrainDestroyer: TerrainDestroyer,
+    _terrainDestroyer: TerrainDestroyer,
+    explosionSystem:  ExplosionSystem,
   ): void {
     for (let i = this.live.length - 1; i >= 0; i--) {
       const p = this.live[i];
@@ -119,9 +126,15 @@ export class ParticleSystem {
         const nx = p.x + p.vx * dt;
         const ny = p.y + p.vy * dt;
 
-        // Terrain hit: 2 px carve → impact
+        // Terrain hit: carve crater + trigger small_explosion (Liero chain damage)
         if (terrain.isSolid(nx, ny)) {
-          terrainDestroyer.carveCircle(p.x, p.y, 2);
+          explosionSystem.detonate(
+            p.x, p.y,
+            PARTICLE_IMPACT_RADIUS,
+            PARTICLE_IMPACT_DAMAGE,
+            PARTICLE_IMPACT_SPLASH,
+          );
+          console.log(`[particle hit] terrain at ${Math.round(p.x)},${Math.round(p.y)} carved=${PARTICLE_IMPACT_RADIUS}px dmg=${PARTICLE_IMPACT_DAMAGE}`);
           this.toImpact(p);
           continue;
         }
@@ -129,14 +142,22 @@ export class ParticleSystem {
         p.x = nx;
         p.y = ny;
 
-        // Worm hit: 1–2 HP → impact
+        // Worm hit: direct damage + trigger small_explosion (Liero chain damage)
         for (const worm of worms) {
           if (worm.isDead) continue;
           if (
             Math.abs(p.x - worm.x) < worm.width  / 2 + p.size &&
             Math.abs(p.y - worm.y) < worm.height / 2 + p.size
           ) {
-            worm.applyDamage(1 + Math.floor(Math.random() * 2));
+            const directDmg = 1 + Math.floor(Math.random() * 2);
+            worm.applyDamage(directDmg);
+            explosionSystem.detonate(
+              p.x, p.y,
+              PARTICLE_IMPACT_RADIUS,
+              PARTICLE_IMPACT_DAMAGE,
+              PARTICLE_IMPACT_SPLASH,
+            );
+            console.log(`[particle hit] worm P${worm.playerId} at ${Math.round(p.x)},${Math.round(p.y)} directDmg=${directDmg} splashDmg=${PARTICLE_IMPACT_DAMAGE} carved=${PARTICLE_IMPACT_RADIUS}px`);
             this.toImpact(p);
             break;
           }

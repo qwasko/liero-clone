@@ -202,6 +202,7 @@ export class GameState {
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
+        console.log(`[projectile hit] ${proj.weapon.id} at ${Math.round(hitX)},${Math.round(hitY)} expR=${proj.weapon.explosionRadius} splDmg=${proj.weapon.splashDamage} splR=${proj.weapon.splashRadius}`);
         this.explosionSystem.detonate(
           hitX, hitY,
           proj.weapon.explosionRadius,
@@ -214,6 +215,7 @@ export class GameState {
         if (proj.weapon.clusterCount && proj.weapon.clusterWeapon) {
           const bombletDef = WeaponRegistry[proj.weapon.clusterWeapon];
           if (bombletDef) {
+            console.log(`[cluster spawn] ${proj.weapon.id} → ${proj.weapon.clusterCount}x ${proj.weapon.clusterWeapon} (expR=${bombletDef.explosionRadius} splDmg=${bombletDef.splashDamage})`);
             for (let i = 0; i < proj.weapon.clusterCount; i++) {
               const angle = Math.random() * Math.PI * 2;
               // Liero: speed=220, speedV=140, dist=10000 → scattered velocity
@@ -251,6 +253,7 @@ export class GameState {
                 fragDef,
               ));
             }
+            console.log(`[fragment spawn] ${proj.weapon.id} → ${total}x ${fragDef.id} (expR=${fragDef.explosionRadius} splDmg=${fragDef.splashDamage})`);
           }
         }
 
@@ -266,7 +269,7 @@ export class GameState {
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
 
     // ── Particles ──────────────────────────────────────────────────────
-    this.particleSystem.update(dt, this.terrain, this.worms, this.terrainDestroyer);
+    this.particleSystem.update(dt, this.terrain, this.worms, this.terrainDestroyer, this.explosionSystem);
 
     // ── Respawn timers ─────────────────────────────────────────────────
     for (const worm of this.worms) {

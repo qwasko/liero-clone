@@ -49,12 +49,6 @@ export interface WeaponDef {
   readonly splashDamage:    number;
   readonly splashRadius:    number;
 
-  /**
-   * If true, when this projectile hits terrain/worm it also triggers a small_explosion
-   * (radius=8, damage=5, splash=16). Used by damage particles/fragments for chain damage.
-   */
-  readonly fragmentExplosion?: boolean;
-
   // Ammo
   readonly ammoMax:      number;
   readonly infiniteAmmo: boolean;
