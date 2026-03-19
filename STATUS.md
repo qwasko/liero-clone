@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Splitscreen + GameState/Renderer refactoring
+## Last completed: Explosion damage scaling + fragment terrain fix
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -27,16 +27,25 @@
   - TerrainDestroyer: decoupled from renderer, dirty region tracking
   - CrateSystem: decoupled from Phaser, pure data + events
 - Full weapon loadout (9 weapons, cycle with CHANGE+LEFT/RIGHT):
-  - Bazooka — arc shot, ±8% velocity variance, 35 dmg
-  - Minigun (10000 ammo) — rapid fire, ±5° spread, 4 dmg/bullet, 2px crater, no particles
-  - Grenade — 4 bounces, 3s fuse, 50 dmg → spawns 7 fragments on explosion
-  - Shotgun — 8 pellets, ±20° random spread, 9 dmg/pellet
-  - Bouncy Larpa — 3 bounces, 3s fuse, 42 dmg
-  - Zimm — no gravity, infinite elastic bounces, white; explodes on worm hit only, 27 dmg
-  - Cluster Bomb — spawns 5 bomblets on explosion; each bomblet spawns 5 fragments (2-level chain)
-  - Mine — deploys on terrain, 700ms arm delay, triggers any worm proximity (22px), 56 dmg
-  - Chiquita Bomb — spawns 7 fragments on explosion, 20 dmg primary
-- Fragment weapon (internal): 17px explosion radius, 6 dmg, used by grenade/cluster/chiquita
+  - Bazooka — impact explode, 20px crater, 15 splash dmg, 12 fragments
+  - Minigun — rapid fire, per-axis jitter, 8px crater, 5 splash dmg
+  - Grenade — bounce (40%), 1640ms fuse, 50 fragments, 20px crater, 15 splash dmg
+  - Shotgun — 15 pellets, per-axis jitter, 8px crater, 5 splash dmg
+  - Bouncy Larpa — elastic bounce (100%), 5430ms fuse, 5 fragments, 14px crater
+  - Zimm — no gravity, elastic terrain bounce, worm-only explode, 49 splash dmg
+  - Cluster Bomb — bounce (50%), 1930ms fuse, 20 bomblets (bounce+430ms fuse), 20px crater
+  - Mine — deploys on terrain, 700ms arm delay, proximity trigger (22px), 20px crater
+  - Chiquita Bomb — bounce (40%), 2140ms fuse, 22 bomblets (bounce+430ms fuse), 20px crater
+- **Explosion damage scaling**: effective splash radius = crater × 3
+  - Fragment 8px crater → 24px damage zone
+  - Medium 14px crater → 42px damage zone
+  - Large 20px crater → 60px damage zone
+  - Bigger blasts deal proportionally wider damage
+- Fragment/bomblet types:
+  - chiquita_fragment: impact-explode (8px crater, 5 dmg) — used by grenade/bazooka/larpa
+  - cluster_bomblet: bounce + 430ms fuse (14px crater, 10 dmg)
+  - chiquita_bomblet: bounce + 430ms fuse (20px crater, 15 dmg)
+- Fragment terrain grace: 150ms immunity to terrain collision after spawn (escape crater)
 - Object-pooled particle system (200 pool) with 3-phase animation:
   - 6-10 shrapnel pieces per primary explosion
   - 2-3 per shotgun pellet, 3-4 per fragment/bomblet, 0 for minigun
@@ -71,23 +80,16 @@
 ## Known issues / bugs
 - No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita)
   — they use generic fire/explosion audio
+- Diagnostic console.log still active in ExplosionSystem, GameState, ParticleSystem
+  — remove before release
 
 ## STOPPED HERE — end of session 2026-03-19
 
 ### Last completed
-- Liero-accurate weapon parameter overhaul (all values from original source analysis)
-- Jitter system: replaced angle-based spread with per-axis velocity jitter (Liero style)
-- Bounce system: Liero bouncePercent formula (perpendicular × -bp/100, cross × 4/5)
-- Explosion damage: Liero distance-based formula (damage × (range-dist)/range)
-- Fragment chain damage: fragments trigger small_explosion on hit
-- Grenade: 50 fragments, Cluster: 20 bomblets, Chiquita: 22 bomblets
-- Chiquita bomblet type: separate from generic fragment, triggers large_explosion
-- All ammo set to 10000 for testing
-- Camera zoom set to 2.5x for splitscreen
-- Damage system audit: every explosion carves terrain AND deals splash damage
-- ParticleSystem shrapnel triggers real small_explosion on terrain/worm hit (4px carve, 3 dmg, 8px splash)
-- Console.log verification added to: explosions, projectile hits, particle hits, cluster spawns, fragment spawns
-- Removed dead `fragmentExplosion` field from WeaponDef
+- Bomblet explosion triggers: cluster_bomblet and chiquita_bomblet now bounce + 430ms fuse
+- Fragment terrain grace: 150ms terrain immunity so fragments escape craters
+- Explosion damage scaling: effectiveRadius = craterRadius × 3 (bigger blast → wider damage)
+- Grenade near worm now deals ~30-40 HP total (primary + fragments + particles)
 
 ### Next task to start
 - No specific task planned — see possible next steps below
@@ -99,3 +101,4 @@
 - Animated worm sprites instead of circle-segments
 - Sound effects from files instead of procedural Web Audio
 - Online multiplayer (WebSocket / Socket.io)
+- Remove diagnostic console.log statements

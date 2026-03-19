@@ -202,7 +202,16 @@ export class GameState {
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
-        console.log(`[projectile hit] ${proj.weapon.id} at ${Math.round(hitX)},${Math.round(hitY)} expR=${proj.weapon.explosionRadius} splDmg=${proj.weapon.splashDamage} splR=${proj.weapon.splashRadius}`);
+        const isFragment = proj.weapon.id === 'chiquita_fragment' || proj.weapon.id === 'cluster_bomblet' || proj.weapon.id === 'chiquita_bomblet';
+        const terrainAtSpawn = this.terrain.isSolid(hitX, hitY);
+        console.log(`[projectile hit] ${proj.weapon.id} at ${Math.round(hitX)},${Math.round(hitY)} expR=${proj.weapon.explosionRadius} splDmg=${proj.weapon.splashDamage} splR=${proj.weapon.splashRadius}${isFragment ? ` FRAGMENT terrainAtHit=${terrainAtSpawn}` : ''}`);
+        // Log worm distances for fragments
+        if (isFragment) {
+          for (const w of this.worms) {
+            const d = Math.hypot(w.x - hitX, w.y - hitY);
+            console.log(`  → worm P${w.playerId} dist=${Math.round(d)} hp=${w.hp} inSplash=${d < proj.weapon.splashRadius}`);
+          }
+        }
         this.explosionSystem.detonate(
           hitX, hitY,
           proj.weapon.explosionRadius,
@@ -221,13 +230,15 @@ export class GameState {
               // Liero: speed=220, speedV=140, dist=10000 → scattered velocity
               const speed = 56 + Math.random() * 98;     // (220-140..220) * 0.7
               const dist = 70;                            // Liero 10000 → ~70 px/s
-              this.activeProjectiles.push(new Projectile(
+              const bomblet = new Projectile(
                 hitX, hitY,
                 Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,
                 Math.sin(angle) * speed + (Math.random() * 2 - 1) * dist,
                 proj.ownerId,
                 bombletDef,
-              ));
+              );
+              bomblet.terrainGrace = 0.15; // 150ms grace to escape crater
+              this.activeProjectiles.push(bomblet);
             }
           }
         }
@@ -245,15 +256,22 @@ export class GameState {
               // Scaled: ~56-154 px/s + small jitter
               const speed = 56 + Math.random() * 98;
               const dist = 14;                            // Liero 2000 → ~14 px/s
-              this.activeProjectiles.push(new Projectile(
+              const frag = new Projectile(
                 hitX, hitY,
                 Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,
                 Math.sin(angle) * speed + (Math.random() * 2 - 1) * dist,
                 proj.ownerId,
                 fragDef,
-              ));
+              );
+              frag.terrainGrace = 0.15; // 150ms grace to escape crater
+              this.activeProjectiles.push(frag);
             }
-            console.log(`[fragment spawn] ${proj.weapon.id} → ${total}x ${fragDef.id} (expR=${fragDef.explosionRadius} splDmg=${fragDef.splashDamage})`);
+            // Count how many fragments spawned in solid terrain
+            let inTerrain = 0;
+            for (const fp of this.activeProjectiles.slice(-total)) {
+              if (this.terrain.isSolid(fp.x, fp.y)) inTerrain++;
+            }
+            console.log(`[fragment spawn] ${proj.weapon.id} → ${total}x ${fragDef.id} (expR=${fragDef.explosionRadius} splDmg=${fragDef.splashDamage}) inTerrain=${inTerrain}/${total}`);
           }
         }
 

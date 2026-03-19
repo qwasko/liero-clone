@@ -168,6 +168,9 @@ export class PhysicsSystem {
         }
       }
 
+      // Tick down terrain grace period (fragments spawning inside craters)
+      if (proj.terrainGrace > 0) proj.terrainGrace -= dt;
+
       proj.vy += GRAVITY * proj.weapon.projectileGravity * dt;
 
       const dx = proj.vx * dt;
@@ -195,8 +198,8 @@ export class PhysicsSystem {
         }
         if (terrainHit) break;
 
-        // ── Terrain hit ─────────────────────────────────────────────
-        if (terrain.isSolid(tx, ty)) {
+        // ── Terrain hit (skip during grace period) ──────────────────
+        if (terrain.isSolid(tx, ty) && proj.terrainGrace <= 0) {
           if (proj.weapon.behavior === 'bounce' && proj.bounceCount < proj.weapon.maxBounces) {
             this.bounceProjectile(proj, dx, dy);
           } else if (proj.weapon.behavior === 'zimm') {
