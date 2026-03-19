@@ -12,9 +12,9 @@ const LENGTH_EXTEND_SPEED  = 400; // px/s — rate rest length increases
 const HOOK_SPEED          = 1000; // px/s
 
 // ── Spring physics constants ─────────────────────────────────────────
-const SPRING_K          = 40;   // Hooke constant — at 1.5 worm-height extension: 40×21=840 > gravity(600)
+const SPRING_K          = 24;   // Hooke constant — elastic but not violent
 const RADIAL_DAMPING    = 3;    // damping coefficient on radial velocity (~0.95/frame at 60fps)
-const ROPE_REST_LENGTH  = 21;   // ~1.5 worm heights — fixed spring rest length
+const ROPE_REST_LENGTH  = 7;    // ~0.5 worm heights — fixed spring rest length
 
 // ── Directional jitter (subtle organic wobble) ──────────────────────
 const JITTER_MAX_ANGLE = 0.07;  // ~4° max offset
