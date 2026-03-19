@@ -326,8 +326,8 @@ export class GameScene extends Phaser.Scene {
     this.physicsSystem.update(this.worms, dt, this.terrain);
 
     // Rope constraints applied after normal physics
-    this.ropeSystem.applyConstraint(worm1);
-    this.ropeSystem.applyConstraint(worm2);
+    this.ropeSystem.applyConstraint(worm1, dt);
+    this.ropeSystem.applyConstraint(worm2, dt);
     this.ropeSystem.releaseOnDeath(worm1);
     this.ropeSystem.releaseOnDeath(worm2);
 

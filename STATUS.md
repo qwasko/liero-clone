@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Fullscreen canvas + camera zoom 2x
+## Last completed: Rope physics rewrite — spring/elastic model
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -21,13 +21,20 @@
   - Mine — deploys on terrain, 700ms arm delay, triggers any worm proximity (22px), 56 dmg
   - Chiquita Bomb — spawns 7 fragments on explosion, 20 dmg primary
 - Fragment weapon (internal): 17px explosion radius, 6 dmg, used by grenade/cluster/chiquita
-- Object-pooled particle system (200 pool):
-  - 6-10 dark shrapnel pieces per primary explosion
+- Object-pooled particle system (200 pool) with 3-phase animation:
+  - 6-10 shrapnel pieces per primary explosion
   - 2-3 per shotgun pellet, 3-4 per fragment/bomblet, 0 for minigun
-  - Each particle: gravity, 2px terrain carve on hit, 1-2 HP worm damage on hit, then disappears
-  - Impact burst: 8-12px bright orange/white flash circle lasting 0.1s on every impact
+  - Each particle: gravity, 2px terrain carve on hit, 1-2 HP worm damage on hit
+  - Velocities reduced by 33% (×0.67) for slower, more visible flight
+  - Phase 1 FLYING: bright orange/yellow core (3-4px) with dark red outline
+  - Phase 2 IMPACT: expanding ring 4→16px over 0.12s, white→orange→dark
+  - Phase 3 FADEOUT: shrink + fade to transparent over 0.1s
 - Self-damage: 50% of splash damage when owner worm is caught in own explosion
-- Ninja rope (CHANGE+JUMP; climb to anchor, anchor destruction releases rope)
+- Ninja rope with spring/elastic physics (CHANGE+JUMP; anchor destruction releases rope)
+  - Hooke's law spring model: rope pulls when stretched past rest length, slack when closer
+  - UP/DOWN adjust rest length (reel in / pay out), not direct position
+  - Radial damping prevents infinite oscillation while keeping elastic bounce
+  - Hard clamp at 1.5× rest length as safety net for extreme speeds
 - Terrain digging in crosshair direction; block zone ±10° of straight up only
 - HP bars, match timer, weapon HUD (pinned to screen via dedicated HUD camera)
 - Lives system (3 lives each) + respawn after 2s
@@ -49,8 +56,8 @@
   — they use generic fire/explosion audio
 
 ## Session stopped here
-Fullscreen canvas and camera zoom 2x complete (dual-camera architecture).
-Last commit: `feat: fullscreen canvas + camera zoom 2x with dual-camera HUD`
+Rope spring physics rewrite complete.
+Last commit: `feat: rope physics rewrite — spring/elastic model`
 
 ## Possible next steps (not planned)
 - AI opponent (bot controller for P2)
