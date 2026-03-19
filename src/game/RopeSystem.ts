@@ -274,35 +274,35 @@ export class RopeSystem {
     const extension = dist - rope.restLength;
 
     if (extension > 0) {
-      // ── Spring force (split 50/50), capped ────────────────────────
-      const halfSpring = Math.min(SPRING_K * extension, MAX_ROPE_PULL_SPEED / dt) * 0.5;
-      shooter.vx -= nx * halfSpring * dt;
-      shooter.vy -= ny * halfSpring * dt;
-      target.vx  += nx * halfSpring * dt;
-      target.vy  += ny * halfSpring * dt;
+      // ── Spring force: 100% on shooter, 50% on target, capped ─────
+      const springAccel = Math.min(SPRING_K * extension, MAX_ROPE_PULL_SPEED / dt);
+      shooter.vx -= nx * springAccel * dt;
+      shooter.vy -= ny * springAccel * dt;
+      target.vx  += nx * springAccel * 0.5 * dt;
+      target.vy  += ny * springAccel * 0.5 * dt;
 
-      // ── Radial damping on relative velocity ─────────────────────
+      // ── Radial damping: same asymmetry ────────────────────────────
       const relRadial = (shooter.vx - target.vx) * nx + (shooter.vy - target.vy) * ny;
-      const halfDamp = RADIAL_DAMPING * relRadial * 0.5;
-      shooter.vx -= nx * halfDamp * dt;
-      shooter.vy -= ny * halfDamp * dt;
-      target.vx  += nx * halfDamp * dt;
-      target.vy  += ny * halfDamp * dt;
+      const dampAccel = RADIAL_DAMPING * relRadial;
+      shooter.vx -= nx * dampAccel * dt;
+      shooter.vy -= ny * dampAccel * dt;
+      target.vx  += nx * dampAccel * 0.5 * dt;
+      target.vy  += ny * dampAccel * 0.5 * dt;
 
-      // ── Hard clamp ──────────────────────────────────────────────
+      // ── Hard clamp (2:1 position correction) ─────────────────────
       if (dist > MAX_ROPE_LENGTH) {
-        const half = (dist - MAX_ROPE_LENGTH) * 0.5;
-        shooter.x -= nx * half;
-        shooter.y -= ny * half;
-        target.x  += nx * half;
-        target.y  += ny * half;
+        const overshoot = dist - MAX_ROPE_LENGTH;
+        shooter.x -= nx * overshoot * (2 / 3);
+        shooter.y -= ny * overshoot * (2 / 3);
+        target.x  += nx * overshoot * (1 / 3);
+        target.y  += ny * overshoot * (1 / 3);
 
         const rv = (shooter.vx - target.vx) * nx + (shooter.vy - target.vy) * ny;
         if (rv > 0) {
-          shooter.vx -= rv * 0.5 * nx;
-          shooter.vy -= rv * 0.5 * ny;
-          target.vx  += rv * 0.5 * nx;
-          target.vy  += rv * 0.5 * ny;
+          shooter.vx -= rv * (2 / 3) * nx;
+          shooter.vy -= rv * (2 / 3) * ny;
+          target.vx  += rv * (1 / 3) * nx;
+          target.vy  += rv * (1 / 3) * ny;
         }
       }
     }
