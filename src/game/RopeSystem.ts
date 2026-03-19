@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Worm } from '../entities/Worm';
 import { InputState } from '../input/InputState';
 import { TerrainMap } from '../terrain/TerrainMap';
-import { GRAVITY } from './constants';
+
 
 const MAX_ROPE_LENGTH     = 275;
 const MIN_ROPE_LENGTH     = 4;    // ~0.25 worm heights — can climb nearly to anchor
@@ -15,7 +15,7 @@ const HOOK_SPEED          = 1000; // px/s
 const SPRING_K          = 200;  // Hooke constant — sag=gravity/k=3px, settles ~10px from anchor
 const RADIAL_DAMPING    = 8;    // damping coefficient — raised to match stiffer spring
 const ROPE_REST_LENGTH  = 7;    // ~0.5 worm heights — fixed spring rest length
-const MAX_ROPE_PULL_SPEED = 50;  // px/s — cap on velocity added by spring per frame (test value)
+const MAX_ROPE_PULL_SPEED = 35;  // px/s — cap on velocity added by spring per frame
 
 // ── Directional jitter (subtle organic wobble) ──────────────────────
 const JITTER_MAX_ANGLE = 0.07;  // ~4° max offset
@@ -220,12 +220,6 @@ export class RopeSystem {
 
     const extension = dist - rope.restLength;
 
-    // ── Debug: log rope physics each frame ─────────────────────────────
-    const springForce = extension > 0 ? SPRING_K * extension : 0;
-    console.log(
-      `[rope] rest=${rope.restLength.toFixed(1)} dist=${dist.toFixed(1)} spring=${springForce.toFixed(0)} gravity=${GRAVITY}`,
-    );
-
     if (extension > 0) {
       // ── Directional jitter: rotate spring direction by smooth offset ─
       const jt = this.jitterTime.get(worm) ?? 0;
@@ -237,12 +231,7 @@ export class RopeSystem {
       const jny = nx * sinJ + ny * cosJ;
 
       // ── Spring force: pull worm toward anchor (with jitter), capped ─
-      const rawAccel = SPRING_K * extension;
-      const springAccel = Math.min(rawAccel, MAX_ROPE_PULL_SPEED / dt);
-      const velDelta = springAccel * dt;
-      console.log(
-        `[rope-pull] raw=${(rawAccel * dt).toFixed(1)} capped=${velDelta.toFixed(1)} cap=${MAX_ROPE_PULL_SPEED}`,
-      );
+      const springAccel = Math.min(SPRING_K * extension, MAX_ROPE_PULL_SPEED / dt);
       worm.vx -= jnx * springAccel * dt;
       worm.vy -= jny * springAccel * dt;
 
