@@ -130,15 +130,17 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   // ═══════════════════════════════════════════════════════════════════════════
   //  Original Liero NObj: clusterbomb_bombs
   //  speed=220, speedV=140, dist=10000, grav=1000, hitDmg=1
-  //  wormExplode=true, explGround=true, createOnExp=medium_explosion
+  //  wormExplode=true, createOnExp=medium_explosion
+  //  Bounce off terrain, short fuse ~30 frames, explode on worm hit
   // ═══════════════════════════════════════════════════════════════════════════
   cluster_bomblet: {
     id: 'cluster_bomblet', name: 'Bomblet',
     fireMode: 'single',
     projectileSpeed: 0, projectileGravity: 1.0, projectileSize: 3, projectileColor: 0xff6600,
     pellets: 1, spread: 0,
-    behavior: 'normal', maxBounces: 0, fuseMs: null,
-    explosionRadius: 14, splashDamage: 10, splashRadius: 14,  // medium_explosion (carve+damage on hit)
+    behavior: 'bounce', maxBounces: 999, fuseMs: 430,         // ~30 frames @ 70fps; bounce until fuse
+    bouncePercent: 40,
+    explosionRadius: 14, splashDamage: 10, splashRadius: 14,  // medium_explosion (carve+damage)
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 
@@ -199,14 +201,16 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   // ═══════════════════════════════════════════════════════════════════════════
   //  Chiquita bomblet: like cluster bomblet but stronger
   //  Original: chiquitabomb_bombs — hitDmg=4, createOnExp=large_explosion
+  //  Bounce off terrain, short fuse ~30 frames, explode on worm hit
   // ═══════════════════════════════════════════════════════════════════════════
   chiquita_bomblet: {
     id: 'chiquita_bomblet', name: 'Banana Fragment',
     fireMode: 'single',
     projectileSpeed: 0, projectileGravity: 1.0, projectileSize: 3, projectileColor: 0xffcc00,
     pellets: 1, spread: 0,
-    behavior: 'normal', maxBounces: 0, fuseMs: null,
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,  // large_explosion! (carve+damage on hit)
+    behavior: 'bounce', maxBounces: 999, fuseMs: 430,         // ~30 frames @ 70fps; bounce until fuse
+    bouncePercent: 40,
+    explosionRadius: 20, splashDamage: 15, splashRadius: 20,  // large_explosion! (carve+damage)
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 
