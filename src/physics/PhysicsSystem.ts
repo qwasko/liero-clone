@@ -41,9 +41,16 @@ export class PhysicsSystem {
     if (worm.x < halfW)         { worm.x = halfW; worm.vx = 0; }
     if (worm.x > mapW - halfW)  { worm.x = mapW - halfW; worm.vx = 0; }
 
+    // ── Grounded check (before gravity, to avoid sink/push jitter) ───
+    const grounded = terrain
+      ? CollisionUtils.isRowBlocked(terrain, worm.left + 1, worm.right - 1, worm.bottom + 1)
+      : false;
+
     // ── Gravity + vertical move ──────────────────────────────────────
-    worm.vy += GRAVITY * dt;
-    worm.y  += worm.vy * dt;
+    if (!grounded) {
+      worm.vy += GRAVITY * dt;
+    }
+    worm.y += worm.vy * dt;
 
     if (terrain) {
       this.resolveVertical(worm, terrain);
@@ -53,9 +60,6 @@ export class PhysicsSystem {
 
     // ── Grounded state ───────────────────────────────────────────────
     if (terrain) {
-      const grounded = CollisionUtils.isRowBlocked(
-        terrain, worm.left + 1, worm.right - 1, worm.bottom + 1,
-      );
       if (grounded && Math.abs(worm.vy) < 1.0) worm.vy = 0;
       worm.state = grounded ? (worm.vx !== 0 ? 'moving' : 'idle') : 'airborne';
     }
