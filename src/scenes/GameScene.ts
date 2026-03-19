@@ -67,6 +67,9 @@ export class GameScene extends Phaser.Scene {
   // Invisible point that the camera follows; updated each frame to worm midpoint
   private cameraFocus!: Phaser.GameObjects.Zone;
 
+  // HUD camera (zoom=1, renders only UI elements)
+  private hudCamera!: Phaser.Cameras.Scene2D.Camera;
+
   // Explosion flash overlay (screen-space rect, fades out via tween)
   private flashRect!: Phaser.GameObjects.Rectangle;
 
@@ -114,8 +117,8 @@ export class GameScene extends Phaser.Scene {
     const spawnP1 = this.spawnPoints[0];
     const spawnP2 = this.spawnPoints[1];
 
-    // Camera: 1:1 scale, follow invisible focus point, bounded to map
-    this.cameras.main.setZoom(1);
+    // Camera: zoom 2x on main camera for world rendering
+    this.cameras.main.setZoom(2);
 
     // ── Terrain ────────────────────────────────────────────────────────
     this.terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain);
@@ -182,7 +185,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, level.width, level.height);
     this.cameras.main.startFollow(this.cameraFocus);
 
-// ── Overlay + HUD (last → render on top) ──────────────────────────
+    // ── Overlay + HUD (last → render on top) ──────────────────────────
     this.particleLayer   = this.add.graphics().setDepth(9);
     this.overlayGraphics = this.add.graphics().setDepth(10);
 
@@ -191,6 +194,34 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0).setDepth(50).setScrollFactor(0);
 
     this.hud = new HUD(this, CANVAS_WIDTH);
+
+    // ── Dual-camera setup ────────────────────────────────────────────
+    // HUD camera: zoom=1, renders only UI overlay elements
+    this.hudCamera = this.cameras.add(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, false, 'hud');
+    this.hudCamera.setZoom(1);
+    this.hudCamera.setScroll(0, 0);
+
+    // World objects the HUD camera must NOT render
+    const worldObjects: Phaser.GameObjects.GameObject[] = [
+      this.terrainRenderer.image,
+      this.wormLayer,
+      this.particleLayer,
+      this.overlayGraphics,
+      this.cameraFocus,
+    ];
+    if (this.tagItGraphics) worldObjects.push(this.tagItGraphics);
+    for (const obj of worldObjects) {
+      this.hudCamera.ignore(obj);
+    }
+
+    // HUD objects the main camera must NOT render
+    const hudObjects: Phaser.GameObjects.GameObject[] = [
+      this.flashRect,
+      ...this.hud.objects,
+    ];
+    for (const obj of hudObjects) {
+      this.cameras.main.ignore(obj);
+    }
   }
 
   update(_time: number, delta: number): void {
@@ -454,6 +485,7 @@ export class GameScene extends Phaser.Scene {
 
   private spawnMuzzleFlash(x: number, y: number): void {
     const flash = this.add.circle(x, y, 7, 0xffffff, 1).setDepth(12);
+    this.hudCamera.ignore(flash);
     this.tweens.add({
       targets:    flash,
       alpha:      0,

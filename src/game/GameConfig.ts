@@ -11,6 +11,10 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   width: CANVAS_WIDTH,
   height: CANVAS_HEIGHT,
   backgroundColor: '#1a1a2e',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
   physics: {
     // Phaser arcade physics is intentionally not used for terrain —
     // custom physics in PhysicsSystem handles that.

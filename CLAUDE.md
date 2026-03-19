@@ -37,7 +37,7 @@ The architecture must support these future extensions without major refactoring:
 For now implement only: **local 2-player same-screen mode**.
 
 ## Workflow Rules
-- **Before writing any code: confirm the plan with me first**
+- **For small fixes and tuning: code directly, no approval needed.For new major features or architecture changes: confirm plan first**
 - Break work into small phases — each phase must be runnable and testable
 - After completing each phase: remind me to do a `git commit`
 - If you are unsure about a design decision: ask, don't assume
@@ -73,3 +73,18 @@ Update STATUS.md with a clear "STOPPED HERE" section:
 ### At start of every session:
 Read CLAUDE.md and STATUS.md before doing anything else.
 Summarize current state and confirm next step with me.
+
+## Completion Signals
+
+### Interactive mode (default):
+After completing any task, beep to signal done:
+powershell -c "[console]::beep(800,200)"
+
+### End of day mode:
+If the prompt contains the phrase "DNES VSE",
+after the final git commit:
+1. Update STATUS.md with completed work and next steps
+2. Print session ID: run `claude --print-session-id` or note current session
+3. Beep three times to signal end:
+   powershell -c "1..3 | % { [console]::beep(1000,300); Start-Sleep -m 300 }"
+4. Run /exit to close session

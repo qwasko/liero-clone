@@ -7,7 +7,11 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm run:*)",
+      "Bash(powershell -c \"[console]::beep\\(1000,300\\); [console]::beep\\(1000,300\\)\")",
+      "Bash(powershell -c \"[console]::beep\\(800,200\\)\")",
+      "Bash(powershell -c \"1..3 | % { [console]::beep\\(1000,300\\); Start-Sleep -m 300 }\")"
     ]
   }
 }

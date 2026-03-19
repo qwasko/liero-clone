@@ -13,6 +13,8 @@ const COLOR_ROCK_EDGE  = { r: 55,  g: 52,  b: 50  };  // near-black — rock out
  */
 export class TerrainRenderer {
   private canvasTexture: Phaser.Textures.CanvasTexture;
+  /** Public so cameras can ignore/target this display object. */
+  readonly image: Phaser.GameObjects.Image;
 
   constructor(scene: Phaser.Scene, terrain: TerrainMap) {
     this.canvasTexture = scene.textures.createCanvas(
@@ -20,7 +22,7 @@ export class TerrainRenderer {
     ) as Phaser.Textures.CanvasTexture;
 
     // Display centred in scene
-    scene.add.image(terrain.width / 2, terrain.height / 2, 'terrain');
+    this.image = scene.add.image(terrain.width / 2, terrain.height / 2, 'terrain');
 
     this.redrawFull(terrain);
   }

@@ -32,6 +32,9 @@ export class HUD {
   private timer:    Phaser.GameObjects.Text;
   private tagLine:  Phaser.GameObjects.Text;
 
+  /** Every Phaser display object owned by the HUD — for camera.ignore(). */
+  readonly objects: Phaser.GameObjects.GameObject[] = [];
+
   // Pre-computed x positions for the two HP bars
   private readonly barX1: number;
   private readonly barX2: number;
@@ -41,12 +44,14 @@ export class HUD {
     const DEPTH = 20;
 
     // Background strip — scrollFactor(0) pins it to screen space
-    scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
+    const bg = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
       .fillStyle(0x000000, 0.72)
       .fillRect(0, 0, W, HUD.HEIGHT);
+    this.objects.push(bg);
 
     // HP bars (redrawn each frame, also pinned to screen)
     this.bars = scene.add.graphics().setDepth(DEPTH + 1).setScrollFactor(0);
+    this.objects.push(this.bars);
 
     // P1 bar starts after the "P1" label (~20px)
     this.barX1 = PAD + 22;
@@ -56,27 +61,34 @@ export class HUD {
     const mono = (color: string): Phaser.Types.GameObjects.Text.TextStyle =>
       ({ fontSize: '11px', color, fontFamily: 'monospace' });
 
+    // Helper: create text, track it, return it
+    const txt = (x: number, y: number, str: string, style: Phaser.Types.GameObjects.Text.TextStyle) => {
+      const t = scene.add.text(x, y, str, style).setDepth(DEPTH + 2).setScrollFactor(0);
+      this.objects.push(t);
+      return t;
+    };
+
     // P1 — left side
-    scene.add.text(PAD, PAD, 'P1', mono('#00ff88')).setDepth(DEPTH + 2).setScrollFactor(0);
-    this.p1Hp     = scene.add.text(this.barX1 + BAR_W + 4, PAD,      '', mono('#ffffff')).setDepth(DEPTH + 2).setScrollFactor(0);
-    this.p1Weapon = scene.add.text(PAD,                    PAD + 16, '', mono('#aaffcc')).setDepth(DEPTH + 2).setScrollFactor(0);
-    this.p1Lives  = scene.add.text(this.barX1 + BAR_W + 4, PAD + 16, '', mono('#00ff88')).setDepth(DEPTH + 2).setScrollFactor(0);
+    txt(PAD, PAD, 'P1', mono('#00ff88'));
+    this.p1Hp     = txt(this.barX1 + BAR_W + 4, PAD,      '', mono('#ffffff'));
+    this.p1Weapon = txt(PAD,                    PAD + 16, '', mono('#aaffcc'));
+    this.p1Lives  = txt(this.barX1 + BAR_W + 4, PAD + 16, '', mono('#00ff88'));
 
     // P2 — right side
-    scene.add.text(W - PAD, PAD, 'P2', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
-    this.p2Hp     = scene.add.text(this.barX2 - 4,         PAD,      '', mono('#ffffff')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
-    this.p2Weapon = scene.add.text(W - PAD,                PAD + 16, '', mono('#ffaaaa')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
-    this.p2Lives  = scene.add.text(this.barX2 - 4,         PAD + 16, '', mono('#ff4444')).setOrigin(1, 0).setDepth(DEPTH + 2).setScrollFactor(0);
+    txt(W - PAD, PAD, 'P2', mono('#ff4444')).setOrigin(1, 0);
+    this.p2Hp     = txt(this.barX2 - 4,         PAD,      '', mono('#ffffff')).setOrigin(1, 0);
+    this.p2Weapon = txt(W - PAD,                PAD + 16, '', mono('#ffaaaa')).setOrigin(1, 0);
+    this.p2Lives  = txt(this.barX2 - 4,         PAD + 16, '', mono('#ff4444')).setOrigin(1, 0);
 
     // Timer — centred
-    this.timer = scene.add.text(W / 2, PAD, '', {
+    this.timer = txt(W / 2, PAD, '', {
       fontSize: '14px', color: '#ffffff', fontFamily: 'monospace',
-    }).setOrigin(0.5, 0).setDepth(DEPTH + 2).setScrollFactor(0);
+    }).setOrigin(0.5, 0);
 
     // Tag mode time-as-it line (hidden in normal mode)
-    this.tagLine = scene.add.text(W / 2, PAD + 16, '', {
+    this.tagLine = txt(W / 2, PAD + 16, '', {
       fontSize: '11px', color: '#ffaa00', fontFamily: 'monospace',
-    }).setOrigin(0.5, 0).setDepth(DEPTH + 2).setScrollFactor(0);
+    }).setOrigin(0.5, 0);
   }
 
   update(

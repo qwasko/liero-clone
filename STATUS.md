@@ -1,10 +1,15 @@
 # Liero Clone — Status
 
-## Last completed: Weapon & particle balance rework
+## Last completed: Fullscreen canvas + camera zoom 2x
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
 - Destructible procedural cave terrain
+- **Fullscreen canvas** — Phaser Scale Manager FIT + CENTER_BOTH, fills browser window
+- **Camera zoom 2x** — dual-camera architecture:
+  - Main camera: zoom=2, follows P1 worm, renders world objects
+  - HUD camera: zoom=1, static overlay, renders UI elements only
+  - camera.ignore() segregates world vs HUD rendering
 - Full weapon loadout (9 weapons, cycle with CHANGE+LEFT/RIGHT):
   - Bazooka — arc shot, ±8% velocity variance, 35 dmg
   - Minigun (10000 ammo) — rapid fire, ±5° spread, 4 dmg/bullet, 2px crater, no particles
@@ -24,7 +29,7 @@
 - Self-damage: 50% of splash damage when owner worm is caught in own explosion
 - Ninja rope (CHANGE+JUMP; climb to anchor, anchor destruction releases rope)
 - Terrain digging in crosshair direction; block zone ±10° of straight up only
-- HP bars, match timer, weapon HUD (pinned to screen with setScrollFactor)
+- HP bars, match timer, weapon HUD (pinned to screen via dedicated HUD camera)
 - Lives system (3 lives each) + respawn after 2s
 - Win condition (elimination or timer expiry)
 - Bonus crates: spawn every ~18s, max 5 on map
@@ -44,11 +49,8 @@
   — they use generic fire/explosion audio
 
 ## Session stopped here
-Weapon balance and particle system rework complete.
-Last commits:
-  `balance: damage reduction, self-damage 50%, particle burst, weapon tuning`
-  `refactor: particle cleanup — shrapnel physics, 6-10 count, dark colour`
-  `fix: Larpa OOB detonation, mine arm delay, particle physics damage`
+Fullscreen canvas and camera zoom 2x complete (dual-camera architecture).
+Last commit: `feat: fullscreen canvas + camera zoom 2x with dual-camera HUD`
 
 ## Possible next steps (not planned)
 - AI opponent (bot controller for P2)

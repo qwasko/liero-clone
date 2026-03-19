@@ -103,6 +103,13 @@ export class CrateSystem {
       .setOrigin(0.5)
       .setDepth(7);
 
+    // Crate visuals are world objects — hide from HUD camera
+    const hudCam = this.scene.cameras.getCamera('hud');
+    if (hudCam) {
+      hudCam.ignore(body);
+      hudCam.ignore(icon);
+    }
+
     this.crates.push({ x: pos.x, y: pos.y, kind, weaponId, healAmount, body, icon, active: true });
   }
 
