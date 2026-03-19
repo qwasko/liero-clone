@@ -1,4 +1,3 @@
-import Phaser from 'phaser';
 import { Worm } from '../entities/Worm';
 import { TerrainMap } from '../terrain/TerrainMap';
 import { ExplosionSystem } from './ExplosionSystem';
@@ -6,7 +5,7 @@ import { Loadout } from '../weapons/Loadout';
 import { WeaponRegistry } from '../weapons/WeaponRegistry';
 import { WORM_MAX_HP } from '../game/constants';
 
-type CrateKind = 'weapon' | 'health' | 'booby';
+export type CrateKind = 'weapon' | 'health' | 'booby';
 
 const CRATE_HALF       = 7;
 const MAX_CRATES       = 5;
@@ -18,39 +17,45 @@ const BOOBY_EXP_RADIUS  = 28;
 const BOOBY_SPLASH_DMG  = 45;
 const BOOBY_SPLASH_RAD  = 58;
 
-interface Crate {
-  x: number;
-  y: number;
-  kind: CrateKind;
-  weaponId?: string;
+/** Pure data — no Phaser objects. */
+export interface CrateData {
+  id:          number;
+  x:           number;
+  y:           number;
+  kind:        CrateKind;
+  weaponId?:   string;
   healAmount?: number;
-  body: Phaser.GameObjects.Rectangle;
-  icon: Phaser.GameObjects.Text;
-  active: boolean;
+  active:      boolean;
 }
+
+export type CrateEvent =
+  | { type: 'spawn'; crate: CrateData }
+  | { type: 'collect'; crateId: number; kind: CrateKind; worm: Worm };
+
+export { CRATE_HALF };
 
 /**
  * Manages bonus crates that drop onto the terrain during a match.
- *
- * Crate kinds (player cannot tell them apart visually):
- *   weapon  — replaces the worm's current active weapon slot (full ammo)
- *   health  — restores 10–50 HP
- *   booby   — explodes when picked up
+ * Pure game logic — no Phaser dependency. Visual sync handled by GameScene.
  */
 export class CrateSystem {
-  private crates: Crate[] = [];
+  private crates: CrateData[] = [];
   private spawnTimer = SPAWN_INTERVAL * 0.4; // first crate appears sooner
+  private nextId = 0;
+  private pendingEvents: CrateEvent[] = [];
 
   constructor(
-    private scene:           Phaser.Scene,
     private terrain:         TerrainMap,
     private explosionSystem: ExplosionSystem,
     private worms:           Worm[],
     private loadouts:        Map<Worm, Loadout>,
-    private onPickup:        (kind: CrateKind, worm: Worm) => void,
   ) {}
 
-  update(dt: number): void {
+  getCrates(): readonly CrateData[] { return this.crates; }
+
+  update(dt: number): CrateEvent[] {
+    this.pendingEvents = [];
+
     // ── Spawn ─────────────────────────────────────────────────────────
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
@@ -73,6 +78,8 @@ export class CrateSystem {
         }
       }
     }
+
+    return this.pendingEvents;
   }
 
   private trySpawn(): void {
@@ -94,29 +101,18 @@ export class CrateSystem {
       kind = 'booby';
     }
 
-    // Visual: yellow box + "?" label — identical for all kinds
-    const body = this.scene.add
-      .rectangle(pos.x, pos.y, CRATE_HALF * 2, CRATE_HALF * 2, 0xddaa00)
-      .setDepth(6);
-    const icon = this.scene.add
-      .text(pos.x, pos.y, '?', { fontSize: '10px', color: '#000000', fontFamily: 'monospace' })
-      .setOrigin(0.5)
-      .setDepth(7);
-
-    // Crate visuals are world objects — hide from HUD camera
-    const hudCam = this.scene.cameras.getCamera('hud');
-    if (hudCam) {
-      hudCam.ignore(body);
-      hudCam.ignore(icon);
-    }
-
-    this.crates.push({ x: pos.x, y: pos.y, kind, weaponId, healAmount, body, icon, active: true });
+    const crate: CrateData = {
+      id: this.nextId++,
+      x: pos.x, y: pos.y,
+      kind, weaponId, healAmount,
+      active: true,
+    };
+    this.crates.push(crate);
+    this.pendingEvents.push({ type: 'spawn', crate });
   }
 
-  private collect(crate: Crate, worm: Worm): void {
+  private collect(crate: CrateData, worm: Worm): void {
     crate.active = false;
-    crate.body.destroy();
-    crate.icon.destroy();
 
     switch (crate.kind) {
       case 'weapon': {
@@ -130,12 +126,11 @@ export class CrateSystem {
       }
       case 'booby': {
         this.explosionSystem.detonate(crate.x, crate.y, BOOBY_EXP_RADIUS, BOOBY_SPLASH_DMG, BOOBY_SPLASH_RAD);
-        this.scene.cameras.main.shake(200, 0.009);
         break;
       }
     }
 
-    this.onPickup(crate.kind, worm);
+    this.pendingEvents.push({ type: 'collect', crateId: crate.id, kind: crate.kind, worm });
   }
 
   private findSurface(): { x: number; y: number } | null {
@@ -146,7 +141,6 @@ export class CrateSystem {
       const x = Math.floor(15 + Math.random() * (W - 30));
       for (let y = 15; y < H - 15; y++) {
         if (!this.terrain.isSolid(x, y) && this.terrain.isSolid(x, y + CRATE_HALF + 1)) {
-          // Make sure there's vertical room above (crate won't be buried)
           if (!this.terrain.isSolid(x, y - CRATE_HALF)) {
             return { x, y };
           }
@@ -157,9 +151,6 @@ export class CrateSystem {
   }
 
   destroyAll(): void {
-    for (const crate of this.crates) {
-      if (crate.active) { crate.body.destroy(); crate.icon.destroy(); }
-    }
     this.crates = [];
   }
 }

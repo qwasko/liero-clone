@@ -1,0 +1,424 @@
+import { Worm } from '../entities/Worm';
+import { Projectile } from '../entities/Projectile';
+import { WormController } from '../entities/WormController';
+import { InputState } from '../input/InputState';
+import { PhysicsSystem } from '../physics/PhysicsSystem';
+import { TerrainMap } from '../terrain/TerrainMap';
+import { TerrainDestroyer } from '../terrain/TerrainDestroyer';
+import { Loadout } from '../weapons/Loadout';
+import { WeaponSystem } from '../weapons/WeaponSystem';
+import { WeaponRegistry, DEFAULT_LOADOUT } from '../weapons/WeaponRegistry';
+import { ExplosionSystem } from './ExplosionSystem';
+import { RopeSystem } from './RopeSystem';
+import { DiggingSystem } from './DiggingSystem';
+import { CrateSystem } from './CrateSystem';
+import { ParticleSystem } from './ParticleSystem';
+import { TagSystem } from './TagSystem';
+import { GameEvent } from './GameEvents';
+import { LevelPreset } from './LevelPreset';
+import {
+  MATCH_DURATION_SECONDS,
+  DEFAULT_LIVES,
+  RESPAWN_DELAY_MS,
+  WORM_MAX_HP,
+} from './constants';
+
+/**
+ * Pure game logic — owns all systems, has no Phaser dependency.
+ * GameScene creates one GameState and calls update() each frame.
+ */
+export class GameState {
+  // ── Entities ─────────────────────────────────────────────────────────
+  readonly worms: [Worm, Worm];
+  readonly loadouts: Map<Worm, Loadout> = new Map();
+  activeProjectiles: Projectile[] = [];
+
+  // ── Systems ──────────────────────────────────────────────────────────
+  readonly physicsSystem:   PhysicsSystem;
+  readonly weaponSystem:    WeaponSystem;
+  readonly explosionSystem: ExplosionSystem;
+  readonly ropeSystem:      RopeSystem;
+  readonly diggingSystem:   DiggingSystem;
+  readonly crateSystem:     CrateSystem;
+  readonly particleSystem:  ParticleSystem;
+  readonly tagSystem:       TagSystem | null;
+
+  // ── Terrain ──────────────────────────────────────────────────────────
+  readonly terrain:          TerrainMap;
+  readonly terrainDestroyer: TerrainDestroyer;
+
+  // ── Match state ──────────────────────────────────────────────────────
+  timeRemaining: number = MATCH_DURATION_SECONDS;
+  matchOver: boolean = false;
+  readonly gameMode: 'normal' | 'tag';
+  readonly spawnPoints: [{ x: number; y: number }, { x: number; y: number }];
+
+  // ── Internal ─────────────────────────────────────────────────────────
+  private controllers: [WormController, WormController];
+  private lives: Map<Worm, number> = new Map();
+  private respawnTimers: Map<Worm, number | null> = new Map();
+
+  // Weapon cycling state per player
+  private cycleState: [
+    { dir: -1 | 0 | 1; holdMs: number; repeatMs: number },
+    { dir: -1 | 0 | 1; holdMs: number; repeatMs: number },
+  ] = [
+    { dir: 0, holdMs: 0, repeatMs: 0 },
+    { dir: 0, holdMs: 0, repeatMs: 0 },
+  ];
+
+  constructor(terrain: TerrainMap, level: LevelPreset, mode: 'normal' | 'tag') {
+    this.terrain = terrain;
+    this.gameMode = mode;
+
+    // ── Spawn points ───────────────────────────────────────────────────
+    this.spawnPoints = [
+      { x: level.width * 0.25, y: level.height * 0.44 },
+      { x: level.width * 0.75, y: level.height * 0.44 },
+    ];
+
+    // ── Worms ──────────────────────────────────────────────────────────
+    const worm1 = new Worm(this.spawnPoints[0].x, this.spawnPoints[0].y, 1);
+    const worm2 = new Worm(this.spawnPoints[1].x, this.spawnPoints[1].y, 2);
+    this.worms = [worm1, worm2];
+
+    // ── Loadouts ───────────────────────────────────────────────────────
+    this.loadouts.set(worm1, new Loadout([...DEFAULT_LOADOUT]));
+    this.loadouts.set(worm2, new Loadout([...DEFAULT_LOADOUT]));
+
+    // ── Systems ────────────────────────────────────────────────────────
+    this.terrainDestroyer = new TerrainDestroyer(terrain);
+    this.physicsSystem    = new PhysicsSystem();
+    this.weaponSystem     = new WeaponSystem();
+    this.explosionSystem  = new ExplosionSystem(this.terrainDestroyer, this.worms);
+    this.particleSystem   = new ParticleSystem();
+
+    this.ropeSystem = new RopeSystem();
+    this.ropeSystem.registerWorm(worm1);
+    this.ropeSystem.registerWorm(worm2);
+
+    this.diggingSystem = new DiggingSystem(this.terrainDestroyer);
+    this.diggingSystem.registerWorm(worm1);
+    this.diggingSystem.registerWorm(worm2);
+
+    this.crateSystem = new CrateSystem(
+      terrain, this.explosionSystem, this.worms, this.loadouts,
+    );
+
+    // ── Tag mode ───────────────────────────────────────────────────────
+    this.tagSystem = mode === 'tag' ? new TagSystem(this.worms) : null;
+
+    // ── Controllers ────────────────────────────────────────────────────
+    this.controllers = [new WormController(worm1), new WormController(worm2)];
+
+    // ── Lives ──────────────────────────────────────────────────────────
+    for (const worm of this.worms) {
+      this.lives.set(worm, DEFAULT_LIVES);
+      this.respawnTimers.set(worm, null);
+    }
+  }
+
+  getLives(worm: Worm): number { return this.lives.get(worm) ?? 0; }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Main update — returns events for audio/visual side-effects
+  // ════════════════════════════════════════════════════════════════════════
+
+  update(dt: number, input1: InputState, input2: InputState): GameEvent[] {
+    const events: GameEvent[] = [];
+    const [worm1, worm2] = this.worms;
+    const load1 = this.loadouts.get(worm1)!;
+    const load2 = this.loadouts.get(worm2)!;
+
+    this.timeRemaining -= dt;
+
+    // ── Rope input + hook advancement ──────────────────────────────────
+    if (this.ropeSystem.handleInput(worm1, input1, dt)) events.push({ type: 'sound_rope' });
+    if (this.ropeSystem.handleInput(worm2, input2, dt)) events.push({ type: 'sound_rope' });
+    this.ropeSystem.updateHooks(dt, this.terrain, this.worms);
+    this.ropeSystem.checkAnchorDestroyed(this.terrain);
+
+    // ── Controllers ────────────────────────────────────────────────────
+    this.controllers[0].update(input1, dt, this.ropeSystem.hasRope(worm1) || this.ropeSystem.isRopeTarget(worm1));
+    this.controllers[1].update(input2, dt, this.ropeSystem.hasRope(worm2) || this.ropeSystem.isRopeTarget(worm2));
+
+    if (this.controllers[0].justJumped) events.push({ type: 'sound_jump' });
+    if (this.controllers[1].justJumped) events.push({ type: 'sound_jump' });
+
+    // ── Weapon cycling — CHANGE + LEFT/RIGHT ───────────────────────────
+    this.updateWeaponCycling(input1, input2, load1, load2, dt);
+
+    // ── Loadout timers ─────────────────────────────────────────────────
+    load1.update(dt);
+    load2.update(dt);
+
+    // ── Tag timer ──────────────────────────────────────────────────────
+    this.tagSystem?.update(dt);
+
+    // ── Digging ────────────────────────────────────────────────────────
+    this.diggingSystem.update(worm1, input1);
+    this.diggingSystem.update(worm2, input2);
+
+    // ── Crates ─────────────────────────────────────────────────────────
+    const crateEvents = this.crateSystem.update(dt);
+    for (const ce of crateEvents) {
+      if (ce.type === 'spawn') {
+        events.push({ type: 'crate_spawn', crate: ce.crate });
+      } else if (ce.type === 'collect') {
+        events.push({ type: 'crate_collect', crateId: ce.crateId, kind: ce.kind });
+        if (ce.kind === 'booby') {
+          events.push({ type: 'sound_explosion', big: false });
+          events.push({ type: 'camera_shake', duration: 200, intensity: 0.009 });
+        } else {
+          events.push({ type: 'sound_pickup' });
+        }
+      }
+    }
+
+    // ── Weapon fire — disabled while CHANGE is held ────────────────────
+    const fireInputs: [boolean, boolean] = [
+      input1.fire && !input1.change,
+      input2.fire && !input2.change,
+    ];
+    this.worms.forEach((worm, i) => {
+      const loadout = this.loadouts.get(worm)!;
+      const projs   = this.weaponSystem.tryFire(worm, loadout, fireInputs[i]);
+      for (const p of projs) {
+        this.activeProjectiles.push(p);
+        events.push({ type: 'muzzle_flash', x: p.x, y: p.y });
+        events.push({ type: 'sound_fire', weaponId: p.weapon.id });
+      }
+    });
+
+    // ── Physics ────────────────────────────────────────────────────────
+    this.physicsSystem.update(this.worms, dt, this.terrain);
+
+    // Rope constraints applied after normal physics
+    this.ropeSystem.applyConstraint(worm1, dt);
+    this.ropeSystem.applyConstraint(worm2, dt);
+    this.ropeSystem.releaseOnDeath(worm1);
+    this.ropeSystem.releaseOnDeath(worm2);
+
+    this.physicsSystem.updateProjectiles(
+      this.activeProjectiles, dt, this.terrain, this.worms,
+      (proj, hitX, hitY) => {
+        this.explosionSystem.detonate(
+          hitX, hitY,
+          proj.weapon.explosionRadius,
+          proj.weapon.splashDamage,
+          proj.weapon.splashRadius,
+          proj.ownerId,
+        );
+
+        // ── Cluster bomb: spray bomblets ──────────────────────────────
+        if (proj.weapon.clusterCount && proj.weapon.clusterWeapon) {
+          const bombletDef = WeaponRegistry[proj.weapon.clusterWeapon];
+          if (bombletDef) {
+            for (let i = 0; i < proj.weapon.clusterCount; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 90 + Math.random() * 160;
+              this.activeProjectiles.push(new Projectile(
+                hitX, hitY,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                proj.ownerId,
+                bombletDef,
+              ));
+            }
+          }
+        }
+
+        // ── Chiquita: spray fragments ─────────────────────────────────
+        if (proj.weapon.chiquitaFragments) {
+          const fragDef = WeaponRegistry['chiquita_fragment'];
+          if (fragDef) {
+            const total = proj.weapon.chiquitaFragments;
+            for (let i = 0; i < total; i++) {
+              const angle = (i / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+              const speed = 180 + Math.random() * 220;
+              this.activeProjectiles.push(new Projectile(
+                hitX, hitY,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                proj.ownerId,
+                fragDef,
+              ));
+            }
+          }
+        }
+
+        // ── Particles ─────────────────────────────────────────────────
+        this.spawnExplosionParticles(hitX, hitY, proj.weapon.id);
+
+        // ── Audio/visual events ───────────────────────────────────────
+        const big = proj.weapon.explosionRadius >= 20;
+        events.push({ type: 'sound_explosion', big });
+        events.push({ type: 'screen_flash', alpha: big ? 0.18 : 0.08 });
+      },
+    );
+    this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
+
+    // ── Particles ──────────────────────────────────────────────────────
+    this.particleSystem.update(dt, this.terrain, this.worms, this.terrainDestroyer);
+
+    // ── Respawn timers ─────────────────────────────────────────────────
+    for (const worm of this.worms) {
+      if (!worm.isDead) continue;
+      const timer = this.respawnTimers.get(worm);
+      if (timer === undefined || timer === null) continue;
+      const newTimer = timer - dt * 1000;
+      if (newTimer <= 0) {
+        this.respawnTimers.set(worm, null);
+        this.respawnWorm(worm);
+      } else {
+        this.respawnTimers.set(worm, newTimer);
+      }
+    }
+
+    // ── On-death: schedule respawn or eliminate ────────────────────────
+    for (const worm of this.worms) {
+      if (!worm.isDead) continue;
+      if (this.respawnTimers.get(worm) !== null) continue;
+      this.tagSystem?.onDeath(worm);
+      const remaining = (this.lives.get(worm) ?? 0) - 1;
+      this.lives.set(worm, Math.max(0, remaining));
+      if (remaining > 0) {
+        this.respawnTimers.set(worm, RESPAWN_DELAY_MS);
+      } else {
+        this.respawnTimers.set(worm, 0); // sentinel: eliminated permanently
+      }
+    }
+
+    // ── Win condition ──────────────────────────────────────────────────
+    this.checkWinCondition(events);
+
+    return events;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Private helpers
+  // ════════════════════════════════════════════════════════════════════════
+
+  private updateWeaponCycling(
+    input1: InputState, input2: InputState,
+    load1: Loadout, load2: Loadout, dt: number,
+  ): void {
+    const inputs   = [input1, input2];
+    const loadouts = [load1, load2];
+    for (let p = 0; p < 2; p++) {
+      const inp  = inputs[p];
+      const load = loadouts[p];
+      const cs   = this.cycleState[p];
+
+      if (!inp.change) {
+        cs.dir = 0; cs.holdMs = 0; cs.repeatMs = 0;
+        continue;
+      }
+
+      const wantDir: -1 | 0 | 1 =
+        inp.left && !inp.right  ? -1 :
+        inp.right && !inp.left  ?  1 : 0;
+
+      if (wantDir === 0) {
+        cs.dir = 0; cs.holdMs = 0; cs.repeatMs = 0;
+      } else if (wantDir !== cs.dir) {
+        cs.dir = wantDir;
+        cs.holdMs = 0;
+        cs.repeatMs = 350;
+        if (wantDir === -1) load.prevWeapon();
+        else                load.nextWeapon();
+      } else {
+        cs.holdMs   += dt * 1000;
+        cs.repeatMs -= dt * 1000;
+        if (cs.repeatMs <= 0) {
+          const interval = Math.max(80, 280 - cs.holdMs * 0.4);
+          cs.repeatMs = interval;
+          if (wantDir === -1) load.prevWeapon();
+          else                load.nextWeapon();
+        }
+      }
+    }
+  }
+
+  private spawnExplosionParticles(x: number, y: number, weaponId: string): void {
+    if (weaponId === 'minigun') return;
+
+    let count: number;
+    if (weaponId === 'shotgun') {
+      count = 2 + Math.floor(Math.random() * 2);
+    } else if (weaponId === 'chiquita_fragment' || weaponId === 'cluster_bomblet') {
+      count = 3 + Math.floor(Math.random() * 2);
+    } else {
+      count = 6 + Math.floor(Math.random() * 5);
+    }
+
+    this.particleSystem.spawnExplosion(x, y, count);
+  }
+
+  private checkWinCondition(events: GameEvent[]): void {
+    const [worm1, worm2] = this.worms;
+    const lives1 = this.lives.get(worm1) ?? 0;
+    const lives2 = this.lives.get(worm2) ?? 0;
+
+    const eliminated1 = this.respawnTimers.get(worm1) === 0;
+    const eliminated2 = this.respawnTimers.get(worm2) === 0;
+    const timedOut    = this.timeRemaining <= 0;
+
+    if (!eliminated1 && !eliminated2 && !timedOut) return;
+
+    this.matchOver = true;
+
+    if (this.tagSystem) {
+      let winner: 0 | 1 | 2;
+      if (eliminated1 && eliminated2)       winner = 0;
+      else if (eliminated1)                 winner = 2;
+      else if (eliminated2)                 winner = 1;
+      else winner = this.tagSystem.result(worm1, worm2).winner;
+
+      const times = this.tagSystem.result(worm1, worm2).times;
+      events.push({ type: 'match_over', winner, mode: 'tag', tagTimes: times });
+      return;
+    }
+
+    let winner: number;
+    if (eliminated1 && eliminated2)         winner = 0;
+    else if (eliminated1)                   winner = 2;
+    else if (eliminated2)                   winner = 1;
+    else if (lives1 > lives2)               winner = 1;
+    else if (lives2 > lives1)               winner = 2;
+    else if (worm1.hp > worm2.hp)           winner = 1;
+    else if (worm2.hp > worm1.hp)           winner = 2;
+    else                                    winner = 0;
+
+    events.push({ type: 'match_over', winner, mode: 'normal' });
+  }
+
+  private respawnWorm(worm: Worm): void {
+    const pos = this.findRespawnPosition(worm);
+    worm.x     = pos.x;
+    worm.y     = pos.y;
+    worm.vx    = 0;
+    worm.vy    = 0;
+    worm.hp    = WORM_MAX_HP;
+    worm.state = 'airborne';
+    this.respawnTimers.set(worm, null);
+    this.loadouts.set(worm, new Loadout([...DEFAULT_LOADOUT]));
+  }
+
+  private findRespawnPosition(worm: Worm): { x: number; y: number } {
+    const W = this.terrain.width;
+    const H = this.terrain.height;
+    const enemy = this.worms.find(w => w !== worm);
+
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const x = Math.floor(20 + Math.random() * (W - 40));
+      for (let y = 20; y < H - 20; y++) {
+        if (!this.terrain.isSolid(x, y) && !this.terrain.isSolid(x, y - worm.height)) {
+          if (enemy && Math.hypot(x - enemy.x, y - enemy.y) < 80) continue;
+          return { x, y };
+        }
+      }
+    }
+    return worm.playerId === 1 ? this.spawnPoints[0] : this.spawnPoints[1];
+  }
+}
