@@ -442,6 +442,9 @@ export class GameScene extends Phaser.Scene {
 
     // ── Camera: follow P1 worm (both players share one screen) ────────
     this.cameraFocus.setPosition(worm1.x, worm1.y);
+    const cam = this.cameras.main;
+    cam.scrollX = Math.round(cam.scrollX);
+    cam.scrollY = Math.round(cam.scrollY);
 
     // ── HUD + overlay ─────────────────────────────────────────────────
     this.hud.update(
