@@ -11,7 +11,7 @@ const LENGTH_EXTEND_SPEED  = 400; // px/s — rate rest length increases
 const HOOK_SPEED          = 1000; // px/s
 
 // ── Spring physics constants ─────────────────────────────────────────
-const SPRING_K          = 25;   // Hooke constant — higher = stiffer pull
+const SPRING_K          = 12;   // Hooke constant — higher = stiffer pull
 const RADIAL_DAMPING    = 3;    // damping coefficient on radial velocity (~0.95/frame at 60fps)
 const ROPE_REST_LENGTH  = 21;   // ~1.5 worm heights — fixed spring rest length
 
