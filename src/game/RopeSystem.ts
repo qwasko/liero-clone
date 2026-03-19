@@ -14,6 +14,12 @@ const HOOK_SPEED          = 1000; // px/s
 const SPRING_K          = 25;   // Hooke constant — higher = stiffer pull
 const RADIAL_DAMPING    = 3;    // damping coefficient on radial velocity (~0.95/frame at 60fps)
 const MAX_STRETCH_RATIO = 1.5;  // hard clamp at 1.5× rest length (safety net)
+const ROPE_REST_LENGTH  = 50;   // ~3.5 worm heights — fixed rest length on attach
+
+// ── Directional jitter (subtle organic wobble) ──────────────────────
+const JITTER_MAX_ANGLE = 0.07;  // ~4° max offset
+const JITTER_FREQ1     = 3.0;   // rad/s — slow primary drift
+const JITTER_FREQ2     = 7.3;   // rad/s — faster secondary (incommensurate → quasi-random)
 
 interface Rope {
   anchorX: number;
@@ -51,14 +57,16 @@ interface RopeHook {
  * Shorten     : CHANGE + UP    (adjusts rest length)
  */
 export class RopeSystem {
-  private ropes    = new Map<Worm, Rope | null>();
-  private hooks    = new Map<Worm, RopeHook | null>();
-  private prevJump = new Map<Worm, boolean>();
+  private ropes      = new Map<Worm, Rope | null>();
+  private hooks      = new Map<Worm, RopeHook | null>();
+  private prevJump   = new Map<Worm, boolean>();
+  private jitterTime = new Map<Worm, number>();
 
   registerWorm(worm: Worm): void {
     this.ropes.set(worm, null);
     this.hooks.set(worm, null);
     this.prevJump.set(worm, false);
+    this.jitterTime.set(worm, Math.random() * 100); // random phase so worms don't sync
   }
 
   /** True only when rope is attached and constraint is active. */
@@ -157,8 +165,7 @@ export class RopeSystem {
             Math.abs(hx - other.x) < other.width  / 2 &&
             Math.abs(hy - other.y) < other.height / 2
           ) {
-            const len = Math.hypot(worm.x - other.x, worm.y - other.y);
-            this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: len, targetWorm: other });
+            this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: ROPE_REST_LENGTH, targetWorm: other });
             this.hooks.set(worm, null);
             attached = true;
             break;
@@ -168,8 +175,7 @@ export class RopeSystem {
 
         // Check terrain hit
         if (terrain.isSolid(hx, hy)) {
-          const len = Math.hypot(worm.x - hx, worm.y - hy);
-          this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: len, targetWorm: null });
+          this.ropes.set(worm, { anchorX: hx, anchorY: hy, length: ROPE_REST_LENGTH, targetWorm: null });
           this.hooks.set(worm, null);
           attached = true;
           break;
@@ -214,12 +220,21 @@ export class RopeSystem {
     const extension = dist - rope.length;
 
     if (extension > 0) {
-      // ── Spring force: pull worm toward anchor ──────────────────────
-      const springAccel = SPRING_K * extension;
-      worm.vx -= nx * springAccel * dt;
-      worm.vy -= ny * springAccel * dt;
+      // ── Directional jitter: rotate spring direction by smooth offset ─
+      const jt = this.jitterTime.get(worm) ?? 0;
+      this.jitterTime.set(worm, jt + dt);
+      const jitter = (Math.sin(jt * JITTER_FREQ1) * 0.6 + Math.sin(jt * JITTER_FREQ2) * 0.4) * JITTER_MAX_ANGLE;
+      const cosJ = Math.cos(jitter);
+      const sinJ = Math.sin(jitter);
+      const jnx = nx * cosJ - ny * sinJ; // jittered pull direction
+      const jny = nx * sinJ + ny * cosJ;
 
-      // ── Radial damping: oppose radial velocity component ──────────
+      // ── Spring force: pull worm toward anchor (with jitter) ────────
+      const springAccel = SPRING_K * extension;
+      worm.vx -= jnx * springAccel * dt;
+      worm.vy -= jny * springAccel * dt;
+
+      // ── Radial damping: oppose true radial velocity (no jitter) ───
       const radialVel = worm.vx * nx + worm.vy * ny;
       const dampAccel = RADIAL_DAMPING * radialVel;
       worm.vx -= nx * dampAccel * dt;

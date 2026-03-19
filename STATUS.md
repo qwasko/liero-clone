@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Rope physics rewrite — spring/elastic model
+## Last completed: Rope fixed rest length + directional jitter
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -32,8 +32,10 @@
 - Self-damage: 50% of splash damage when owner worm is caught in own explosion
 - Ninja rope with spring/elastic physics (CHANGE+JUMP; anchor destruction releases rope)
   - Hooke's law spring model: rope pulls when stretched past rest length, slack when closer
+  - Fixed rest length (50px / ~3.5 worm heights) — immediate pull on long-range attach
   - UP/DOWN adjust rest length (reel in / pay out), not direct position
   - Radial damping prevents infinite oscillation while keeping elastic bounce
+  - Subtle directional jitter (~4° smooth wobble) for organic vertical rope feel
   - Hard clamp at 1.5× rest length as safety net for extreme speeds
 - Terrain digging in crosshair direction; block zone ±10° of straight up only
 - HP bars, match timer, weapon HUD (pinned to screen via dedicated HUD camera)
@@ -56,8 +58,8 @@
   — they use generic fire/explosion audio
 
 ## Session stopped here
-Rope spring physics rewrite complete.
-Last commit: `feat: rope physics rewrite — spring/elastic model`
+Rope fixed rest length + directional jitter complete.
+Last commit: `feat: rope fixed rest length + subtle directional jitter`
 
 ## Possible next steps (not planned)
 - AI opponent (bot controller for P2)
