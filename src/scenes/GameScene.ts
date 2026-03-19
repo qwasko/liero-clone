@@ -12,9 +12,10 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { CRATE_HALF } from '../game/CrateSystem';
 
 /**
- * Thin Phaser orchestrator:
- *   create() → builds terrain + GameState + visuals
- *   update() → reads input → GameState.update() → processes events → renders
+ * Thin Phaser orchestrator with splitscreen:
+ *   P1 camera (left half) follows worm 1
+ *   P2 camera (right half) follows worm 2
+ *   HUD camera (full screen) renders overlay UI
  */
 export class GameScene extends Phaser.Scene {
   private gameState!: GameState;
@@ -31,9 +32,12 @@ export class GameScene extends Phaser.Scene {
   private overlayGraphics!: Phaser.GameObjects.Graphics;
   private flashRect!: Phaser.GameObjects.Rectangle;
 
-  // Camera
-  private cameraFocus!: Phaser.GameObjects.Zone;
+  // Splitscreen cameras
+  private p2Camera!: Phaser.Cameras.Scene2D.Camera;
   private hudCamera!: Phaser.Cameras.Scene2D.Camera;
+  private cameraFocusP1!: Phaser.GameObjects.Zone;
+  private cameraFocusP2!: Phaser.GameObjects.Zone;
+  private divider!: Phaser.GameObjects.Rectangle;
 
   // Tag mode "IT" indicator
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
@@ -54,30 +58,26 @@ export class GameScene extends Phaser.Scene {
 
     const mode  = data?.mode ?? 'normal';
     const level = data?.level ?? LEVEL_PRESETS[0];
+    const halfW = CANVAS_WIDTH / 2;
 
-    // ── Camera: zoom 2x for world ────────────────────────────────────────
-    this.cameras.main.setZoom(2);
-
-    // ── Terrain (Phaser-specific rendering) ──────────────────────────────
+    // ── Terrain ──────────────────────────────────────────────────────────
     const spawnP1 = { x: level.width * 0.25, y: level.height * 0.44 };
     const spawnP2 = { x: level.width * 0.75, y: level.height * 0.44 };
     const terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain);
     this.terrainRenderer = new TerrainRenderer(this, terrain);
 
-    // ── GameState — owns all game logic ──────────────────────────────────
-    this.gameState = new GameState(terrain, level, mode);
+    // ── GameState ────────────────────────────────────────────────────────
+    this.gameState    = new GameState(terrain, level, mode);
     this.gameRenderer = new GameRenderer();
 
     // ── Graphics layers ──────────────────────────────────────────────────
     this.wormLayer = this.add.graphics().setDepth(5);
 
-    // ── Tag mode indicator ───────────────────────────────────────────────
+    // ── Tag indicator ────────────────────────────────────────────────────
     this.tagItGraphics = null;
     if (mode === 'tag') {
       this.tagItGraphics = this.add.text(0, 0, '★ IT', {
-        fontSize: '11px',
-        color: '#ffaa00',
-        fontFamily: 'monospace',
+        fontSize: '11px', color: '#ffaa00', fontFamily: 'monospace',
       }).setDepth(15).setVisible(false);
     }
 
@@ -85,46 +85,73 @@ export class GameScene extends Phaser.Scene {
     this.inputManager = new InputManager(this.input.keyboard!);
     this.audio        = new AudioManager();
 
-    // ── Camera follow setup ──────────────────────────────────────────────
-    this.cameraFocus = this.add.zone(spawnP1.x, spawnP1.y, 1, 1);
-    this.cameras.main.setBounds(0, 0, level.width, level.height);
-    this.cameras.main.setRoundPixels(true);
-    this.cameras.main.startFollow(this.cameraFocus);
+    // ════════════════════════════════════════════════════════════════════
+    //  Splitscreen camera setup
+    // ════════════════════════════════════════════════════════════════════
 
-    // ── Overlay + HUD layers ─────────────────────────────────────────────
+    // ── P1 camera (left half) ────────────────────────────────────────────
+    const cam1 = this.cameras.main;
+    cam1.setViewport(0, 0, halfW, CANVAS_HEIGHT);
+    cam1.setZoom(2);
+    cam1.setBounds(0, 0, level.width, level.height);
+    cam1.setRoundPixels(true);
+
+    this.cameraFocusP1 = this.add.zone(spawnP1.x, spawnP1.y, 1, 1);
+    cam1.startFollow(this.cameraFocusP1);
+
+    // ── P2 camera (right half) ───────────────────────────────────────────
+    this.p2Camera = this.cameras.add(halfW, 0, halfW, CANVAS_HEIGHT);
+    this.p2Camera.setZoom(2);
+    this.p2Camera.setBounds(0, 0, level.width, level.height);
+    this.p2Camera.setRoundPixels(true);
+
+    this.cameraFocusP2 = this.add.zone(spawnP2.x, spawnP2.y, 1, 1);
+    this.p2Camera.startFollow(this.cameraFocusP2);
+
+    // ── Overlay layers ───────────────────────────────────────────────────
     this.particleLayer   = this.add.graphics().setDepth(9);
     this.overlayGraphics = this.add.graphics().setDepth(10);
 
+    // Screen-space flash (covers full screen via HUD camera)
     this.flashRect = this.add.rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, 0xff2200, 0)
       .setOrigin(0, 0).setDepth(50).setScrollFactor(0);
 
-    this.hud = new HUD(this, CANVAS_WIDTH);
+    // ── Divider line (2px dark line at center) ───────────────────────────
+    this.divider = this.add.rectangle(halfW, CANVAS_HEIGHT / 2, 2, CANVAS_HEIGHT, 0x222222, 1)
+      .setScrollFactor(0).setDepth(55);
 
-    // ── Dual-camera setup ────────────────────────────────────────────────
+    // ── HUD (splitscreen layout) ─────────────────────────────────────────
+    this.hud = new HUD(this, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // ── HUD camera (full-screen overlay, renders last → on top) ──────────
     this.hudCamera = this.cameras.add(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, false, 'hud');
     this.hudCamera.setZoom(1);
     this.hudCamera.setScroll(0, 0);
 
-    // World objects → hide from HUD camera
+    // ── Camera visibility ────────────────────────────────────────────────
+    // World objects: visible to both world cameras, NOT to HUD camera
     const worldObjects: Phaser.GameObjects.GameObject[] = [
       this.terrainRenderer.image,
       this.wormLayer,
       this.particleLayer,
       this.overlayGraphics,
-      this.cameraFocus,
+      this.cameraFocusP1,
+      this.cameraFocusP2,
     ];
     if (this.tagItGraphics) worldObjects.push(this.tagItGraphics);
     for (const obj of worldObjects) {
       this.hudCamera.ignore(obj);
     }
 
-    // HUD objects → hide from main camera
+    // HUD objects: visible to HUD camera only, NOT to world cameras
     const hudObjects: Phaser.GameObjects.GameObject[] = [
       this.flashRect,
+      this.divider,
       ...this.hud.objects,
     ];
     for (const obj of hudObjects) {
-      this.cameras.main.ignore(obj);
+      cam1.ignore(obj);
+      this.p2Camera.ignore(obj);
     }
   }
 
@@ -138,12 +165,12 @@ export class GameScene extends Phaser.Scene {
     // ── Tick game logic ──────────────────────────────────────────────────
     const events = this.gameState.update(dt, input1, input2);
 
-    // ── Process events (audio + visual side-effects) ─────────────────────
+    // ── Process events ───────────────────────────────────────────────────
     for (const event of events) {
       this.processEvent(event);
     }
 
-    // ── Sync terrain renderer with dirty regions ─────────────────────────
+    // ── Sync terrain renderer ────────────────────────────────────────────
     const dirty = this.gameState.terrainDestroyer.flushDirty();
     for (const region of dirty) {
       this.terrainRenderer.redrawRegion(
@@ -177,18 +204,21 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // ── Camera: follow P1 worm ───────────────────────────────────────────
-    const worm1 = state.worms[0];
-    this.cameraFocus.setPosition(Math.round(worm1.x), Math.round(worm1.y));
-    const cam = this.cameras.main;
-    cam.scrollX = Math.round(cam.scrollX);
-    cam.scrollY = Math.round(cam.scrollY);
+    // ── Cameras: each follows its worm ───────────────────────────────────
+    const [worm1, worm2] = state.worms;
+    this.cameraFocusP1.setPosition(Math.round(worm1.x), Math.round(worm1.y));
+    this.cameraFocusP2.setPosition(Math.round(worm2.x), Math.round(worm2.y));
+
+    const cam1 = this.cameras.main;
+    cam1.scrollX = Math.round(cam1.scrollX);
+    cam1.scrollY = Math.round(cam1.scrollY);
+    this.p2Camera.scrollX = Math.round(this.p2Camera.scrollX);
+    this.p2Camera.scrollY = Math.round(this.p2Camera.scrollY);
 
     // ── HUD ──────────────────────────────────────────────────────────────
-    const [w1, w2] = state.worms;
     this.hud.update(
-      w1, state.loadouts.get(w1)!, state.getLives(w1),
-      w2, state.loadouts.get(w2)!, state.getLives(w2),
+      worm1, state.loadouts.get(worm1)!, state.getLives(worm1),
+      worm2, state.loadouts.get(worm2)!, state.getLives(worm2),
       state.timeRemaining,
       state.tagSystem,
     );
@@ -224,6 +254,7 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'camera_shake':
         this.cameras.main.shake(event.duration, event.intensity);
+        this.p2Camera.shake(event.duration, event.intensity);
         break;
       case 'crate_spawn':
         this.createCrateVisual(event.crate.id, event.crate.x, event.crate.y);
@@ -289,7 +320,6 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Remove visuals for any crates that are no longer active (safety net). */
   private syncCrateVisuals(): void {
     const activeCrates = new Set(
       this.gameState.crateSystem.getCrates()

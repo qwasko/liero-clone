@@ -1,16 +1,31 @@
 # Liero Clone — Status
 
-## Last completed: Rope physics tuning + particle animation + camera jitter fix
+## Last completed: Splitscreen + GameState/Renderer refactoring
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
 - Destructible procedural cave terrain
 - **Fullscreen canvas** — Phaser Scale Manager FIT + CENTER_BOTH, fills browser window
-- **Camera zoom 2x** — dual-camera architecture:
-  - Main camera: zoom=2, follows P1 worm, renders world objects
-  - HUD camera: zoom=1, static overlay, renders UI elements only
-  - camera.ignore() segregates world vs HUD rendering
+- **Splitscreen** — classic Liero dual-viewport layout:
+  - P1 camera: left half of screen, zoom=2, follows worm 1
+  - P2 camera: right half of screen, zoom=2, follows worm 2
+  - HUD camera: full-screen overlay, zoom=1, renders UI only
+  - 2px dark divider line at screen center
   - Camera scroll rounded to integer each frame (prevents sub-pixel jitter)
+  - Both cameras clamped to map bounds
+  - Camera shake affects both viewports simultaneously
+- **Splitscreen HUD**:
+  - P1 HP/weapon/lives: bottom-left of left viewport
+  - P2 HP/weapon/lives: bottom-right of right viewport
+  - Timer: top center (spans divider)
+  - Tag info: below timer
+- **GameState/Renderer architecture** (clean separation):
+  - GameState: pure game logic, no Phaser dependency
+  - GameRenderer: stateless drawing (worms, projectiles, aim lines)
+  - GameScene: thin orchestrator (input → state → events → render)
+  - GameEvents: typed union for audio/visual side-effects
+  - TerrainDestroyer: decoupled from renderer, dirty region tracking
+  - CrateSystem: decoupled from Phaser, pure data + events
 - Full weapon loadout (9 weapons, cycle with CHANGE+LEFT/RIGHT):
   - Bazooka — arc shot, ±8% velocity variance, 35 dmg
   - Minigun (10000 ammo) — rapid fire, ±5° spread, 4 dmg/bullet, 2px crater, no particles
@@ -42,7 +57,6 @@
   - Target worm treated as "on rope" by controller (preserves momentum)
 - Sub-pixel vy clamp: grounded worms with |vy| < 0.5 snapped to 0
 - Terrain digging in crosshair direction; block zone ±10° of straight up only
-- HP bars, match timer, weapon HUD (pinned to screen via dedicated HUD camera)
 - Lives system (3 lives each) + respawn after 2s
 - Win condition (elimination or timer expiry)
 - Bonus crates: spawn every ~18s, max 5 on map
@@ -50,25 +64,21 @@
 - Explosion screen flash (red vignette)
 - Per-slot independent reload timers
 - Level selection menu (Normal / Large Open / Tiny)
-- Camera follows P1 worm; setBounds clamps to map edges
 - Projectiles travel full map dimensions before despawning
 - 4-segment worm sprites with aim-tracking eye (P1 green, P2 red)
 - Mode selection: Normal Deathmatch or Game of Tag
 
 ## Known issues / bugs
-- Camera only follows P1; P2 can walk off-screen on large maps
-  (acceptable for same-screen 2-player testing)
 - No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita)
   — they use generic fire/explosion audio
 
 ## STOPPED HERE — end of session 2026-03-19
 
 ### Last completed
-- 3-phase particle animation (flying→impact→fadeout) + 33% velocity reduction
-- Rope physics rewrite: elevator → spring/elastic model (Hooke's law)
-- Rope tuning: rest length 0.5 worm heights, k=200, damping=8, pull cap 35 px/s
-- Worm-to-worm rope: asymmetric force (100/50%), target velocity preservation
-- Camera jitter fix: integer scroll rounding + sub-pixel vy clamp
+- Splitscreen camera: P1 left half, P2 right half, divider line, both tracked independently
+- Splitscreen HUD: player info at bottom of each viewport, timer at top center
+- GameState/Renderer refactoring: pure logic separated from Phaser rendering
+- TerrainDestroyer + CrateSystem decoupled from Phaser
 
 ### Next task to start
 - No specific task planned — see possible next steps below
@@ -80,4 +90,3 @@
 - Animated worm sprites instead of circle-segments
 - Sound effects from files instead of procedural Web Audio
 - Online multiplayer (WebSocket / Socket.io)
-- Splitscreen camera for proper 2-player experience

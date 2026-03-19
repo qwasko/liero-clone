@@ -4,7 +4,7 @@ import { Loadout } from '../weapons/Loadout';
 import { TagSystem } from '../game/TagSystem';
 import { WORM_MAX_HP } from '../game/constants';
 
-const BAR_W = 120;
+const BAR_W = 100;
 const BAR_H = 11;
 const PAD   = 8;
 
@@ -16,8 +16,10 @@ function hpColour(pct: number): number {
 }
 
 /**
- * Fixed-position HUD strip rendered at the top of the screen.
- * All Phaser objects created once in the constructor and updated each frame.
+ * Splitscreen HUD:
+ *   P1 info → bottom-left of left viewport
+ *   P2 info → bottom-right of right viewport
+ *   Timer   → top center (spans divider)
  */
 export class HUD {
   static readonly HEIGHT = 36;
@@ -35,58 +37,69 @@ export class HUD {
   /** Every Phaser display object owned by the HUD — for camera.ignore(). */
   readonly objects: Phaser.GameObjects.GameObject[] = [];
 
-  // Pre-computed x positions for the two HP bars
   private readonly barX1: number;
   private readonly barX2: number;
+  private readonly barY:  number;
 
-  constructor(scene: Phaser.Scene, canvasWidth: number) {
+  constructor(scene: Phaser.Scene, canvasWidth: number, canvasHeight: number) {
     const W = canvasWidth;
+    const H = canvasHeight;
     const DEPTH = 20;
 
-    // Background strip — scrollFactor(0) pins it to screen space
-    const bg = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
-      .fillStyle(0x000000, 0.72)
-      .fillRect(0, 0, W, HUD.HEIGHT);
-    this.objects.push(bg);
+    this.barY = H - HUD.HEIGHT + PAD;
 
-    // HP bars (redrawn each frame, also pinned to screen)
+    // ── Bottom HUD backgrounds (one per viewport half) ─────────────────
+    const bgLeft = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
+      .fillStyle(0x000000, 0.72)
+      .fillRect(0, H - HUD.HEIGHT, W / 2 - 1, HUD.HEIGHT);
+    this.objects.push(bgLeft);
+
+    const bgRight = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
+      .fillStyle(0x000000, 0.72)
+      .fillRect(W / 2 + 1, H - HUD.HEIGHT, W / 2 - 1, HUD.HEIGHT);
+    this.objects.push(bgRight);
+
+    // ── Timer background (top center, spans both viewports) ────────────
+    const timerBg = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
+      .fillStyle(0x000000, 0.72)
+      .fillRect(W / 2 - 120, 0, 240, 36);
+    this.objects.push(timerBg);
+
+    // ── HP bars (redrawn each frame) ───────────────────────────────────
     this.bars = scene.add.graphics().setDepth(DEPTH + 1).setScrollFactor(0);
     this.objects.push(this.bars);
 
-    // P1 bar starts after the "P1" label (~20px)
-    this.barX1 = PAD + 22;
-    // P2 bar ends PAD px from the right edge
-    this.barX2 = W - PAD - BAR_W;
+    this.barX1 = PAD + 22;                // P1 bar: left-aligned in left half
+    this.barX2 = W - PAD - BAR_W;         // P2 bar: right-aligned in right half
 
     const mono = (color: string): Phaser.Types.GameObjects.Text.TextStyle =>
       ({ fontSize: '11px', color, fontFamily: 'monospace' });
 
-    // Helper: create text, track it, return it
     const txt = (x: number, y: number, str: string, style: Phaser.Types.GameObjects.Text.TextStyle) => {
       const t = scene.add.text(x, y, str, style).setDepth(DEPTH + 2).setScrollFactor(0);
       this.objects.push(t);
       return t;
     };
 
-    // P1 — left side
-    txt(PAD, PAD, 'P1', mono('#00ff88'));
-    this.p1Hp     = txt(this.barX1 + BAR_W + 4, PAD,      '', mono('#ffffff'));
-    this.p1Weapon = txt(PAD,                    PAD + 16, '', mono('#aaffcc'));
-    this.p1Lives  = txt(this.barX1 + BAR_W + 4, PAD + 16, '', mono('#00ff88'));
+    // ── P1 (bottom-left of left viewport) ──────────────────────────────
+    txt(PAD, this.barY, 'P1', mono('#00ff88'));
+    this.p1Hp     = txt(this.barX1 + BAR_W + 4, this.barY,      '', mono('#ffffff'));
+    this.p1Weapon = txt(PAD,                    this.barY + 16, '', mono('#aaffcc'));
+    this.p1Lives  = txt(this.barX1 + BAR_W + 4, this.barY + 16, '', mono('#00ff88'));
 
-    // P2 — right side
-    txt(W - PAD, PAD, 'P2', mono('#ff4444')).setOrigin(1, 0);
-    this.p2Hp     = txt(this.barX2 - 4,         PAD,      '', mono('#ffffff')).setOrigin(1, 0);
-    this.p2Weapon = txt(W - PAD,                PAD + 16, '', mono('#ffaaaa')).setOrigin(1, 0);
-    this.p2Lives  = txt(this.barX2 - 4,         PAD + 16, '', mono('#ff4444')).setOrigin(1, 0);
+    // ── P2 (bottom-right of right viewport, right-aligned) ─────────────
+    txt(W - PAD, this.barY, 'P2', mono('#ff4444')).setOrigin(1, 0);
+    this.p2Hp     = txt(this.barX2 - 4,         this.barY,      '', mono('#ffffff')).setOrigin(1, 0);
+    this.p2Weapon = txt(W - PAD,                this.barY + 16, '', mono('#ffaaaa')).setOrigin(1, 0);
+    this.p2Lives  = txt(this.barX2 - 4,         this.barY + 16, '', mono('#ff4444')).setOrigin(1, 0);
 
-    // Timer — centred
-    this.timer = txt(W / 2, PAD, '', {
+    // ── Timer (top center) ─────────────────────────────────────────────
+    this.timer = txt(W / 2, 4, '', {
       fontSize: '14px', color: '#ffffff', fontFamily: 'monospace',
     }).setOrigin(0.5, 0);
 
-    // Tag mode time-as-it line (hidden in normal mode)
-    this.tagLine = txt(W / 2, PAD + 16, '', {
+    // ── Tag info (below timer) ─────────────────────────────────────────
+    this.tagLine = txt(W / 2, 20, '', {
       fontSize: '11px', color: '#ffaa00', fontFamily: 'monospace',
     }).setOrigin(0.5, 0);
   }
@@ -129,13 +142,13 @@ export class HUD {
 
   private drawBar(g: Phaser.GameObjects.Graphics, worm: Worm, x: number): void {
     if (worm.isDead) {
-      g.fillStyle(0x444444, 1).fillRect(x, PAD, BAR_W, BAR_H);
+      g.fillStyle(0x444444, 1).fillRect(x, this.barY, BAR_W, BAR_H);
       return;
     }
     const pct  = worm.hp / WORM_MAX_HP;
     const fill = Math.round(BAR_W * pct);
-    g.fillStyle(0x222222, 1).fillRect(x, PAD, BAR_W, BAR_H);
-    g.fillStyle(hpColour(pct), 1).fillRect(x, PAD, fill, BAR_H);
+    g.fillStyle(0x222222, 1).fillRect(x, this.barY, BAR_W, BAR_H);
+    g.fillStyle(hpColour(pct), 1).fillRect(x, this.barY, fill, BAR_H);
   }
 
   private weaponLine(load: Loadout): string {
