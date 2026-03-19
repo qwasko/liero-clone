@@ -2,16 +2,17 @@ import Phaser from 'phaser';
 import { Worm } from '../entities/Worm';
 import { InputState } from '../input/InputState';
 import { TerrainMap } from '../terrain/TerrainMap';
+import { GRAVITY } from './constants';
 
 const MAX_ROPE_LENGTH     = 275;
-const MIN_ROPE_LENGTH     = 20;
+const MIN_ROPE_LENGTH     = 4;    // ~0.25 worm heights — can climb nearly to anchor
 const ROPE_CAST_START     = 14;
 const LENGTH_SHORTEN_SPEED = 200; // px/s — rate rest length decreases
 const LENGTH_EXTEND_SPEED  = 400; // px/s — rate rest length increases
 const HOOK_SPEED          = 1000; // px/s
 
 // ── Spring physics constants ─────────────────────────────────────────
-const SPRING_K          = 12;   // Hooke constant — higher = stiffer pull
+const SPRING_K          = 40;   // Hooke constant — at 1.5 worm-height extension: 40×21=840 > gravity(600)
 const RADIAL_DAMPING    = 3;    // damping coefficient on radial velocity (~0.95/frame at 60fps)
 const ROPE_REST_LENGTH  = 21;   // ~1.5 worm heights — fixed spring rest length
 
@@ -217,6 +218,12 @@ export class RopeSystem {
     const ny = dy / dist;
 
     const extension = dist - rope.restLength;
+
+    // ── Debug: log rope physics each frame ─────────────────────────────
+    const springForce = extension > 0 ? SPRING_K * extension : 0;
+    console.log(
+      `[rope] rest=${rope.restLength.toFixed(1)} dist=${dist.toFixed(1)} spring=${springForce.toFixed(0)} gravity=${GRAVITY}`,
+    );
 
     if (extension > 0) {
       // ── Directional jitter: rotate spring direction by smooth offset ─
