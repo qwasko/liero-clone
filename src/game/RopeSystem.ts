@@ -278,8 +278,8 @@ export class RopeSystem {
       const springAccel = Math.min(SPRING_K * extension, MAX_ROPE_PULL_SPEED / dt);
       shooter.vx -= nx * springAccel * dt;
       shooter.vy -= ny * springAccel * dt;
-      target.vx  += nx * springAccel * 0.5 * dt;
-      target.vy  += ny * springAccel * 0.5 * dt;
+      target.vx  -= nx * springAccel * 0.5 * dt;
+      target.vy  -= ny * springAccel * 0.5 * dt;
 
       // ── Radial damping: same asymmetry ────────────────────────────
       const relRadial = (shooter.vx - target.vx) * nx + (shooter.vy - target.vy) * ny;
