@@ -158,20 +158,16 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  LARPA trail particle: slow, low gravity, small terrain explosion,
-  //  large worm explosion + 8 fragments
+  //  LARPA trail particle: slow, low gravity, small area denial damage
   // ═══════════════════════════════════════════════════════════════════════════
   larpa_trail: {
     id: 'larpa_trail', name: 'Larpa Trail',
     fireMode: 'single',
     projectileSpeed: 0, projectileGravity: 0.3, projectileSize: 2, projectileColor: 0xcc44ff,
     pellets: 1, spread: 0,
-    behavior: 'normal', maxBounces: 0, fuseMs: null,    // explodes on terrain hit
-    // Terrain hit: small explosion (carve + light splash)
-    explosionRadius: 4, splashDamage: 3, splashRadius: 6,
-    // Worm hit: large explosion + fragments (handled in GameState onHit)
-    hitDamage: 0,
-    chiquitaFragments: 8,
+    behavior: 'normal', maxBounces: 0, fuseMs: null,    // explodes on terrain/worm hit
+    explosionRadius: 4, splashDamage: 5, splashRadius: 8,
+    hitDamage: 3,
     ammoPerMag: 1, totalAmmo: 1, infiniteAmmo: true,
     delayMs: 0, loadingTimeMs: 0,
   },
