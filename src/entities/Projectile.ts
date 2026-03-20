@@ -15,6 +15,8 @@ export class Projectile {
 
   /** Mine-only: true once the projectile has landed and is waiting to trigger. */
   deployed: boolean = false;
+  /** Mine-only: true after first deployment — enables re-attach logic after detach. */
+  hasDeployed: boolean = false;
 
   /** Sticky mine: terrain attachment point. Checked each frame for terrain destruction. */
   attachX: number = 0;

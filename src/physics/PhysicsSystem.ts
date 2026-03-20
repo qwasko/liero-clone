@@ -144,12 +144,36 @@ export class PhysicsSystem {
         proj.detachCooldown -= dt * 1000;
       }
 
+      // ── Falling mine: re-attach to terrain after cooldown expires ────
+      if (proj.weapon.behavior === 'mine' && !proj.deployed && proj.hasDeployed && proj.detachCooldown <= 0) {
+        // Check terrain contact around the mine: below first, then sides
+        const px = Math.round(proj.x);
+        const py = Math.round(proj.y);
+        const checks: [number, number][] = [
+          [px, py + 2], [px - 2, py + 2], [px + 2, py + 2],
+          [px, py + 3], [px - 1, py], [px + 1, py],
+        ];
+        for (const [cx, cy] of checks) {
+          if (terrain.isSolid(cx, cy)) {
+            proj.deployed = true;
+            proj.attachX = cx;
+            proj.attachY = cy;
+            proj.vx = 0;
+            proj.vy = 0;
+            proj.armTimer = proj.weapon.sticky ? 0 : 700;
+            console.log(`[${proj.weapon.id}] RE-ATTACH at pos=${px},${py} attach=${cx},${cy}`);
+            break;
+          }
+        }
+        if (proj.deployed) continue;
+      }
+
       // ── Mine: deployed → check terrain, arm delay, proximity check ────
       if (proj.weapon.behavior === 'mine' && proj.deployed) {
         // All mines: detach if terrain at attachment point is destroyed
         if (!terrain.isSolid(proj.attachX, proj.attachY)) {
           proj.deployed = false;
-          proj.detachCooldown = 430; // ~30 frames — must fall before re-attaching
+          proj.detachCooldown = 143; // ~10 frames — brief fall before re-attaching
           console.log(`[${proj.weapon.id}] DETACH at pos=${Math.round(proj.x)},${Math.round(proj.y)} attach=${proj.attachX},${proj.attachY} cooldown=${proj.detachCooldown}`);
         } else {
           // Count down timers while deployed
@@ -309,7 +333,8 @@ export class PhysicsSystem {
               proj.x -= dx / len * 3;
               proj.y -= dy / len * 3;
             }
-            proj.deployed  = true;
+            proj.deployed    = true;
+            proj.hasDeployed = true;
             proj.armTimer  = proj.weapon.sticky ? 0 : 700; // sticky uses proximityDelay instead
             // Record attachment point — used to detect terrain destruction beneath mine
             proj.attachX = Math.round(tx);
