@@ -78,7 +78,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     wormCollide: false,                                  // passes through worms, fuse-only detonation
     chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
-    ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
+    ammoPerMag: 2, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 3714,                    // Liero: delay=0, loadingTime=260
   },
 
@@ -136,6 +136,43 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     explosionRadius: 6, splashDamage: 10, splashRadius: 14,  // medium_explosion
     ammoPerMag: 4, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 429, loadingTimeMs: 5571,                  // Liero: delay=30, loadingTime=390
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  LARPA: enhanced Bouncy Larpa with trail particles
+  //  8s fuse, drops trail every 8 frames; trail explodes big on worm hit
+  // ═══════════════════════════════════════════════════════════════════════════
+  larpa_v2: {
+    id: 'larpa_v2', name: 'LARPA',
+    fireMode: 'single',
+    projectileSpeed: 220, projectileGravity: 0.15, projectileSize: 4, projectileColor: 0xcc44ff,
+    pellets: 1, spread: 0, distribution: 0,
+    behavior: 'bounce', maxBounces: 999, fuseMs: 8000,
+    bouncePercent: 100,
+    trailWeaponId: 'larpa_trail', trailIntervalMs: 114,  // every 8 frames @ 70fps
+    chiquitaFragments: 8,
+    explosionRadius: 10, splashDamage: 50, splashRadius: 20,
+    ammoPerMag: 4, totalAmmo: 10000, infiniteAmmo: false,
+    delayMs: 429, loadingTimeMs: 5571,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  LARPA trail particle: slow, low gravity, small terrain explosion,
+  //  large worm explosion + 8 fragments
+  // ═══════════════════════════════════════════════════════════════════════════
+  larpa_trail: {
+    id: 'larpa_trail', name: 'Larpa Trail',
+    fireMode: 'single',
+    projectileSpeed: 0, projectileGravity: 0.3, projectileSize: 2, projectileColor: 0xcc44ff,
+    pellets: 1, spread: 0,
+    behavior: 'normal', maxBounces: 0, fuseMs: null,    // explodes on terrain hit
+    // Terrain hit: small explosion (carve + light splash)
+    explosionRadius: 4, splashDamage: 3, splashRadius: 6,
+    // Worm hit: large explosion + fragments (handled in GameState onHit)
+    hitDamage: 0,
+    chiquitaFragments: 8,
+    ammoPerMag: 1, totalAmmo: 1, infiniteAmmo: true,
+    delayMs: 0, loadingTimeMs: 0,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -306,6 +343,7 @@ export const DEFAULT_LOADOUT: WeaponDef[] = [
   WeaponRegistry.shotgun,
   WeaponRegistry.proximity_grenade,
   WeaponRegistry.larpa,
+  WeaponRegistry.larpa_v2,
   WeaponRegistry.zimm,
   WeaponRegistry.cluster_bomb,
   WeaponRegistry.mine,

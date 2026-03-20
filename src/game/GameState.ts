@@ -197,15 +197,44 @@ export class GameState {
     this.ropeSystem.releaseOnDeath(worm1);
     this.ropeSystem.releaseOnDeath(worm2);
 
+    // ── Trail particles — spawn before projectile update so they exist this frame ─
+    const trailSpawns: Projectile[] = [];
+    for (const proj of this.activeProjectiles) {
+      if (!proj.active || !proj.weapon.trailWeaponId || !proj.weapon.trailIntervalMs) continue;
+      proj.trailTimer -= dt * 1000;
+      if (proj.trailTimer <= 0) {
+        proj.trailTimer = proj.weapon.trailIntervalMs;
+        const trailDef = WeaponRegistry[proj.weapon.trailWeaponId];
+        if (trailDef) {
+          const trail = new Projectile(
+            proj.x, proj.y,
+            proj.vx * 0.2,  // 20% of parent velocity
+            proj.vy * 0.2,
+            proj.ownerId,
+            trailDef,
+          );
+          trailSpawns.push(trail);
+        }
+      }
+    }
+    for (const t of trailSpawns) this.activeProjectiles.push(t);
+
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
         const fullSelfDmg = proj.weapon.id === 'bazooka';
+
+        // larpa_trail on worm hit: large explosion instead of small
+        const isTrailWormHit = proj.weapon.id === 'larpa_trail' && proj.hitReason === 'worm';
+        const expRadius  = isTrailWormHit ? 10 : proj.weapon.explosionRadius;
+        const splDamage  = isTrailWormHit ? 50 : proj.weapon.splashDamage;
+        const splRadius  = isTrailWormHit ? 20 : proj.weapon.splashRadius;
+
         this.explosionSystem.detonate(
           hitX, hitY,
-          proj.weapon.explosionRadius,
-          proj.weapon.splashDamage,
-          proj.weapon.splashRadius,
+          expRadius,
+          splDamage,
+          splRadius,
           proj.ownerId,
           fullSelfDmg,
         );
@@ -233,13 +262,17 @@ export class GameState {
         }
 
         // ── Fragment spray (chiquitaFragments) ────────────────────────
-        if (proj.weapon.chiquitaFragments) {
+        // larpa_trail: only spawn fragments on worm hit, not terrain
+        const skipFragments = proj.weapon.id === 'larpa_trail' && proj.hitReason !== 'worm';
+        if (proj.weapon.chiquitaFragments && !skipFragments) {
           // Pick fragment type based on weapon:
           //   chiquita → chiquita_bomblet (strong, bouncy)
-          //   bazooka/larpa/mine → bazooka_fragment (slow, heavy gravity, falls into crater)
+          //   bazooka/larpa/mine/larpa_v2/larpa_trail → bazooka_fragment (slow, heavy)
           //   grenade/other → chiquita_fragment (medium speed, light gravity)
           const usesSmallDamage = proj.weapon.id === 'bazooka'
             || proj.weapon.id === 'larpa'
+            || proj.weapon.id === 'larpa_v2'
+            || proj.weapon.id === 'larpa_trail'
             || proj.weapon.id === 'mine';
           const isChiquita = proj.weapon.id === 'chiquita';
           const fragId = isChiquita ? 'chiquita_bomblet'

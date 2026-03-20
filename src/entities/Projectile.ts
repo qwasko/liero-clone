@@ -25,6 +25,9 @@ export class Projectile {
   /** Proximity activation delay (ms). While > 0, proximity trigger is inactive. */
   proximityDelay: number = 0;
 
+  /** Trail spawn timer (ms). Counts down; when ≤ 0 a trail particle is spawned and timer resets. */
+  trailTimer: number = 0;
+
   /** Set by PhysicsSystem just before onHit — reason for detonation. */
   hitReason: 'terrain' | 'worm' | 'timer' | 'oob' = 'terrain';
 

@@ -52,6 +52,10 @@ export interface WeaponDef {
   // Direct hit damage (flat, no falloff — applied on worm collision before explosion)
   readonly hitDamage?:       number;
 
+  // Trail: spawn child projectiles periodically while in flight
+  readonly trailWeaponId?:   string;  // id of weapon to spawn as trail particle
+  readonly trailIntervalMs?: number;  // spawn interval in ms
+
   // Explosion
   readonly explosionRadius: number;
   readonly splashDamage:    number;
