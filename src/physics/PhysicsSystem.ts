@@ -192,8 +192,14 @@ export class PhysicsSystem {
         const ty = proj.y + dy * (i / steps);
 
         // ── Direct worm hit ─────────────────────────────────────────
+        // Fragments (no fuseMs, behavior=normal/bounce internals) hit ALL worms
+        // including the owner — matching original Liero NObject behavior.
+        const isFragment = proj.weapon.id === 'chiquita_fragment'
+          || proj.weapon.id === 'cluster_bomblet'
+          || proj.weapon.id === 'chiquita_bomblet';
         for (const worm of worms) {
-          if (worm.isDead || worm.playerId === proj.ownerId) continue;
+          if (worm.isDead) continue;
+          if (!isFragment && worm.playerId === proj.ownerId) continue;
           if (
             Math.abs(tx - worm.x) < worm.width  / 2 + proj.weapon.projectileSize &&
             Math.abs(ty - worm.y) < worm.height / 2 + proj.weapon.projectileSize

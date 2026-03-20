@@ -202,7 +202,11 @@ export class GameState {
       (proj, hitX, hitY) => {
         const isFragment = proj.weapon.id === 'chiquita_fragment' || proj.weapon.id === 'cluster_bomblet' || proj.weapon.id === 'chiquita_bomblet';
         if (isFragment) {
-          console.log(`[fragment explode] ${proj.weapon.id} reason=${proj.hitReason} at ${Math.round(hitX)},${Math.round(hitY)}`);
+          if (proj.hitReason === 'worm') {
+            console.log(`[fragment hit worm] ${proj.weapon.id} dmg=${proj.weapon.splashDamage} at ${Math.round(hitX)},${Math.round(hitY)}`);
+          } else {
+            console.log(`[fragment explode] ${proj.weapon.id} reason=${proj.hitReason} at ${Math.round(hitX)},${Math.round(hitY)}`);
+          }
         }
         if (proj.weapon.chiquitaFragments) {
           console.log(`[grenade explode] ${proj.weapon.id} carved R=${proj.weapon.explosionRadius}, damage R=${proj.weapon.splashRadius}, fragments=${proj.weapon.chiquitaFragments}`);
