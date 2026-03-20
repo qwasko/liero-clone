@@ -150,6 +150,7 @@ export class PhysicsSystem {
         if (!terrain.isSolid(proj.attachX, proj.attachY)) {
           proj.deployed = false;
           proj.detachCooldown = 430; // ~30 frames — must fall before re-attaching
+          console.log(`[${proj.weapon.id}] DETACH at pos=${Math.round(proj.x)},${Math.round(proj.y)} attach=${proj.attachX},${proj.attachY} cooldown=${proj.detachCooldown}`);
         } else {
           // Count down timers while deployed
           if (proj.armTimer > 0) proj.armTimer -= dt * 1000;
@@ -232,7 +233,10 @@ export class PhysicsSystem {
         }
       }
 
-      proj.vy += GRAVITY * proj.weapon.projectileGravity * dt;
+      // Detached mines always fall with full gravity regardless of weapon's projectileGravity
+      const grav = (proj.weapon.behavior === 'mine' && proj.detachCooldown > 0)
+        ? 1.0 : proj.weapon.projectileGravity;
+      proj.vy += GRAVITY * grav * dt;
 
       // Ground friction for bounce weapons resting on terrain
       if (proj.weapon.behavior === 'bounce' && terrain.isSolid(proj.x, proj.y + 2)) {
@@ -289,6 +293,9 @@ export class PhysicsSystem {
 
         // ── Terrain hit (skip during grace period or mine detach cooldown) ─
         const mineOnCooldown = proj.weapon.behavior === 'mine' && proj.detachCooldown > 0;
+        if (mineOnCooldown && terrain.isSolid(tx, ty)) {
+          console.log(`[${proj.weapon.id}] COOLDOWN skip terrain at ${Math.round(tx)},${Math.round(ty)} cooldown=${Math.round(proj.detachCooldown)}`);
+        }
         if (terrain.isSolid(tx, ty) && proj.terrainGrace <= 0 && !mineOnCooldown) {
           if (proj.weapon.behavior === 'bounce' && proj.bounceCount < proj.weapon.maxBounces) {
             this.bounceProjectile(proj, dx, dy);
@@ -307,6 +314,7 @@ export class PhysicsSystem {
             // Record attachment point — used to detect terrain destruction beneath mine
             proj.attachX = Math.round(tx);
             proj.attachY = Math.round(ty);
+            console.log(`[${proj.weapon.id}] RE-DEPLOY at pos=${Math.round(proj.x)},${Math.round(proj.y)} attach=${proj.attachX},${proj.attachY} cooldown=${Math.round(proj.detachCooldown)}`);
             proj.vx = 0;
             proj.vy = 0;
           } else {
