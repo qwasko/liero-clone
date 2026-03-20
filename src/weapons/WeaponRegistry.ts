@@ -62,7 +62,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     fireMode: 'single',
     projectileSpeed: 260, projectileGravity: 1.0, projectileSize: 4, projectileColor: 0xffcc00,
     pellets: 1, spread: 0, distribution: 49,            // Liero 7000 → ~49 px/s
-    behavior: 'bounce', maxBounces: 999, fuseMs: 1640,  // 115 frames @ 70fps ≈ 1640ms
+    behavior: 'bounce', maxBounces: 999, fuseMs: 2390,  // 115+45 frames @ 70fps ≈ 2390ms
     bouncePercent: 40,                                   // 40% velocity retained
     chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
