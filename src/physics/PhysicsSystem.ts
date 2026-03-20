@@ -158,6 +158,21 @@ export class PhysicsSystem {
         continue;
       }
 
+      // ── Proximity trigger (non-mine weapons with mineProximity) ────
+      if (proj.weapon.mineProximity && proj.weapon.behavior !== 'mine') {
+        for (const worm of worms) {
+          if (worm.isDead) continue;
+          const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
+          if (dist <= proj.weapon.mineProximity) {
+            proj.active = false;
+            proj.hitReason = 'worm';
+            onHit(proj, proj.x, proj.y);
+            break;
+          }
+        }
+        if (!proj.active) continue;
+      }
+
       // ── Fuse timer ──────────────────────────────────────────────────
       if (proj.fuseTimer !== null) {
         proj.fuseTimer -= dt * 1000;
@@ -199,8 +214,11 @@ export class PhysicsSystem {
         const ty = proj.y + dy * (i / steps);
 
         // ── Direct worm hit ─────────────────────────────────────────
-        // Fragments (no fuseMs, behavior=normal/bounce internals) hit ALL worms
-        // including the owner — matching original Liero NObject behavior.
+        // Skip worm collision for weapons with wormCollide=false (grenades pass through)
+        if (proj.weapon.wormCollide === false) {
+          // no worm hit check — projectile flies through worms
+        } else {
+        // Fragments hit ALL worms including owner — matching Liero NObject behavior.
         const isFragment = proj.weapon.id === 'chiquita_fragment'
           || proj.weapon.id === 'bazooka_fragment'
           || proj.weapon.id === 'cluster_bomblet'
@@ -224,6 +242,7 @@ export class PhysicsSystem {
           }
         }
         if (terrainHit) break;
+        } // end wormCollide check
 
         // ── Terrain hit (skip during grace period) ──────────────────
         if (terrain.isSolid(tx, ty) && proj.terrainGrace <= 0) {

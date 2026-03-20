@@ -75,10 +75,29 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 49,            // Liero 7000 → ~49 px/s
     behavior: 'bounce', maxBounces: 999, fuseMs: 2390,  // 115+45 frames @ 70fps ≈ 2390ms
     bouncePercent: 40,                                   // 40% velocity retained
+    wormCollide: false,                                  // passes through worms, fuse-only detonation
     chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 3714,                    // Liero: delay=0, loadingTime=260
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Proximity Grenade: same physics as grenade but explodes on worm proximity
+  //  Triggers on fuse timer OR any worm within 20px
+  // ═══════════════════════════════════════════════════════════════════════════
+  proximity_grenade: {
+    id: 'proximity_grenade', name: 'Prox. Grenade',
+    fireMode: 'single',
+    projectileSpeed: 260, projectileGravity: 1.0, projectileSize: 4, projectileColor: 0xff6600,
+    pellets: 1, spread: 0, distribution: 49,
+    behavior: 'bounce', maxBounces: 999, fuseMs: 2390,
+    bouncePercent: 40,
+    mineProximity: 20,                                   // proximity trigger: 20px any worm
+    chiquitaFragments: 50,
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,
+    ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
+    delayMs: 0, loadingTimeMs: 3714,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -284,6 +303,7 @@ export const DEFAULT_LOADOUT: WeaponDef[] = [
   WeaponRegistry.minigun,
   WeaponRegistry.grenade,
   WeaponRegistry.shotgun,
+  WeaponRegistry.proximity_grenade,
   WeaponRegistry.larpa,
   WeaponRegistry.zimm,
   WeaponRegistry.cluster_bomb,

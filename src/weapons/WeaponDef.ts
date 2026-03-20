@@ -41,7 +41,10 @@ export interface WeaponDef {
   // Chiquita: spawn banana fragments on explosion
   readonly chiquitaFragments?: number;
 
-  // Mine: proximity trigger radius in px (behavior === 'mine' only)
+  // Worm collision: if false, projectile passes through worms without detonating
+  readonly wormCollide?:  boolean; // default true for normal/zimm, false skips worm hit check
+
+  // Proximity trigger radius in px (mines and proximity grenades)
   readonly mineProximity?: number;
 
   // Direct hit damage (flat, no falloff — applied on worm collision before explosion)
