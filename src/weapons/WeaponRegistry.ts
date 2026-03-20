@@ -56,7 +56,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 520, projectileGravity: 0.12, projectileSize: 2, projectileColor: 0xffee44,
     pellets: 1, spread: 0, distribution: 42,            // Liero 6000 → ~42 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    hitDamage: 2,                                              // Liero: hitDmg=2
+    hitDamage: 1,                                              // tuned: 1 per bullet
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only, no worm damage
     ammoPerMag: 70, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 7143,                    // Liero: delay=0, loadingTime=500
