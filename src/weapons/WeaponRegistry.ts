@@ -222,8 +222,8 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     mineProximity: 22,
     proximityDelayMs: 857,                                // 60 frames — shooter safe initially
     hitDamage: 12,                                             // Liero: hitDmg=12 (in-flight worm hit)
-    chiquitaFragments: 5,                               // 5 splinters (particle__small_damage)
-    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
+    chiquitaFragments: 8,                               // 8 splinters (particle__small_damage)
+    explosionRadius: 8, splashDamage: 20, splashRadius: 20,   // large_explosion
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 3143,                    // Liero: delay=0, loadingTime=220
   },
