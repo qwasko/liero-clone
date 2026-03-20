@@ -95,10 +95,10 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 40,
     mineProximity: 20,                                   // proximity trigger: 20px any worm
     proximityDelayMs: 857,                               // 60 frames @ 70fps — prevents self-trigger
-    chiquitaFragments: 60,                               // stronger: 60 vs grenade's 50
+    chiquitaFragments: 35,                               // weaker: 35 vs grenade's 50
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
-    delayMs: 0, loadingTimeMs: 2571,                     // Liero: loadingTime=180 (vs grenade 260)
+    delayMs: 0, loadingTimeMs: 5000,                     // loadingTime=350 frames (longer than grenade 260)
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
