@@ -293,6 +293,7 @@ export class PhysicsSystem {
           || proj.weapon.id === 'larpa'
           || proj.weapon.id === 'larpa_trail'
           || proj.weapon.id === 'sticky_mine'
+          || proj.weapon.id === 'zimm'
           || proj.weapon.id === 'sticky_mine_fragment';
         for (const worm of worms) {
           if (worm.isDead) continue;

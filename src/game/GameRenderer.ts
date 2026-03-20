@@ -12,6 +12,14 @@ interface ImpactRing {
   elapsed: number;
 }
 
+interface TrailDot {
+  x: number;
+  y: number;
+  age: number; // seconds since spawn
+}
+
+const TRAIL_MAX_AGE = 0.2; // seconds
+
 const FRAGMENT_IDS = new Set(['chiquita_fragment', 'bazooka_fragment', 'cluster_bomblet', 'chiquita_bomblet', 'larpa_trail', 'sticky_mine_fragment']);
 
 /**
@@ -20,6 +28,7 @@ const FRAGMENT_IDS = new Set(['chiquita_fragment', 'bazooka_fragment', 'cluster_
  */
 export class GameRenderer {
   private impactRings: ImpactRing[] = [];
+  private trailDots: TrailDot[] = [];
 
   /** Spawn a purely visual expanding ring at hit position. */
   spawnImpactRing(x: number, y: number, radius: number): void {
@@ -87,6 +96,11 @@ export class GameRenderer {
         continue;
       }
 
+      // ── Zimm trail: spawn dot at current position ─────────────────
+      if (proj.weapon.id === 'zimm') {
+        this.trailDots.push({ x: proj.x, y: proj.y, age: 0 });
+      }
+
       // ── Bounce weapons: pulse red near fuse expiry ──────────────────
       let color = proj.weapon.projectileColor;
       if (proj.fuseTimer !== null && proj.weapon.fuseMs !== null) {
@@ -101,6 +115,21 @@ export class GameRenderer {
       } else {
         g.fillCircle(proj.x, proj.y, proj.weapon.projectileSize);
       }
+    }
+
+    // ── Zimm trail dots (fading white→light blue) ─────────────────────
+    for (let i = this.trailDots.length - 1; i >= 0; i--) {
+      const dot = this.trailDots[i];
+      dot.age += dt;
+      if (dot.age >= TRAIL_MAX_AGE) {
+        this.trailDots.splice(i, 1);
+        continue;
+      }
+      const t = dot.age / TRAIL_MAX_AGE; // 0→1
+      const alpha = (1 - t) * 0.7;
+      const color = t < 0.5 ? 0xffffff : 0x88ccff;
+      g.fillStyle(color, alpha);
+      g.fillCircle(dot.x, dot.y, 1.5 * (1 - t));
     }
 
     // ── Impact rings (purely visual) ──────────────────────────────────

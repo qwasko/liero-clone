@@ -161,7 +161,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   zimm: {
     id: 'zimm', name: 'Zimm',
     fireMode: 'single',
-    projectileSpeed: 600, projectileGravity: 0, projectileSize: 2, projectileColor: 0xffffff,
+    projectileSpeed: 400, projectileGravity: 0, projectileSize: 2, projectileColor: 0xffffff,
     pellets: 1, spread: 0, distribution: 0,
     behavior: 'zimm', maxBounces: 0, fuseMs: 14300,     // 1000 frames @ 70fps ≈ 14.3s
     hitDamage: 49,                                             // Liero: hitDmg=49
