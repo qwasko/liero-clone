@@ -22,14 +22,16 @@ export class ExplosionSystem {
     splashRadius:    number,
     ownerId?:        1 | 2,
     fullSelfDamage?: boolean, // true = no self-damage reduction (e.g. bazooka)
+    flatDamage?:     boolean, // true = full damage within radius, no distance falloff
   ): void {
     this.terrainDestroyer.carveCircle(x, y, explosionRadius);
 
     for (const worm of this.worms) {
       const dist = Math.hypot(worm.x - x, worm.y - y);
       if (dist < splashRadius) {
-        const power = splashRadius - dist;
-        let dmg = Math.round(splashDamage * power / splashRadius);
+        let dmg = flatDamage
+          ? splashDamage
+          : Math.round(splashDamage * (splashRadius - dist) / splashRadius);
         if (!fullSelfDamage && ownerId !== undefined && worm.playerId === ownerId) {
           dmg = Math.round(dmg * 0.5);
         }

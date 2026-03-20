@@ -242,9 +242,23 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     proximityDelayMs: 857,                                // 60 frames — shooter safe initially
     ownerGraceMs: 857,                                    // full self-damage after activation
     chiquitaFragments: 8,
-    explosionRadius: 8, splashDamage: 15, splashRadius: 20,  // large_explosion
+    explosionRadius: 12, splashDamage: 60, splashRadius: 25,  // flat 60 HP within 25px
     ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 4000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Sticky mine fragment: heavy shrapnel, hitDamage=8, damages all worms
+  // ═══════════════════════════════════════════════════════════════════════════
+  sticky_mine_fragment: {
+    id: 'sticky_mine_fragment', name: 'Mine Shrapnel',
+    fireMode: 'single',
+    projectileSpeed: 0, projectileGravity: 0.7, projectileSize: 2, projectileColor: 0xff4400,
+    pellets: 1, spread: 0,
+    behavior: 'normal', maxBounces: 0, fuseMs: null,
+    hitDamage: 8,
+    explosionRadius: 4, splashDamage: 5, splashRadius: 8,
+    ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 0,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

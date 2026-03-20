@@ -12,7 +12,7 @@ interface ImpactRing {
   elapsed: number;
 }
 
-const FRAGMENT_IDS = new Set(['chiquita_fragment', 'bazooka_fragment', 'cluster_bomblet', 'chiquita_bomblet', 'larpa_trail']);
+const FRAGMENT_IDS = new Set(['chiquita_fragment', 'bazooka_fragment', 'cluster_bomblet', 'chiquita_bomblet', 'larpa_trail', 'sticky_mine_fragment']);
 
 /**
  * Stateless renderer — draws worms, projectiles, and aim lines

@@ -240,6 +240,7 @@ export class GameState {
           proj.weapon.splashRadius,
           proj.ownerId,
           fullSelfDmg,
+          proj.weapon.id === 'sticky_mine', // flat damage — full 60 HP within radius
         );
 
         // ── Cluster bomb: spray bomblets ──────────────────────────────
@@ -268,6 +269,7 @@ export class GameState {
         if (proj.weapon.chiquitaFragments) {
           // Pick fragment type based on weapon:
           //   chiquita → chiquita_bomblet (strong, bouncy)
+          //   sticky_mine → sticky_mine_fragment (heavy, hitDmg=8)
           //   bazooka/larpa/mine/larpa_trail → bazooka_fragment (slow, heavy)
           //   grenade/other → chiquita_fragment (medium speed, light gravity)
           const usesSmallDamage = proj.weapon.id === 'bazooka'
@@ -275,7 +277,9 @@ export class GameState {
             || proj.weapon.id === 'larpa_trail'
             || proj.weapon.id === 'mine';
           const isChiquita = proj.weapon.id === 'chiquita';
+          const isStickyMine = proj.weapon.id === 'sticky_mine';
           const fragId = isChiquita ? 'chiquita_bomblet'
+            : isStickyMine ? 'sticky_mine_fragment'
             : usesSmallDamage ? 'bazooka_fragment'
             : 'chiquita_fragment';
           const fragDef = WeaponRegistry[fragId];
