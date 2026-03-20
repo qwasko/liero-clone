@@ -228,7 +228,7 @@ export class GameState {
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
-        const isLarpa = proj.weapon.id === 'larpa_v2' || proj.weapon.id === 'larpa_trail';
+        const isLarpa = proj.weapon.id === 'larpa' || proj.weapon.id === 'larpa_trail';
         const fullSelfDmg = proj.weapon.id === 'bazooka'
           || (isLarpa && proj.ownerGrace <= 0);
 
@@ -267,11 +267,10 @@ export class GameState {
         if (proj.weapon.chiquitaFragments) {
           // Pick fragment type based on weapon:
           //   chiquita → chiquita_bomblet (strong, bouncy)
-          //   bazooka/larpa/mine/larpa_v2/larpa_trail → bazooka_fragment (slow, heavy)
+          //   bazooka/larpa/mine/larpa_trail → bazooka_fragment (slow, heavy)
           //   grenade/other → chiquita_fragment (medium speed, light gravity)
           const usesSmallDamage = proj.weapon.id === 'bazooka'
             || proj.weapon.id === 'larpa'
-            || proj.weapon.id === 'larpa_v2'
             || proj.weapon.id === 'larpa_trail'
             || proj.weapon.id === 'mine';
           const isChiquita = proj.weapon.id === 'chiquita';

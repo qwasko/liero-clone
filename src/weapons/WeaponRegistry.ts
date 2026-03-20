@@ -119,31 +119,11 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  Liero: speed=220, grav=200, bounce=100, hitDmg=0
-  //  delay=30, loadingTime=390, ammo=4
-  //  timeToExplo=380 (+V=50), splinterAmount=5, particle__small_damage
-  //  partTrail=particle__small_damage (every 4 frames)
-  //  createOnExp=medium_explosion
+  //  Bouncy Larpa: elastic bounce with trail particles
+  //  8s fuse, drops trail every 8 frames; trail deals area denial damage
   // ═══════════════════════════════════════════════════════════════════════════
   larpa: {
     id: 'larpa', name: 'Bouncy Larpa',
-    fireMode: 'single',
-    projectileSpeed: 220, projectileGravity: 0.15, projectileSize: 4, projectileColor: 0xcc44ff,
-    pellets: 1, spread: 0, distribution: 0,
-    behavior: 'bounce', maxBounces: 999, fuseMs: 5430,  // 380 frames @ 70fps ≈ 5430ms
-    bouncePercent: 100,                                  // perfect elastic bounce
-    chiquitaFragments: 5,
-    explosionRadius: 6, splashDamage: 10, splashRadius: 14,  // medium_explosion
-    ammoPerMag: 4, totalAmmo: 10000, infiniteAmmo: false,
-    delayMs: 429, loadingTimeMs: 5571,                  // Liero: delay=30, loadingTime=390
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  LARPA: enhanced Bouncy Larpa with trail particles
-  //  8s fuse, drops trail every 8 frames; trail explodes big on worm hit
-  // ═══════════════════════════════════════════════════════════════════════════
-  larpa_v2: {
-    id: 'larpa_v2', name: 'LARPA',
     fireMode: 'single',
     projectileSpeed: 220, projectileGravity: 0.15, projectileSize: 4, projectileColor: 0xcc44ff,
     pellets: 1, spread: 0, distribution: 0,
@@ -340,7 +320,6 @@ export const DEFAULT_LOADOUT: WeaponDef[] = [
   WeaponRegistry.shotgun,
   WeaponRegistry.proximity_grenade,
   WeaponRegistry.larpa,
-  WeaponRegistry.larpa_v2,
   WeaponRegistry.zimm,
   WeaponRegistry.cluster_bomb,
   WeaponRegistry.mine,
