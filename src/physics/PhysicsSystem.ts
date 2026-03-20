@@ -184,7 +184,7 @@ export class PhysicsSystem {
       // Ground friction for bounce weapons resting on terrain
       if (proj.weapon.behavior === 'bounce' && terrain.isSolid(proj.x, proj.y + 2)) {
         if (Math.abs(proj.vy) < 50) proj.vy = 0;
-        proj.vx *= 0.7;
+        proj.vx *= 0.85;
         if (Math.abs(proj.vx) < 2) proj.vx = 0;
       }
 
@@ -300,7 +300,7 @@ export class PhysicsSystem {
     proj.y -= Math.sign(dy) * 2;
 
     // Stop micro-bouncing: aggressive threshold, tune down later if needed
-    if (Math.hypot(proj.vx, proj.vy) < 150) {
+    if (Math.hypot(proj.vx, proj.vy) < 80) {
       proj.vx = 0;
       proj.vy = 0;
     }
