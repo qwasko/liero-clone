@@ -22,6 +22,9 @@ export class Projectile {
   /** Grace period (seconds) during which terrain collisions are ignored. Used by fragments spawning inside craters. */
   terrainGrace: number = 0;
 
+  /** Set by PhysicsSystem just before onHit — reason for detonation. */
+  hitReason: 'terrain' | 'worm' | 'timer' | 'oob' = 'terrain';
+
   readonly ownerId: 1 | 2;
   readonly weapon:  WeaponDef;
 

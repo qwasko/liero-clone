@@ -59,7 +59,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 49,            // Liero 7000 → ~49 px/s
     behavior: 'bounce', maxBounces: 999, fuseMs: 1640,  // 115 frames @ 70fps ≈ 1640ms
     bouncePercent: 40,                                   // 40% velocity retained
-    chiquitaFragments: 50,                               // 50 fragments! (particle__larger_damage)
+    chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
     explosionRadius: 20, splashDamage: 15, splashRadius: 20,
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 1800,
   },
@@ -191,10 +191,10 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   chiquita_fragment: {
     id: 'chiquita_fragment', name: 'Fragment',
     fireMode: 'single',
-    projectileSpeed: 0, projectileGravity: 0.5, projectileSize: 2, projectileColor: 0xffdd00,
+    projectileSpeed: 0, projectileGravity: 0.15, projectileSize: 2, projectileColor: 0xffdd00,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    explosionRadius: 8, splashDamage: 5, splashRadius: 8,  // small_explosion: chain damage (carve+damage on hit)
+    explosionRadius: 8, splashDamage: 5, splashRadius: 8,  // small_explosion (Liero-accurate)
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 

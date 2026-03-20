@@ -203,14 +203,8 @@ export class GameState {
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
         const isFragment = proj.weapon.id === 'chiquita_fragment' || proj.weapon.id === 'cluster_bomblet' || proj.weapon.id === 'chiquita_bomblet';
-        const terrainAtSpawn = this.terrain.isSolid(hitX, hitY);
-        console.log(`[projectile hit] ${proj.weapon.id} at ${Math.round(hitX)},${Math.round(hitY)} expR=${proj.weapon.explosionRadius} splDmg=${proj.weapon.splashDamage} splR=${proj.weapon.splashRadius}${isFragment ? ` FRAGMENT terrainAtHit=${terrainAtSpawn}` : ''}`);
-        // Log worm distances for fragments
         if (isFragment) {
-          for (const w of this.worms) {
-            const d = Math.hypot(w.x - hitX, w.y - hitY);
-            console.log(`  → worm P${w.playerId} dist=${Math.round(d)} hp=${w.hp} inSplash=${d < proj.weapon.splashRadius}`);
-          }
+          console.log(`[fragment explode] ${proj.weapon.id} reason=${proj.hitReason} at ${Math.round(hitX)},${Math.round(hitY)}`);
         }
         this.explosionSystem.detonate(
           hitX, hitY,
@@ -252,10 +246,9 @@ export class GameState {
             const total = proj.weapon.chiquitaFragments;
             for (let i = 0; i < total; i++) {
               const angle = Math.random() * Math.PI * 2;
-              // Liero particle speed: 160-220 base, speedV=140-180, dist=2000
-              // Scaled: ~56-154 px/s + small jitter
-              const speed = 56 + Math.random() * 98;
-              const dist = 14;                            // Liero 2000 → ~14 px/s
+              // 2x Liero base speed for better spread (was 56-154, now 112-308 px/s)
+              const speed = (56 + Math.random() * 98) * 2;
+              const dist = 14 * 2;
               const frag = new Projectile(
                 hitX, hitY,
                 Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,

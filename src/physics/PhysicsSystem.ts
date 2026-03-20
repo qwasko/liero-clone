@@ -163,6 +163,7 @@ export class PhysicsSystem {
         proj.fuseTimer -= dt * 1000;
         if (proj.fuseTimer <= 0) {
           proj.active = false;
+          proj.hitReason = 'timer';
           onHit(proj, proj.x, proj.y);
           continue;
         }
@@ -191,6 +192,7 @@ export class PhysicsSystem {
             Math.abs(ty - worm.y) < worm.height / 2 + proj.weapon.projectileSize
           ) {
             proj.active = false;
+            proj.hitReason = 'worm';
             onHit(proj, tx, ty);
             terrainHit = true;
             break;
@@ -218,6 +220,7 @@ export class PhysicsSystem {
             proj.vy = 0;
           } else {
             proj.active = false;
+            proj.hitReason = 'terrain';
             onHit(proj, tx, ty);
           }
           terrainHit = true;
@@ -234,6 +237,7 @@ export class PhysicsSystem {
           proj.y < 0 || proj.y > terrain.height
         ) {
           proj.active = false;
+          proj.hitReason = 'oob';
           // Bounce and timed weapons detonate at the boundary instead of vanishing
           if (proj.weapon.behavior !== 'normal' || proj.weapon.fuseMs !== null) {
             const bx = Math.max(1, Math.min(terrain.width  - 1, proj.x));
