@@ -22,6 +22,9 @@ export class Projectile {
   /** Grace period (seconds) during which terrain collisions are ignored. Used by fragments spawning inside craters. */
   terrainGrace: number = 0;
 
+  /** Proximity activation delay (ms). While > 0, proximity trigger is inactive. */
+  proximityDelay: number = 0;
+
   /** Set by PhysicsSystem just before onHit — reason for detonation. */
   hitReason: 'terrain' | 'worm' | 'timer' | 'oob' = 'terrain';
 
@@ -41,5 +44,6 @@ export class Projectile {
     this.ownerId = ownerId;
     this.weapon  = weapon;
     this.fuseTimer = weapon.fuseMs !== null ? weapon.fuseMs : null;
+    this.proximityDelay = weapon.proximityDelayMs ?? 0;
   }
 }

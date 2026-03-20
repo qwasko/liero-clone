@@ -46,6 +46,8 @@ export interface WeaponDef {
 
   // Proximity trigger radius in px (mines and proximity grenades)
   readonly mineProximity?: number;
+  // Delay before proximity trigger activates (ms). Prevents instant self-trigger on throw.
+  readonly proximityDelayMs?: number;
 
   // Direct hit damage (flat, no falloff — applied on worm collision before explosion)
   readonly hitDamage?:       number;

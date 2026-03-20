@@ -158,8 +158,13 @@ export class PhysicsSystem {
         continue;
       }
 
+      // ── Proximity activation delay ─────────────────────────────────
+      if (proj.proximityDelay > 0) {
+        proj.proximityDelay -= dt * 1000;
+      }
+
       // ── Proximity trigger (non-mine weapons with mineProximity) ────
-      if (proj.weapon.mineProximity && proj.weapon.behavior !== 'mine') {
+      if (proj.weapon.mineProximity && proj.weapon.behavior !== 'mine' && proj.proximityDelay <= 0) {
         for (const worm of worms) {
           if (worm.isDead) continue;
           const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
