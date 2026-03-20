@@ -12,7 +12,7 @@ import { ExplosionSystem } from './ExplosionSystem';
 import { RopeSystem } from './RopeSystem';
 import { DiggingSystem } from './DiggingSystem';
 import { CrateSystem } from './CrateSystem';
-import { ParticleSystem } from './ParticleSystem';
+
 import { TagSystem } from './TagSystem';
 import { GameEvent } from './GameEvents';
 import { LevelPreset } from './LevelPreset';
@@ -40,7 +40,6 @@ export class GameState {
   readonly ropeSystem:      RopeSystem;
   readonly diggingSystem:   DiggingSystem;
   readonly crateSystem:     CrateSystem;
-  readonly particleSystem:  ParticleSystem;
   readonly tagSystem:       TagSystem | null;
 
   // ── Terrain ──────────────────────────────────────────────────────────
@@ -91,7 +90,6 @@ export class GameState {
     this.physicsSystem    = new PhysicsSystem();
     this.weaponSystem     = new WeaponSystem();
     this.explosionSystem  = new ExplosionSystem(this.terrainDestroyer, this.worms);
-    this.particleSystem   = new ParticleSystem();
 
     this.ropeSystem = new RopeSystem();
     this.ropeSystem.registerWorm(worm1);
@@ -268,9 +266,6 @@ export class GameState {
           }
         }
 
-        // ── Particles ─────────────────────────────────────────────────
-        this.spawnExplosionParticles(hitX, hitY, proj.weapon.id);
-
         // ── Audio/visual events ───────────────────────────────────────
         const big = proj.weapon.explosionRadius >= 20;
         events.push({ type: 'sound_explosion', big });
@@ -279,8 +274,7 @@ export class GameState {
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);
 
-    // ── Particles ──────────────────────────────────────────────────────
-    this.particleSystem.update(dt, this.terrain, this.worms, this.terrainDestroyer, this.explosionSystem);
+
 
     // ── Respawn timers ─────────────────────────────────────────────────
     for (const worm of this.worms) {
@@ -359,21 +353,6 @@ export class GameState {
         }
       }
     }
-  }
-
-  private spawnExplosionParticles(x: number, y: number, weaponId: string): void {
-    if (weaponId === 'minigun') return;
-
-    let count: number;
-    if (weaponId === 'shotgun') {
-      count = 2 + Math.floor(Math.random() * 2);
-    } else if (weaponId === 'chiquita_fragment' || weaponId === 'cluster_bomblet') {
-      count = 3 + Math.floor(Math.random() * 2);
-    } else {
-      count = 6 + Math.floor(Math.random() * 5);
-    }
-
-    this.particleSystem.spawnExplosion(x, y, count);
   }
 
   private checkWinCondition(events: GameEvent[]): void {

@@ -185,7 +185,7 @@ export class GameScene extends Phaser.Scene {
     const state = this.gameState;
 
     this.gameRenderer.drawWorms(this.wormLayer, state.worms);
-    state.particleSystem.draw(this.particleLayer);
+    this.particleLayer.clear();
 
     this.overlayGraphics.clear();
     state.ropeSystem.draw(this.overlayGraphics);
