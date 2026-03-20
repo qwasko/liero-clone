@@ -144,8 +144,13 @@ export class PhysicsSystem {
         proj.detachCooldown -= dt * 1000;
       }
 
+      // ── Diagnostic: log flying mine state every frame ─────────────
+      if (proj.weapon.id === 'sticky_mine' && !proj.deployed) {
+        console.log(`[sticky_mine flying] pos=${Math.round(proj.x)},${Math.round(proj.y)} cooldown=${Math.round(proj.detachCooldown)} hasDeployed=${proj.hasDeployed} vx=${Math.round(proj.vx)} vy=${Math.round(proj.vy)}`);
+      }
+
       // ── Falling mine: re-attach to terrain after cooldown expires ────
-      if (proj.weapon.behavior === 'mine' && !proj.deployed && proj.hasDeployed && proj.detachCooldown <= 0) {
+      if (proj.weapon.behavior === 'mine' && !proj.deployed && proj.detachCooldown <= 0) {
         // Check terrain contact around the mine: below first, then sides
         const px = Math.round(proj.x);
         const py = Math.round(proj.y);
@@ -172,6 +177,7 @@ export class PhysicsSystem {
         // All mines: detach if terrain at attachment point is destroyed
         if (!terrain.isSolid(proj.attachX, proj.attachY)) {
           proj.deployed = false;
+          proj.hasDeployed = false;
           proj.detachCooldown = 143; // ~10 frames — brief fall before re-attaching
         } else {
           // Count down timers while deployed
@@ -316,6 +322,9 @@ export class PhysicsSystem {
 
         // ── Terrain hit (skip during grace period or mine detach cooldown) ─
         const mineOnCooldown = proj.weapon.behavior === 'mine' && proj.detachCooldown > 0;
+        if (proj.weapon.id === 'sticky_mine' && terrain.isSolid(tx, ty) && mineOnCooldown) {
+          console.log(`[sticky_mine skip attach] reason=cooldown cooldown=${Math.round(proj.detachCooldown)} at=${Math.round(tx)},${Math.round(ty)}`);
+        }
         if (terrain.isSolid(tx, ty) && proj.terrainGrace <= 0 && !mineOnCooldown) {
           if (proj.weapon.behavior === 'bounce' && proj.bounceCount < proj.weapon.maxBounces) {
             this.bounceProjectile(proj, dx, dy);
@@ -338,6 +347,9 @@ export class PhysicsSystem {
             proj.vx = 0;
             proj.vy = 0;
           } else {
+            if (proj.weapon.id === 'sticky_mine') {
+              console.log(`[sticky_mine skip attach] reason=else-branch deployed=${proj.deployed} cooldown=${Math.round(proj.detachCooldown)} hasDeployed=${proj.hasDeployed} at=${Math.round(tx)},${Math.round(ty)}`);
+            }
             proj.active = false;
             proj.hitReason = 'terrain';
             onHit(proj, tx, ty);
