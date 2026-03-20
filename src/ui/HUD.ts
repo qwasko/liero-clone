@@ -115,6 +115,10 @@ export class HUD {
     this.drawBar(this.bars, worm1, this.barX1);
     this.drawBar(this.bars, worm2, this.barX2);
 
+    // Reload progress bars (below HP bars)
+    this.drawReloadBar(this.bars, this.barX1, this.barY + BAR_H + 1, BAR_W, load1.reloadProgress);
+    this.drawReloadBar(this.bars, this.barX2, this.barY + BAR_H + 1, BAR_W, load2.reloadProgress);
+
     this.p1Hp.setText(worm1.isDead ? 'DEAD' : `${worm1.hp}hp`);
     this.p2Hp.setText(worm2.isDead ? 'DEAD' : `${worm2.hp}hp`);
     this.p1Weapon.setText(this.weaponLine(load1));
@@ -151,10 +155,22 @@ export class HUD {
     g.fillStyle(hpColour(pct), 1).fillRect(x, this.barY, fill, BAR_H);
   }
 
+  private drawReloadBar(
+    g: Phaser.GameObjects.Graphics,
+    x: number, y: number, w: number,
+    progress: number,
+  ): void {
+    if (progress <= 0 || progress >= 1) return;
+    const h = 3;
+    g.fillStyle(0x333333, 1).fillRect(x, y, w, h);
+    g.fillStyle(0x44aaff, 1).fillRect(x, y, Math.round(w * progress), h);
+  }
+
   private weaponLine(load: Loadout): string {
     const { name } = load.activeWeapon;
+    if (load.activeWeapon.infiniteAmmo) return name;
     return load.isReloading
-      ? `${name} [~]`
+      ? `${name} [...]`
       : `${name} x${load.activeAmmo}`;
   }
 }

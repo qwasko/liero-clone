@@ -52,8 +52,10 @@ export interface WeaponDef {
   readonly splashDamage:    number;
   readonly splashRadius:    number;
 
-  // Ammo
-  readonly ammoMax:      number;
-  readonly infiniteAmmo: boolean;
-  readonly reloadMs:     number;
+  // Ammo & reload (magazine system)
+  readonly ammoPerMag:     number;  // shots per magazine
+  readonly totalAmmo:      number;  // total reserve ammo (10000 = effectively unlimited)
+  readonly infiniteAmmo:   boolean;
+  readonly delayMs:        number;  // delay between shots within magazine (ms)
+  readonly loadingTimeMs:  number;  // time to reload full magazine when empty (ms)
 }

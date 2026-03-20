@@ -11,6 +11,9 @@ export const WORM_WIDTH = 10;
 export const WORM_HEIGHT = 14;
 export const WORM_MAX_HP = 100;
 
+// Weapon reload
+export const LOADING_TIMES_MULTIPLIER = 1.0; // global multiplier for magazine reload times
+
 // Match
 export const MATCH_DURATION_SECONDS = 180;
 export const DEFAULT_LIVES = 3;

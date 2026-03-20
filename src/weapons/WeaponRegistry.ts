@@ -35,7 +35,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     chiquitaFragments: 12,                              // 12 splinters (particle__small_damage)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 1200,
+    ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 120,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -49,7 +49,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 42,            // Liero 6000 → ~42 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 50,     // fires nearly every frame
+    ammoPerMag: 70, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 500,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -66,7 +66,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 40,                                   // 40% velocity retained
     chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 1800,
+    ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false, delayMs: 20, loadingTimeMs: 150,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -80,7 +80,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 15, spread: 0, distribution: 84,           // Liero 12000 → ~84 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 1400,
+    ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 90,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -97,7 +97,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 100,                                  // perfect elastic bounce
     chiquitaFragments: 5,
     explosionRadius: 6, splashDamage: 10, splashRadius: 14,  // medium_explosion: carve 6, detect 14
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 1600,
+    ammoPerMag: 5, totalAmmo: 10000, infiniteAmmo: false, delayMs: 10, loadingTimeMs: 200,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -112,7 +112,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 0,
     behavior: 'zimm', maxBounces: 0, fuseMs: 14300,     // 1000 frames @ 70fps ≈ 14.3s
     explosionRadius: 4, splashDamage: 49, splashRadius: 8,  // zimm_flash: cosmetic + direct damage
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 700,
+    ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false, delayMs: 5, loadingTimeMs: 180,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -129,7 +129,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 50,
     clusterWeapon: 'cluster_bomblet', clusterCount: 20, // 20 bomblets!
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 2000,
+    ammoPerMag: 2, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 250,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -147,7 +147,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 40,
     hitDamage: 1,                                              // Liero clusterbomb_bombs: hitDmg=1
     explosionRadius: 6, splashDamage: 10, splashRadius: 14,   // medium_explosion: carve 6, detect 14
-    ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
+    ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 0,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -163,7 +163,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'mine', maxBounces: 0, fuseMs: 214000,    // 15000 frames ≈ 214s (essentially permanent)
     mineProximity: 22,
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 1500,
+    ammoPerMag: 5, totalAmmo: 10000, infiniteAmmo: false, delayMs: 15, loadingTimeMs: 200,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -180,7 +180,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 40,
     chiquitaFragments: 22,                               // 22 bomblets!
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
-    ammoMax: 10000, infiniteAmmo: false, reloadMs: 2200,
+    ammoPerMag: 2, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 280,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -202,7 +202,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 4,                                              // Liero particle__larger_damage: hitDmg=4
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
-    ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
+    ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 0,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -219,7 +219,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 40,
     hitDamage: 4,                                              // Liero chiquitabomb_bombs: hitDmg=4
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
-    ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
+    ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 0,
   },
 
   rope: {
@@ -229,7 +229,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0,
     behavior: 'rope', maxBounces: 0, fuseMs: null,
     explosionRadius: 0, splashDamage: 0, splashRadius: 0,
-    ammoMax: 0, infiniteAmmo: true, reloadMs: 400,
+    ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 400,
   },
 
 };

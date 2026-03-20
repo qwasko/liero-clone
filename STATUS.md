@@ -71,7 +71,13 @@
 - Bonus crates: spawn every ~18s, max 5 on map
 - Procedural audio (fire, explosion, jump, pickup, rope)
 - Explosion screen flash (red vignette)
-- Per-slot independent reload timers
+- **Magazine ammo system**: per-weapon magazine size, shot delay, and loading time
+  - Bazooka: 1/mag, 120ms reload | Minigun: 70/mag, 500ms reload
+  - Grenade: 3/mag, 20ms delay, 150ms reload | Shotgun: 1/mag, 90ms reload
+  - Larpa: 5/mag, 10ms delay, 200ms reload | Zimm: 3/mag, 5ms delay, 180ms reload
+  - Cluster: 2/mag, 250ms reload | Mine: 5/mag, 15ms delay, 200ms reload
+  - Chiquita: 2/mag, 280ms reload
+  - HUD shows ammo count + blue reload progress bar
 - Level selection menu (Normal / Large Open / Tiny)
 - Projectiles travel full map dimensions before despawning
 - 4-segment worm sprites with aim-tracking eye (P1 green, P2 red)
@@ -83,13 +89,15 @@
 - Diagnostic console.log still active in ExplosionSystem, GameState, ParticleSystem
   — remove before release
 
-## STOPPED HERE — end of session 2026-03-19
+## STOPPED HERE — end of session 2026-03-20
 
 ### Last completed
-- Bomblet explosion triggers: cluster_bomblet and chiquita_bomblet now bounce + 430ms fuse
-- Fragment terrain grace: 150ms terrain immunity so fragments escape craters
-- Explosion damage scaling: effectiveRadius = craterRadius × 3 (bigger blast → wider damage)
-- Grenade near worm now deals ~30-40 HP total (primary + fragments + particles)
+- Magazine-based ammo and reload system
+  - Each weapon has ammoPerMag, delayMs (between shots), loadingTimeMs (magazine reload)
+  - LOADING_TIMES_MULTIPLIER global constant for easy tuning
+  - Per-slot independent delay and reload timers
+  - Auto-reload when magazine empty, refill from totalAmmo reserve (10000)
+  - HUD: ammo count display + blue reload progress bar below HP bar
 
 ### Next task to start
 - No specific task planned — see possible next steps below
