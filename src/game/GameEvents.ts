@@ -9,6 +9,7 @@ export type GameEvent =
   | { type: 'muzzle_flash'; x: number; y: number }
   | { type: 'screen_flash'; alpha: number }
   | { type: 'camera_shake'; duration: number; intensity: number }
+  | { type: 'impact_ring'; x: number; y: number; radius: number }
   | { type: 'crate_spawn'; crate: CrateData }
   | { type: 'crate_collect'; crateId: number; kind: CrateKind }
   | { type: 'match_over'; winner: number; mode: 'normal' | 'tag'; tagTimes?: [number, number] };

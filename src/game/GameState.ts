@@ -270,6 +270,7 @@ export class GameState {
         const big = proj.weapon.explosionRadius >= 20;
         events.push({ type: 'sound_explosion', big });
         events.push({ type: 'screen_flash', alpha: big ? 0.18 : 0.08 });
+        events.push({ type: 'impact_ring', x: hitX, y: hitY, radius: proj.weapon.explosionRadius });
       },
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);

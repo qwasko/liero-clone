@@ -190,7 +190,7 @@ export class GameScene extends Phaser.Scene {
     this.overlayGraphics.clear();
     state.ropeSystem.draw(this.overlayGraphics);
     this.gameRenderer.drawAimLines(this.overlayGraphics, state.worms);
-    this.gameRenderer.drawProjectiles(this.overlayGraphics, state.activeProjectiles, this.time.now);
+    this.gameRenderer.drawProjectiles(this.overlayGraphics, state.activeProjectiles, this.time.now, dt);
 
     // ── Tag "IT" indicator ───────────────────────────────────────────────
     if (state.tagSystem && this.tagItGraphics) {
@@ -255,6 +255,9 @@ export class GameScene extends Phaser.Scene {
       case 'camera_shake':
         this.cameras.main.shake(event.duration, event.intensity);
         this.p2Camera.shake(event.duration, event.intensity);
+        break;
+      case 'impact_ring':
+        this.gameRenderer.spawnImpactRing(event.x, event.y, event.radius);
         break;
       case 'crate_spawn':
         this.createCrateVisual(event.crate.id, event.crate.x, event.crate.y);

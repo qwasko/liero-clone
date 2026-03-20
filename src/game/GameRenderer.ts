@@ -3,12 +3,28 @@ import { Worm } from '../entities/Worm';
 import { Projectile } from '../entities/Projectile';
 
 const AIM_LINE_LEN = 22;
+const IMPACT_RING_DURATION = 0.2; // seconds
+
+interface ImpactRing {
+  x: number;
+  y: number;
+  radius: number; // max radius from weapon def
+  elapsed: number;
+}
+
+const FRAGMENT_IDS = new Set(['chiquita_fragment', 'cluster_bomblet', 'chiquita_bomblet']);
 
 /**
  * Stateless renderer — draws worms, projectiles, and aim lines
  * onto Phaser Graphics objects. No game logic.
  */
 export class GameRenderer {
+  private impactRings: ImpactRing[] = [];
+
+  /** Spawn a purely visual expanding ring at hit position. */
+  spawnImpactRing(x: number, y: number, radius: number): void {
+    this.impactRings.push({ x, y, radius, elapsed: 0 });
+  }
 
   drawWorms(g: Phaser.GameObjects.Graphics, worms: readonly Worm[]): void {
     g.clear();
@@ -35,6 +51,7 @@ export class GameRenderer {
     g: Phaser.GameObjects.Graphics,
     projectiles: readonly Projectile[],
     timeNow: number,
+    dt: number,
   ): void {
     for (const proj of projectiles) {
       if (!proj.active) continue;
@@ -59,7 +76,29 @@ export class GameRenderer {
       }
 
       g.fillStyle(color, 1);
-      g.fillCircle(proj.x, proj.y, proj.weapon.projectileSize);
+      // Fragments: 2x2 pixel square; everything else: circle
+      if (FRAGMENT_IDS.has(proj.weapon.id)) {
+        g.fillRect(proj.x - 1, proj.y - 1, 2, 2);
+      } else {
+        g.fillCircle(proj.x, proj.y, proj.weapon.projectileSize);
+      }
+    }
+
+    // ── Impact rings (purely visual) ──────────────────────────────────
+    for (let i = this.impactRings.length - 1; i >= 0; i--) {
+      const ring = this.impactRings[i];
+      ring.elapsed += dt;
+      const t = ring.elapsed / IMPACT_RING_DURATION; // 0→1
+      if (t >= 1) {
+        this.impactRings.splice(i, 1);
+        continue;
+      }
+      const r = ring.radius * t;
+      const alpha = (1 - t) * 0.8;
+      // Orange center fading to yellow edge
+      const color = t < 0.5 ? 0xff8800 : 0xffcc44;
+      g.lineStyle(1.5, color, alpha);
+      g.strokeCircle(ring.x, ring.y, r);
     }
   }
 
