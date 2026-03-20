@@ -139,10 +139,10 @@ export class PhysicsSystem {
     for (const proj of projectiles) {
       if (!proj.active) continue;
 
-      // ── Mine: deployed → arm delay then proximity check, skip movement ─
+      // ── Mine: deployed → check terrain, arm delay, proximity check ────
       if (proj.weapon.behavior === 'mine' && proj.deployed) {
-        // Sticky mine: check if terrain still exists at attachment point
-        if (proj.weapon.sticky && !terrain.isSolid(proj.attachX, proj.attachY)) {
+        // All mines: detach if terrain at attachment point is destroyed
+        if (!terrain.isSolid(proj.attachX, proj.attachY)) {
           proj.deployed = false; // detach — fall through to movement code below
         } else {
           // Count down timers while deployed
@@ -175,8 +175,8 @@ export class PhysicsSystem {
         proj.proximityDelay -= dt * 1000;
       }
 
-      // ── Sticky mine falling: proximity check while in air ──────────
-      if (proj.weapon.behavior === 'mine' && proj.weapon.sticky && !proj.deployed && proj.proximityDelay <= 0) {
+      // ── Mine falling: proximity check while in air ─────────────────
+      if (proj.weapon.behavior === 'mine' && !proj.deployed && proj.proximityDelay <= 0 && proj.armTimer <= 0) {
         for (const worm of worms) {
           if (worm.isDead) continue;
           const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
@@ -297,11 +297,9 @@ export class PhysicsSystem {
             }
             proj.deployed  = true;
             proj.armTimer  = proj.weapon.sticky ? 0 : 700; // sticky uses proximityDelay instead
-            // Sticky: record attachment point (the solid pixel we hit)
-            if (proj.weapon.sticky) {
-              proj.attachX = Math.round(tx);
-              proj.attachY = Math.round(ty);
-            }
+            // Record attachment point — used to detect terrain destruction beneath mine
+            proj.attachX = Math.round(tx);
+            proj.attachY = Math.round(ty);
             proj.vx = 0;
             proj.vy = 0;
           } else {

@@ -56,14 +56,33 @@ export class GameRenderer {
     for (const proj of projectiles) {
       if (!proj.active) continue;
 
-      // ── Mine: deployed → small brown rectangle with blinking light ──
+      // ── Mine: deployed → distinct visuals per type ────────────────
       if (proj.weapon.behavior === 'mine' && proj.deployed) {
-        g.fillStyle(0x8B5513, 1);
-        g.fillRect(proj.x - 5, proj.y - 3, 10, 6);
-        const blink = Math.floor(timeNow / 300) % 2 === 0;
-        if (blink) {
-          g.fillStyle(0xff2200, 1);
-          g.fillCircle(proj.x, proj.y - 3, 1.5);
+        if (proj.weapon.id === 'sticky_mine') {
+          // Sticky mine: small red square with X mark
+          g.fillStyle(0xff4400, 1);
+          g.fillRect(proj.x - 4, proj.y - 4, 8, 8);
+          g.lineStyle(1.5, 0x220000, 1);
+          g.beginPath();
+          g.moveTo(proj.x - 2.5, proj.y - 2.5);
+          g.lineTo(proj.x + 2.5, proj.y + 2.5);
+          g.moveTo(proj.x + 2.5, proj.y - 2.5);
+          g.lineTo(proj.x - 2.5, proj.y + 2.5);
+          g.strokePath();
+          const blink = Math.floor(timeNow / 400) % 2 === 0;
+          if (blink) {
+            g.fillStyle(0xffcc00, 1);
+            g.fillCircle(proj.x, proj.y - 4, 1.2);
+          }
+        } else {
+          // Regular mine: brown rectangle with blinking red light
+          g.fillStyle(0x8B5513, 1);
+          g.fillRect(proj.x - 5, proj.y - 3, 10, 6);
+          const blink = Math.floor(timeNow / 300) % 2 === 0;
+          if (blink) {
+            g.fillStyle(0xff2200, 1);
+            g.fillCircle(proj.x, proj.y - 3, 1.5);
+          }
         }
         continue;
       }
