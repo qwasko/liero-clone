@@ -220,6 +220,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 56,            // Liero 8000
     behavior: 'mine', maxBounces: 0, fuseMs: 214000,    // 15000 frames ≈ 214s (essentially permanent)
     mineProximity: 22,
+    proximityDelayMs: 857,                                // 60 frames — shooter safe initially
     hitDamage: 12,                                             // Liero: hitDmg=12 (in-flight worm hit)
     chiquitaFragments: 5,                               // 5 splinters (particle__small_damage)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
