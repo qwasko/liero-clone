@@ -214,7 +214,11 @@ export class PhysicsSystem {
           ) {
             // Direct hitDamage (flat, no falloff) — like Liero NObject.hitDamage
             if (proj.weapon.hitDamage) {
-              worm.applyDamage(proj.weapon.hitDamage);
+              // Minigun: random 1 or 2 damage per bullet
+              const dmg = proj.weapon.id === 'minigun'
+                ? (Math.random() < 0.5 ? 1 : 2)
+                : proj.weapon.hitDamage;
+              worm.applyDamage(dmg);
             }
             proj.active = false;
             proj.hitReason = 'worm';
