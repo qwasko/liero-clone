@@ -202,6 +202,7 @@ export class PhysicsSystem {
         // Fragments (no fuseMs, behavior=normal/bounce internals) hit ALL worms
         // including the owner — matching original Liero NObject behavior.
         const isFragment = proj.weapon.id === 'chiquita_fragment'
+          || proj.weapon.id === 'bazooka_fragment'
           || proj.weapon.id === 'cluster_bomblet'
           || proj.weapon.id === 'chiquita_bomblet';
         for (const worm of worms) {

@@ -35,7 +35,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   bazooka: {
     id: 'bazooka', name: 'Bazooka',
     fireMode: 'single',
-    projectileSpeed: 300, projectileGravity: 0, projectileSize: 3, projectileColor: 0xffee44,
+    projectileSpeed: 300, projectileGravity: 0.04, projectileSize: 3, projectileColor: 0xffee44,
     pellets: 1, spread: 0, distribution: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 12,                                             // Liero: hitDmg=12
@@ -213,15 +213,26 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  Liero particle__small_damage (used by bazooka/larpa/mine fragments):
+  //  speed=160, speedV=140, dist=2000, grav=700, hitDmg=2, bounce=0
+  //  createOnExp=small_explosion
+  //  Heavy gravity, slow speed — fragments fall into crater and explode there.
+  // ═══════════════════════════════════════════════════════════════════════════
+  bazooka_fragment: {
+    id: 'bazooka_fragment', name: 'Shrapnel',
+    fireMode: 'single',
+    projectileSpeed: 0, projectileGravity: 0.7, projectileSize: 2, projectileColor: 0xff8833,
+    pellets: 1, spread: 0,
+    behavior: 'normal', maxBounces: 0, fuseMs: null,
+    hitDamage: 2,                                              // Liero particle__small_damage: hitDmg=2
+    explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion
+    ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 0,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  Liero particle__larger_damage (used by grenade fragments):
   //  speed=220, speedV=180, dist=2000, grav=700, hitDmg=4
   //  createOnExp=small_explosion — chain damage!
-  //
-  //  Liero particle__small_damage (used by bazooka/larpa fragments):
-  //  speed=160, speedV=140, dist=2000, grav=700, hitDmg=2
-  //  createOnExp=small_explosion
-  //
-  //  We use a single fragment type with averaged values.
   // ═══════════════════════════════════════════════════════════════════════════
   chiquita_fragment: {
     id: 'chiquita_fragment', name: 'Fragment',

@@ -230,18 +230,32 @@ export class GameState {
           }
         }
 
-        // ── Chiquita / grenade / bazooka: spray fragments ─────────────
+        // ── Fragment spray (chiquitaFragments) ────────────────────────
         if (proj.weapon.chiquitaFragments) {
-          // Chiquita bomb uses stronger chiquita_bomblet; everything else uses chiquita_fragment
+          // Pick fragment type based on weapon:
+          //   chiquita → chiquita_bomblet (strong, bouncy)
+          //   bazooka/larpa/mine → bazooka_fragment (slow, heavy gravity, falls into crater)
+          //   grenade/other → chiquita_fragment (medium speed, light gravity)
+          const usesSmallDamage = proj.weapon.id === 'bazooka'
+            || proj.weapon.id === 'larpa'
+            || proj.weapon.id === 'mine';
           const isChiquita = proj.weapon.id === 'chiquita';
-          const fragDef = WeaponRegistry[isChiquita ? 'chiquita_bomblet' : 'chiquita_fragment'];
+          const fragId = isChiquita ? 'chiquita_bomblet'
+            : usesSmallDamage ? 'bazooka_fragment'
+            : 'chiquita_fragment';
+          const fragDef = WeaponRegistry[fragId];
           if (fragDef) {
             const total = proj.weapon.chiquitaFragments;
             for (let i = 0; i < total; i++) {
               const angle = Math.random() * Math.PI * 2;
-              // 2x Liero base speed for better spread (was 56-154, now 112-308 px/s)
-              const speed = (56 + Math.random() * 98) * 2;
-              const dist = 14 * 2;
+              // Liero particle__small_damage: speed=160, speedV=140, dist=2000
+              // → ~10-78 px/s base, ~14 px/s jitter (slow, gravity-driven)
+              // Liero particle__larger_damage: speed=220, speedV=180, dist=2000
+              // → ~28-154 px/s base, ~14 px/s jitter (faster, wider spread)
+              const speed = usesSmallDamage
+                ? 10 + Math.random() * 68    // slow: 10-78 px/s (particle__small_damage)
+                : (56 + Math.random() * 98) * 2; // fast: 112-308 px/s (particle__larger_damage)
+              const dist = 14;               // Liero 2000 → ~14 px/s jitter
               const frag = new Projectile(
                 hitX, hitY,
                 Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,
