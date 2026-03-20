@@ -182,9 +182,9 @@ export class PhysicsSystem {
       proj.vy += GRAVITY * proj.weapon.projectileGravity * dt;
 
       // Ground friction for bounce weapons resting on terrain
-      if (proj.weapon.behavior === 'bounce' && Math.abs(proj.vy) < 5
-          && terrain.isSolid(proj.x, proj.y + 2)) {
-        proj.vx *= 0.85;
+      if (proj.weapon.behavior === 'bounce' && terrain.isSolid(proj.x, proj.y + 2)) {
+        if (Math.abs(proj.vy) < 50) proj.vy = 0;
+        proj.vx *= 0.7;
         if (Math.abs(proj.vx) < 2) proj.vx = 0;
       }
 
@@ -299,8 +299,8 @@ export class PhysicsSystem {
     proj.x -= Math.sign(dx) * 2;
     proj.y -= Math.sign(dy) * 2;
 
-    // Stop micro-bouncing: if total speed is low, freeze in place
-    if (Math.hypot(proj.vx, proj.vy) < 50) {
+    // Stop micro-bouncing: aggressive threshold, tune down later if needed
+    if (Math.hypot(proj.vx, proj.vy) < 150) {
       proj.vx = 0;
       proj.vy = 0;
     }
