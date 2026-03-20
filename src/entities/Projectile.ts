@@ -16,6 +16,10 @@ export class Projectile {
   /** Mine-only: true once the projectile has landed and is waiting to trigger. */
   deployed: boolean = false;
 
+  /** Sticky mine: terrain attachment point. Checked each frame for terrain destruction. */
+  attachX: number = 0;
+  attachY: number = 0;
+
   /** Mine-only: ms remaining before the mine arms after deployment (avoids instant self-trigger). */
   armTimer: number = 0;
 

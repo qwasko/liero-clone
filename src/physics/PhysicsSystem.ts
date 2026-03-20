@@ -141,21 +141,28 @@ export class PhysicsSystem {
 
       // ── Mine: deployed → arm delay then proximity check, skip movement ─
       if (proj.weapon.behavior === 'mine' && proj.deployed) {
-        if (proj.armTimer > 0) {
-          proj.armTimer -= dt * 1000;
+        // Sticky mine: check if terrain still exists at attachment point
+        if (proj.weapon.sticky && !terrain.isSolid(proj.attachX, proj.attachY)) {
+          proj.deployed = false; // detach — fall through to movement code below
         } else {
-          // Triggers on ANY worm (including owner) once armed
-          for (const worm of worms) {
-            if (worm.isDead) continue;
-            const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
-            if (dist <= (proj.weapon.mineProximity ?? 20)) {
-              proj.active = false;
-              onHit(proj, proj.x, proj.y);
-              break;
+          // Count down timers while deployed
+          if (proj.armTimer > 0) proj.armTimer -= dt * 1000;
+          if (proj.proximityDelay > 0) proj.proximityDelay -= dt * 1000;
+
+          const armed = proj.armTimer <= 0 && proj.proximityDelay <= 0;
+          if (armed) {
+            for (const worm of worms) {
+              if (worm.isDead) continue;
+              const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
+              if (dist <= (proj.weapon.mineProximity ?? 20)) {
+                proj.active = false;
+                onHit(proj, proj.x, proj.y);
+                break;
+              }
             }
           }
+          continue;
         }
-        continue;
       }
 
       // ── Owner grace countdown ────────────────────────────────────────
@@ -166,6 +173,21 @@ export class PhysicsSystem {
       // ── Proximity activation delay ─────────────────────────────────
       if (proj.proximityDelay > 0) {
         proj.proximityDelay -= dt * 1000;
+      }
+
+      // ── Sticky mine falling: proximity check while in air ──────────
+      if (proj.weapon.behavior === 'mine' && proj.weapon.sticky && !proj.deployed && proj.proximityDelay <= 0) {
+        for (const worm of worms) {
+          if (worm.isDead) continue;
+          const dist = Math.hypot(proj.x - worm.x, proj.y - worm.y);
+          if (dist <= (proj.weapon.mineProximity ?? 20)) {
+            proj.active = false;
+            proj.hitReason = 'worm';
+            onHit(proj, proj.x, proj.y);
+            break;
+          }
+        }
+        if (!proj.active) continue;
       }
 
       // ── Proximity trigger (non-mine weapons with mineProximity) ────
@@ -235,7 +257,8 @@ export class PhysicsSystem {
           || proj.weapon.id === 'cluster_bomblet'
           || proj.weapon.id === 'chiquita_bomblet'
           || proj.weapon.id === 'larpa'
-          || proj.weapon.id === 'larpa_trail';
+          || proj.weapon.id === 'larpa_trail'
+          || proj.weapon.id === 'sticky_mine';
         for (const worm of worms) {
           if (worm.isDead) continue;
           const isOwner = worm.playerId === proj.ownerId;
@@ -273,7 +296,12 @@ export class PhysicsSystem {
               proj.y -= dy / len * 3;
             }
             proj.deployed  = true;
-            proj.armTimer  = 700; // arm after 700 ms — prevents immediate self-trigger
+            proj.armTimer  = proj.weapon.sticky ? 0 : 700; // sticky uses proximityDelay instead
+            // Sticky: record attachment point (the solid pixel we hit)
+            if (proj.weapon.sticky) {
+              proj.attachX = Math.round(tx);
+              proj.attachY = Math.round(ty);
+            }
             proj.vx = 0;
             proj.vy = 0;
           } else {

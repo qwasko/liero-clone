@@ -44,6 +44,9 @@ export interface WeaponDef {
   // Worm collision: if false, projectile passes through worms without detonating
   readonly wormCollide?:  boolean; // default true for normal/zimm, false skips worm hit check
 
+  // Sticky mine: attaches to terrain, detaches when terrain destroyed, re-attaches on landing
+  readonly sticky?: boolean;
+
   // Proximity trigger radius in px (mines and proximity grenades)
   readonly mineProximity?: number;
   // Delay before proximity trigger activates (ms). Prevents instant self-trigger on throw.

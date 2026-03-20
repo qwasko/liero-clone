@@ -228,9 +228,10 @@ export class GameState {
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
-        const isLarpa = proj.weapon.id === 'larpa' || proj.weapon.id === 'larpa_trail';
+        const hasOwnerGrace = proj.weapon.id === 'larpa' || proj.weapon.id === 'larpa_trail'
+          || proj.weapon.id === 'sticky_mine';
         const fullSelfDmg = proj.weapon.id === 'bazooka'
-          || (isLarpa && proj.ownerGrace <= 0);
+          || (hasOwnerGrace && proj.ownerGrace <= 0);
 
         this.explosionSystem.detonate(
           hitX, hitY,

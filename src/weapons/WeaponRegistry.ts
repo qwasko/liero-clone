@@ -228,6 +228,26 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  Sticky Mine: fires fast, sticks to terrain, detaches when terrain destroyed
+  //  Proximity trigger (25px), activation delay 60 frames, damages all worms
+  // ═══════════════════════════════════════════════════════════════════════════
+  sticky_mine: {
+    id: 'sticky_mine', name: 'Sticky Mine',
+    fireMode: 'single',
+    projectileSpeed: 400, projectileGravity: 0, projectileSize: 3, projectileColor: 0xff4400,
+    pellets: 1, spread: 0, distribution: 0,
+    behavior: 'mine', maxBounces: 0, fuseMs: 214000,     // effectively permanent
+    sticky: true,
+    mineProximity: 25,
+    proximityDelayMs: 857,                                // 60 frames — shooter safe initially
+    ownerGraceMs: 857,                                    // full self-damage after activation
+    chiquitaFragments: 8,
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,  // large_explosion
+    ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
+    delayMs: 0, loadingTimeMs: 4000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  Liero: speed=170, dist=7000, grav=1300, bounce=40, hitDmg=0
   //  delay=0, loadingTime=600, ammo=1
   //  timeToExplo=150 (+V=15), splinterAmount=22, chiquitabomb_bombs
@@ -323,5 +343,6 @@ export const DEFAULT_LOADOUT: WeaponDef[] = [
   WeaponRegistry.zimm,
   WeaponRegistry.cluster_bomb,
   WeaponRegistry.mine,
+  WeaponRegistry.sticky_mine,
   WeaponRegistry.chiquita,
 ];
