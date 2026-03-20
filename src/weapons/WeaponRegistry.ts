@@ -33,6 +33,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 300, projectileGravity: 0, projectileSize: 3, projectileColor: 0xffee44,
     pellets: 1, spread: 0, distribution: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
+    hitDamage: 12,                                             // Liero bazooka: hitDmg=12
     chiquitaFragments: 12,                              // 12 splinters (particle__small_damage)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 120,
@@ -48,6 +49,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 520, projectileGravity: 0.12, projectileSize: 2, projectileColor: 0xffee44,
     pellets: 1, spread: 0, distribution: 42,            // Liero 6000 → ~42 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
+    hitDamage: 2,                                              // Liero minigun: hitDmg=2
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
     ammoPerMag: 70, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 500,
   },
@@ -79,6 +81,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 400, projectileGravity: 0.12, projectileSize: 2, projectileColor: 0xffaa44,
     pellets: 15, spread: 0, distribution: 84,           // Liero 12000 → ~84 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
+    hitDamage: 1,                                              // Liero shotgun: hitDmg=1 per pellet
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false, delayMs: 0, loadingTimeMs: 90,
   },

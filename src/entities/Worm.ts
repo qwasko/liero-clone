@@ -41,9 +41,7 @@ export class Worm {
 
   applyDamage(amount: number): void {
     if (this.isDead) return;
-    const before = this.hp;
     this.hp = Math.max(0, this.hp - amount);
-    console.log(`[worm damage] P${this.playerId} hp_before=${before} dmg=${amount} hp_after=${this.hp}`);
     if (this.hp <= 0) {
       this.state = 'dead';
     }

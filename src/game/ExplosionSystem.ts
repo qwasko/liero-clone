@@ -36,7 +36,6 @@ export class ExplosionSystem {
         if (ownerId !== undefined && worm.playerId === ownerId) dmg = Math.round(dmg * 0.5);
         if (dmg > 0) {
           worm.applyDamage(dmg);
-          console.log(`[explosion] P${worm.playerId} at ${Math.round(x)},${Math.round(y)} dist=${Math.round(dist)} dmg=${dmg} radius=${explosionRadius} carved=yes`);
         }
       }
     }

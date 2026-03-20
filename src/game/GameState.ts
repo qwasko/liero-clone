@@ -200,13 +200,6 @@ export class GameState {
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
-        const isFragment = proj.weapon.id === 'chiquita_fragment' || proj.weapon.id === 'cluster_bomblet' || proj.weapon.id === 'chiquita_bomblet';
-        if (isFragment) {
-          console.log(`[fragment explode] ${proj.weapon.id} reason=${proj.hitReason} at ${Math.round(hitX)},${Math.round(hitY)}`);
-        }
-        if (proj.weapon.chiquitaFragments) {
-          console.log(`[grenade explode] ${proj.weapon.id} carved R=${proj.weapon.explosionRadius}, damage R=${proj.weapon.splashRadius}, fragments=${proj.weapon.chiquitaFragments}`);
-        }
         this.explosionSystem.detonate(
           hitX, hitY,
           proj.weapon.explosionRadius,
@@ -219,7 +212,6 @@ export class GameState {
         if (proj.weapon.clusterCount && proj.weapon.clusterWeapon) {
           const bombletDef = WeaponRegistry[proj.weapon.clusterWeapon];
           if (bombletDef) {
-            console.log(`[cluster spawn] ${proj.weapon.id} → ${proj.weapon.clusterCount}x ${proj.weapon.clusterWeapon} (expR=${bombletDef.explosionRadius} splDmg=${bombletDef.splashDamage})`);
             for (let i = 0; i < proj.weapon.clusterCount; i++) {
               const angle = Math.random() * Math.PI * 2;
               // Liero: speed=220, speedV=140, dist=10000 → scattered velocity
@@ -260,12 +252,6 @@ export class GameState {
               frag.terrainGrace = 0.15; // 150ms grace to escape crater
               this.activeProjectiles.push(frag);
             }
-            // Count how many fragments spawned in solid terrain
-            let inTerrain = 0;
-            for (const fp of this.activeProjectiles.slice(-total)) {
-              if (this.terrain.isSolid(fp.x, fp.y)) inTerrain++;
-            }
-            console.log(`[fragment spawn] ${proj.weapon.id} → ${total}x ${fragDef.id} (expR=${fragDef.explosionRadius} splDmg=${fragDef.splashDamage}) inTerrain=${inTerrain}/${total}`);
           }
         }
 

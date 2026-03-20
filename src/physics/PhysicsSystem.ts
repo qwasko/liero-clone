@@ -214,7 +214,6 @@ export class PhysicsSystem {
             // Direct hitDamage (flat, no falloff) — like Liero NObject.hitDamage
             if (proj.weapon.hitDamage) {
               worm.applyDamage(proj.weapon.hitDamage);
-              console.log(`[fragment hit worm] P${worm.playerId} hitDmg=${proj.weapon.hitDamage} weapon=${proj.weapon.id}`);
             }
             proj.active = false;
             proj.hitReason = 'worm';
