@@ -117,7 +117,13 @@ export class ParticleSystem {
       if (p.phase === Phase.FLYING) {
         p.life -= dt;
         if (p.life <= 0) {
-          // Ran out of life without hitting anything → impact in place
+          // Ran out of life → detonate in place (no free ride, every particle counts)
+          explosionSystem.detonate(
+            p.x, p.y,
+            PARTICLE_IMPACT_RADIUS,
+            PARTICLE_IMPACT_DAMAGE,
+            PARTICLE_IMPACT_SPLASH,
+          );
           this.toImpact(p);
           continue;
         }
