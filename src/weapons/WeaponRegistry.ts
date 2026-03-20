@@ -224,7 +224,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 0, projectileGravity: 0.7, projectileSize: 2, projectileColor: 0xff8833,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    hitDamage: 8,                                              // boosted from Liero hitDmg=2
+    hitDamage: 4,                                              // tuned from Liero hitDmg=2
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion
     ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 0,
   },
