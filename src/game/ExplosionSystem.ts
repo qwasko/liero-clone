@@ -20,20 +20,19 @@ export class ExplosionSystem {
     explosionRadius: number,
     splashDamage:    number,
     splashRadius:    number,
-    ownerId?:        1 | 2,  // if set, owner takes 50% damage
+    ownerId?:        1 | 2,
+    fullSelfDamage?: boolean, // true = no self-damage reduction (e.g. bazooka)
   ): void {
-    // Carve terrain (small crater)
     this.terrainDestroyer.carveCircle(x, y, explosionRadius);
 
-    // Damage uses splashRadius (Liero detectRange) — separate from carve radius.
-    // damage = splashDamage * (splashRadius - dist) / splashRadius
-    // 50% self-damage for owner's own explosions.
     for (const worm of this.worms) {
       const dist = Math.hypot(worm.x - x, worm.y - y);
       if (dist < splashRadius) {
         const power = splashRadius - dist;
         let dmg = Math.round(splashDamage * power / splashRadius);
-        if (ownerId !== undefined && worm.playerId === ownerId) dmg = Math.round(dmg * 0.5);
+        if (!fullSelfDamage && ownerId !== undefined && worm.playerId === ownerId) {
+          dmg = Math.round(dmg * 0.5);
+        }
         if (dmg > 0) {
           worm.applyDamage(dmg);
         }

@@ -40,7 +40,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 12,                                             // Liero: hitDmg=12
     chiquitaFragments: 12,                              // 12 splinters (particle__small_damage)
-    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
+    explosionRadius: 8, splashDamage: 50, splashRadius: 20,   // large_explosion, boosted damage
     ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 1071, loadingTimeMs: 5857,                 // Liero: delay=75, loadingTime=410
   },
@@ -224,7 +224,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 0, projectileGravity: 0.7, projectileSize: 2, projectileColor: 0xff8833,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    hitDamage: 2,                                              // Liero particle__small_damage: hitDmg=2
+    hitDamage: 8,                                              // boosted from Liero hitDmg=2
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion
     ammoPerMag: 1, totalAmmo: 0, infiniteAmmo: true, delayMs: 0, loadingTimeMs: 0,
   },

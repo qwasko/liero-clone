@@ -200,12 +200,14 @@ export class GameState {
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
+        const fullSelfDmg = proj.weapon.id === 'bazooka';
         this.explosionSystem.detonate(
           hitX, hitY,
           proj.weapon.explosionRadius,
           proj.weapon.splashDamage,
           proj.weapon.splashRadius,
           proj.ownerId,
+          fullSelfDmg,
         );
 
         // ── Cluster bomb: spray bomblets ──────────────────────────────
