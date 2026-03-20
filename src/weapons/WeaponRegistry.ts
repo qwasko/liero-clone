@@ -112,8 +112,8 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 400, projectileGravity: 0.12, projectileSize: 2, projectileColor: 0xffaa44,
     pellets: 15, spread: 0, distribution: 84,           // Liero 12000 → ~84 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    hitDamage: 1,                                              // Liero: hitDmg=1 per pellet
-    explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion
+    hitDamage: 4,                                              // direct pellet hit only, no splash
+    explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only
     ammoPerMag: 5, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 814, loadingTimeMs: 3357,                  // Liero: delay=57, loadingTime=235
   },
