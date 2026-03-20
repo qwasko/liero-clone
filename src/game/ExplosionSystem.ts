@@ -22,21 +22,17 @@ export class ExplosionSystem {
     splashRadius:    number,
     ownerId?:        1 | 2,  // if set, owner takes 50% damage
   ): void {
-    // Carve terrain
+    // Carve terrain (small crater)
     this.terrainDestroyer.carveCircle(x, y, explosionRadius);
 
-    // Damage falloff scales with explosion size: bigger blast → wider damage zone.
-    // effectiveRadius = craterRadius * 3, so an 8px fragment hurts within 24px
-    // and a 20px large_explosion hurts within 60px.
-    const effectiveRadius = Math.max(splashRadius, explosionRadius * 3);
-
-    // damage = splashDamage * (effectiveRadius - dist) / effectiveRadius
+    // Damage uses splashRadius (Liero detectRange) — separate from carve radius.
+    // damage = splashDamage * (splashRadius - dist) / splashRadius
     // 50% self-damage for owner's own explosions.
     for (const worm of this.worms) {
       const dist = Math.hypot(worm.x - x, worm.y - y);
-      if (dist < effectiveRadius) {
-        const power = effectiveRadius - dist;
-        let dmg = Math.round(splashDamage * power / effectiveRadius);
+      if (dist < splashRadius) {
+        const power = splashRadius - dist;
+        let dmg = Math.round(splashDamage * power / splashRadius);
         if (ownerId !== undefined && worm.playerId === ownerId) dmg = Math.round(dmg * 0.5);
         if (dmg > 0) {
           worm.applyDamage(dmg);

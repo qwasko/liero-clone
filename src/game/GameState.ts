@@ -204,6 +204,9 @@ export class GameState {
         if (isFragment) {
           console.log(`[fragment explode] ${proj.weapon.id} reason=${proj.hitReason} at ${Math.round(hitX)},${Math.round(hitY)}`);
         }
+        if (proj.weapon.chiquitaFragments) {
+          console.log(`[grenade explode] ${proj.weapon.id} carved R=${proj.weapon.explosionRadius}, damage R=${proj.weapon.splashRadius}, fragments=${proj.weapon.chiquitaFragments}`);
+        }
         this.explosionSystem.detonate(
           hitX, hitY,
           proj.weapon.explosionRadius,
@@ -270,7 +273,7 @@ export class GameState {
         const big = proj.weapon.explosionRadius >= 20;
         events.push({ type: 'sound_explosion', big });
         events.push({ type: 'screen_flash', alpha: big ? 0.18 : 0.08 });
-        events.push({ type: 'impact_ring', x: hitX, y: hitY, radius: proj.weapon.explosionRadius });
+        events.push({ type: 'impact_ring', x: hitX, y: hitY, radius: proj.weapon.splashRadius });
       },
     );
     this.activeProjectiles = this.activeProjectiles.filter(p => p.active);

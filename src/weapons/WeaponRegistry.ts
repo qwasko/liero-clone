@@ -11,7 +11,12 @@ import { WeaponDef } from './WeaponDef';
  *
  * Explosion damage uses Liero's distance-based formula:
  *   actualDamage = damage * (detectRange - distance) / detectRange
- *   splashRadius = detectRange (same as explosion radius for damage calc)
+ *   splashRadius = detectRange (damage falloff range, separate from carve radius)
+ *
+ * Liero explosion types (carve is texture-based ~16x16, approximated as radius):
+ *   large_explosion:  carve ~8px,  detectRange=20, damage=15
+ *   medium_explosion: carve ~6px,  detectRange=14, damage=10
+ *   small_explosion:  carve ~4px,  detectRange=8,  damage=5
  *
  * All ammo set to 10000 for testing.
  */
@@ -29,7 +34,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     chiquitaFragments: 12,                              // 12 splinters (particle__small_damage)
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 1200,
   },
 
@@ -43,7 +48,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 520, projectileGravity: 0.12, projectileSize: 2, projectileColor: 0xffee44,
     pellets: 1, spread: 0, distribution: 42,            // Liero 6000 → ~42 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    explosionRadius: 8, splashDamage: 5, splashRadius: 8,  // small_explosion on ground hit
+    explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 50,     // fires nearly every frame
   },
 
@@ -60,7 +65,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'bounce', maxBounces: 999, fuseMs: 1640,  // 115 frames @ 70fps ≈ 1640ms
     bouncePercent: 40,                                   // 40% velocity retained
     chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 1800,
   },
 
@@ -74,7 +79,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 400, projectileGravity: 0.12, projectileSize: 2, projectileColor: 0xffaa44,
     pellets: 15, spread: 0, distribution: 84,           // Liero 12000 → ~84 px/s
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    explosionRadius: 8, splashDamage: 5, splashRadius: 8,  // small_explosion
+    explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 1400,
   },
 
@@ -91,7 +96,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'bounce', maxBounces: 999, fuseMs: 5430,  // 380 frames @ 70fps ≈ 5430ms
     bouncePercent: 100,                                  // perfect elastic bounce
     chiquitaFragments: 5,
-    explosionRadius: 14, splashDamage: 10, splashRadius: 14,
+    explosionRadius: 6, splashDamage: 10, splashRadius: 14,  // medium_explosion: carve 6, detect 14
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 1600,
   },
 
@@ -123,7 +128,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'bounce', maxBounces: 999, fuseMs: 1930,  // 135 frames @ 70fps
     bouncePercent: 50,
     clusterWeapon: 'cluster_bomblet', clusterCount: 20, // 20 bomblets!
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 2000,
   },
 
@@ -140,7 +145,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0,
     behavior: 'bounce', maxBounces: 999, fuseMs: 430,         // ~30 frames @ 70fps; bounce until fuse
     bouncePercent: 40,
-    explosionRadius: 14, splashDamage: 10, splashRadius: 14,  // medium_explosion (carve+damage)
+    explosionRadius: 6, splashDamage: 10, splashRadius: 14,   // medium_explosion: carve 6, detect 14
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 
@@ -156,7 +161,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 56,            // Liero 8000
     behavior: 'mine', maxBounces: 0, fuseMs: 214000,    // 15000 frames ≈ 214s (essentially permanent)
     mineProximity: 22,
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,  // large_explosion
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 1500,
   },
 
@@ -173,7 +178,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'bounce', maxBounces: 999, fuseMs: 2140,  // 150 frames @ 70fps
     bouncePercent: 40,
     chiquitaFragments: 22,                               // 22 bomblets!
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoMax: 10000, infiniteAmmo: false, reloadMs: 2200,
   },
 
@@ -194,7 +199,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 0, projectileGravity: 0.15, projectileSize: 2, projectileColor: 0xffdd00,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
-    explosionRadius: 8, splashDamage: 5, splashRadius: 8,  // small_explosion (Liero-accurate)
+    explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 
@@ -210,7 +215,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0,
     behavior: 'bounce', maxBounces: 999, fuseMs: 430,         // ~30 frames @ 70fps; bounce until fuse
     bouncePercent: 40,
-    explosionRadius: 20, splashDamage: 15, splashRadius: 20,  // large_explosion! (carve+damage)
+    explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
 
