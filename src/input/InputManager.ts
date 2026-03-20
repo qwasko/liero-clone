@@ -42,7 +42,7 @@ export class InputManager {
       down:   keyboard.addKey(K.DOWN),
       jump:   keyboard.addKey(K.SHIFT),
       fire:   keyboard.addKey(K.CTRL),
-      change: keyboard.addKey(K.PERIOD),
+      change: keyboard.addKey(K.FORWARD_SLASH),
     };
 
     this.keys2 = {
