@@ -213,6 +213,10 @@ export class GameState {
             proj.ownerId,
             trailDef,
           );
+          // Small jitter so trail particles spread out
+          const jitter = 18;
+          trail.vx += (Math.random() * 2 - 1) * jitter;
+          trail.vy += (Math.random() * 2 - 1) * jitter;
           // Trail inherits parent's owner grace state
           trail.ownerGrace = Math.max(0, proj.ownerGrace);
           trailSpawns.push(trail);
