@@ -149,6 +149,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0, distribution: 0,
     behavior: 'bounce', maxBounces: 999, fuseMs: 8000,
     bouncePercent: 100,
+    ownerGraceMs: 857,                                   // 60 frames — no self-damage initially
     trailWeaponId: 'larpa_trail', trailIntervalMs: 114,  // every 8 frames @ 70fps
     chiquitaFragments: 8,
     explosionRadius: 10, splashDamage: 50, splashRadius: 20,

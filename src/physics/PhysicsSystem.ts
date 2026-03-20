@@ -158,6 +158,11 @@ export class PhysicsSystem {
         continue;
       }
 
+      // ── Owner grace countdown ────────────────────────────────────────
+      if (proj.ownerGrace > 0) {
+        proj.ownerGrace -= dt * 1000;
+      }
+
       // ── Proximity activation delay ─────────────────────────────────
       if (proj.proximityDelay > 0) {
         proj.proximityDelay -= dt * 1000;
@@ -223,8 +228,9 @@ export class PhysicsSystem {
         if (proj.weapon.wormCollide === false) {
           // no worm hit check — projectile flies through worms
         } else {
-        // Fragments hit ALL worms including owner — matching Liero NObject behavior.
-        const isFragment = proj.weapon.id === 'chiquita_fragment'
+        // Fragments and certain weapons hit ALL worms including owner.
+        // ownerGrace: while active, owner is still excluded even for these weapons.
+        const hitsAllWorms = proj.weapon.id === 'chiquita_fragment'
           || proj.weapon.id === 'bazooka_fragment'
           || proj.weapon.id === 'cluster_bomblet'
           || proj.weapon.id === 'chiquita_bomblet'
@@ -232,7 +238,8 @@ export class PhysicsSystem {
           || proj.weapon.id === 'larpa_trail';
         for (const worm of worms) {
           if (worm.isDead) continue;
-          if (!isFragment && worm.playerId === proj.ownerId) continue;
+          const isOwner = worm.playerId === proj.ownerId;
+          if (isOwner && (!hitsAllWorms || proj.ownerGrace > 0)) continue;
           if (
             Math.abs(tx - worm.x) < worm.width  / 2 + proj.weapon.projectileSize &&
             Math.abs(ty - worm.y) < worm.height / 2 + proj.weapon.projectileSize

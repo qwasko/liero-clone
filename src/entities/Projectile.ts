@@ -25,6 +25,9 @@ export class Projectile {
   /** Proximity activation delay (ms). While > 0, proximity trigger is inactive. */
   proximityDelay: number = 0;
 
+  /** Owner grace timer (ms). While > 0, owner is excluded from damage. */
+  ownerGrace: number = 0;
+
   /** Trail spawn timer (ms). Counts down; when ≤ 0 a trail particle is spawned and timer resets. */
   trailTimer: number = 0;
 
@@ -48,5 +51,6 @@ export class Projectile {
     this.weapon  = weapon;
     this.fuseTimer = weapon.fuseMs !== null ? weapon.fuseMs : null;
     this.proximityDelay = weapon.proximityDelayMs ?? 0;
+    this.ownerGrace = weapon.ownerGraceMs ?? 0;
   }
 }
