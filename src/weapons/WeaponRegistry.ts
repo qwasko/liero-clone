@@ -114,7 +114,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 4,                                              // direct pellet hit only, no splash
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only
-    ammoPerMag: 5, totalAmmo: 10000, infiniteAmmo: false,
+    ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 814, loadingTimeMs: 3357,                  // Liero: delay=57, loadingTime=235
   },
 
