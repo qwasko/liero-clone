@@ -227,7 +227,9 @@ export class PhysicsSystem {
         const isFragment = proj.weapon.id === 'chiquita_fragment'
           || proj.weapon.id === 'bazooka_fragment'
           || proj.weapon.id === 'cluster_bomblet'
-          || proj.weapon.id === 'chiquita_bomblet';
+          || proj.weapon.id === 'chiquita_bomblet'
+          || proj.weapon.id === 'larpa_v2'
+          || proj.weapon.id === 'larpa_trail';
         for (const worm of worms) {
           if (worm.isDead) continue;
           if (!isFragment && worm.playerId === proj.ownerId) continue;

@@ -222,7 +222,9 @@ export class GameState {
     this.physicsSystem.updateProjectiles(
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
-        const fullSelfDmg = proj.weapon.id === 'bazooka';
+        const fullSelfDmg = proj.weapon.id === 'bazooka'
+          || proj.weapon.id === 'larpa_v2'
+          || proj.weapon.id === 'larpa_trail';
 
         // larpa_trail on worm hit: large explosion instead of small
         const isTrailWormHit = proj.weapon.id === 'larpa_trail' && proj.hitReason === 'worm';
