@@ -139,11 +139,17 @@ export class PhysicsSystem {
     for (const proj of projectiles) {
       if (!proj.active) continue;
 
+      // ── Mine detach cooldown countdown ─────────────────────────────
+      if (proj.detachCooldown > 0) {
+        proj.detachCooldown -= dt * 1000;
+      }
+
       // ── Mine: deployed → check terrain, arm delay, proximity check ────
       if (proj.weapon.behavior === 'mine' && proj.deployed) {
         // All mines: detach if terrain at attachment point is destroyed
         if (!terrain.isSolid(proj.attachX, proj.attachY)) {
-          proj.deployed = false; // detach — fall through to movement code below
+          proj.deployed = false;
+          proj.detachCooldown = 430; // ~30 frames — must fall before re-attaching
         } else {
           // Count down timers while deployed
           if (proj.armTimer > 0) proj.armTimer -= dt * 1000;
@@ -281,15 +287,16 @@ export class PhysicsSystem {
         if (terrainHit) break;
         } // end wormCollide check
 
-        // ── Terrain hit (skip during grace period) ──────────────────
-        if (terrain.isSolid(tx, ty) && proj.terrainGrace <= 0) {
+        // ── Terrain hit (skip during grace period or mine detach cooldown) ─
+        const mineOnCooldown = proj.weapon.behavior === 'mine' && proj.detachCooldown > 0;
+        if (terrain.isSolid(tx, ty) && proj.terrainGrace <= 0 && !mineOnCooldown) {
           if (proj.weapon.behavior === 'bounce' && proj.bounceCount < proj.weapon.maxBounces) {
             this.bounceProjectile(proj, dx, dy);
           } else if (proj.weapon.behavior === 'zimm') {
             // Zimm: elastic infinite bounce off terrain, only explodes on worm hit
             this.bounceZimm(proj, dx, dy);
-          } else if (proj.weapon.behavior === 'mine' && !proj.deployed) {
-            // Mine: stop and deploy on first terrain contact
+          } else if (proj.weapon.behavior === 'mine' && !proj.deployed && proj.detachCooldown <= 0) {
+            // Mine: stop and deploy on terrain contact (blocked during detach cooldown)
             const len = Math.hypot(dx, dy);
             if (len > 0) {
               proj.x -= dx / len * 3;

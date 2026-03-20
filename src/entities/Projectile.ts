@@ -23,6 +23,9 @@ export class Projectile {
   /** Mine-only: ms remaining before the mine arms after deployment (avoids instant self-trigger). */
   armTimer: number = 0;
 
+  /** Mine: cooldown (ms) after detaching before re-attachment is allowed. */
+  detachCooldown: number = 0;
+
   /** Grace period (seconds) during which terrain collisions are ignored. Used by fragments spawning inside craters. */
   terrainGrace: number = 0;
 

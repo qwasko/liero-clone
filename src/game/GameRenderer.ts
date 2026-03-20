@@ -56,8 +56,8 @@ export class GameRenderer {
     for (const proj of projectiles) {
       if (!proj.active) continue;
 
-      // ── Mine: deployed → distinct visuals per type ────────────────
-      if (proj.weapon.behavior === 'mine' && proj.deployed) {
+      // ── Mine: deployed or falling → distinct visuals per type ─────
+      if (proj.weapon.behavior === 'mine' && (proj.deployed || proj.detachCooldown > 0)) {
         if (proj.weapon.id === 'sticky_mine') {
           // Sticky mine: small red square with X mark
           g.fillStyle(0xff4400, 1);
