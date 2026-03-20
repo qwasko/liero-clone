@@ -291,6 +291,12 @@ export class PhysicsSystem {
     proj.bounceCount++;
     proj.x -= Math.sign(dx) * 2;
     proj.y -= Math.sign(dy) * 2;
+
+    // Stop micro-bouncing: if total speed is negligible, freeze in place
+    if (Math.hypot(proj.vx, proj.vy) < 20) {
+      proj.vx = 0;
+      proj.vy = 0;
+    }
   }
 
   /** Zimm: elastic (no dampen) infinite bounce — terrain never detonates it. */
