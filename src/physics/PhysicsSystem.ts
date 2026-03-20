@@ -261,9 +261,9 @@ export class PhysicsSystem {
         }
       }
 
-      // Detached mines always fall with full gravity regardless of weapon's projectileGravity
-      const grav = (proj.weapon.behavior === 'mine' && proj.detachCooldown > 0)
-        ? 1.0 : proj.weapon.projectileGravity;
+      // Falling mines (not deployed) always use full gravity regardless of weapon's projectileGravity
+      const isFallingMine = proj.weapon.behavior === 'mine' && !proj.deployed && proj.weapon.projectileGravity === 0;
+      const grav = isFallingMine ? 1.0 : proj.weapon.projectileGravity;
       proj.vy += GRAVITY * grav * dt;
 
       // Ground friction for bounce weapons resting on terrain
