@@ -28,7 +28,6 @@ export class GameScene extends Phaser.Scene {
 
   // Phaser display layers
   private wormLayer!: Phaser.GameObjects.Graphics;
-  private particleLayer!: Phaser.GameObjects.Graphics;
   private overlayGraphics!: Phaser.GameObjects.Graphics;
   private flashRect!: Phaser.GameObjects.Rectangle;
 
@@ -109,7 +108,6 @@ export class GameScene extends Phaser.Scene {
     this.p2Camera.startFollow(this.cameraFocusP2);
 
     // ── Overlay layers ───────────────────────────────────────────────────
-    this.particleLayer   = this.add.graphics().setDepth(9);
     this.overlayGraphics = this.add.graphics().setDepth(10);
 
     // Screen-space flash (covers full screen via HUD camera)
@@ -133,7 +131,6 @@ export class GameScene extends Phaser.Scene {
     const worldObjects: Phaser.GameObjects.GameObject[] = [
       this.terrainRenderer.image,
       this.wormLayer,
-      this.particleLayer,
       this.overlayGraphics,
       this.cameraFocusP1,
       this.cameraFocusP2,
@@ -185,7 +182,7 @@ export class GameScene extends Phaser.Scene {
     const state = this.gameState;
 
     this.gameRenderer.drawWorms(this.wormLayer, state.worms);
-    this.particleLayer.clear();
+
 
     this.overlayGraphics.clear();
     state.ropeSystem.draw(this.overlayGraphics);
