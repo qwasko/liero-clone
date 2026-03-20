@@ -169,8 +169,15 @@ export class PhysicsSystem {
         }
       }
 
-      // Tick down terrain grace period (fragments spawning inside craters)
-      if (proj.terrainGrace > 0) proj.terrainGrace -= dt;
+      // Terrain grace: fragments spawn inside craters and need to escape.
+      // Grace ends early once the fragment reaches air (prevents tunneling).
+      if (proj.terrainGrace > 0) {
+        if (!terrain.isSolid(proj.x, proj.y)) {
+          proj.terrainGrace = 0;  // reached air — enable terrain collision
+        } else {
+          proj.terrainGrace -= dt;
+        }
+      }
 
       proj.vy += GRAVITY * proj.weapon.projectileGravity * dt;
 
