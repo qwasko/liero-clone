@@ -44,6 +44,9 @@ export interface WeaponDef {
   // Mine: proximity trigger radius in px (behavior === 'mine' only)
   readonly mineProximity?: number;
 
+  // Direct hit damage (flat, no falloff — applied on worm collision before explosion)
+  readonly hitDamage?:       number;
+
   // Explosion
   readonly explosionRadius: number;
   readonly splashDamage:    number;

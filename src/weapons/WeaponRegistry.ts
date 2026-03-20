@@ -145,6 +145,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0,
     behavior: 'bounce', maxBounces: 999, fuseMs: 430,         // ~30 frames @ 70fps; bounce until fuse
     bouncePercent: 40,
+    hitDamage: 1,                                              // Liero clusterbomb_bombs: hitDmg=1
     explosionRadius: 6, splashDamage: 10, splashRadius: 14,   // medium_explosion: carve 6, detect 14
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
@@ -199,6 +200,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 0, projectileGravity: 0.15, projectileSize: 2, projectileColor: 0xffdd00,
     pellets: 1, spread: 0,
     behavior: 'normal', maxBounces: 0, fuseMs: null,
+    hitDamage: 4,                                              // Liero particle__larger_damage: hitDmg=4
     explosionRadius: 4, splashDamage: 5, splashRadius: 8,   // small_explosion: carve 4, detect 8
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
@@ -215,6 +217,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     pellets: 1, spread: 0,
     behavior: 'bounce', maxBounces: 999, fuseMs: 430,         // ~30 frames @ 70fps; bounce until fuse
     bouncePercent: 40,
+    hitDamage: 4,                                              // Liero chiquitabomb_bombs: hitDmg=4
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion: carve 8, detect 20
     ammoMax: 0, infiniteAmmo: true, reloadMs: 0,
   },
