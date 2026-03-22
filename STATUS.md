@@ -96,8 +96,9 @@
   — they use generic fire/explosion audio
 - Diagnostic console.log still active in ExplosionSystem, GameState, ParticleSystem
   — remove before release
+- AI bot not yet tested in-game — may need tuning (aim, fire timing, movement)
 
-## STOPPED HERE — session 2026-03-22
+## STOPPED HERE — end of session 2026-03-22
 
 ### Last completed
 - AI bot opponent Phase 1: vision-limited controller with HUNT/SEARCH/EXPLORE states
