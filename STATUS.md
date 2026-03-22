@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: AI tactical intelligence — threat scoring, suppression, weapon tactics
+## Last completed: AI dead angle fix + stalemate detection
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -123,7 +123,16 @@
     - Checks for ceiling within 150px before attempting
     - Sequence: fire → wait 20-30 frames → launch rope → swing away from enemy
     - Probability: Easy 15%, Medium 45%, Hard 75%
-  - Dead angle escape: strafes out when enemy is in aim dead zone
+  - **Dead angle below — committed tactic system**:
+    - Detects enemy below in aim dead zone, picks tactic and commits 2-3s
+    - Priority: a) strafe 50-80px, b) zimm wall bounce if enclosed, c) rope reposition, d) Hard-only grenade drop
+    - Reaction delay: Easy 2s, Medium 1s, Hard 0.3s
+    - Finds nearest wall for zimm bounce angle
+  - **Stalemate detection — action fail timer**:
+    - Tracks frames of shooting at obstacle with no enemy damage
+    - After threshold: marks direction as failed for 5s, forces weapon switch, reverses approach
+    - Stalemate threshold: Easy 180f (3s), Medium 90f (1.5s), Hard 45f (0.75s)
+    - On stalemate: tries rope for different angle, never shoots at rock again
   - 3 difficulty presets with full tuning:
     - Easy: 0.8× vision, 30f delay, ±15°, slow reactions, ~50% rule adherence
     - Medium: 1.0× vision, 15f delay, ±7°, human-like mistakes, ~70% rules
@@ -140,13 +149,9 @@
 ## STOPPED HERE — end of session 2026-03-22
 
 ### Last completed
-- Threat scoring: per-projectile danger evaluation with Critical/Moderate/Low tiers
-- Suppression detection: HP tracking + no-LOS + no-shot-frames → REPOSITION state
-- Grenade trajectory intuition: steep-angle rejection, difficulty-scaled awareness
-- Full tactical weapon selection: positional, obstacle, and approach-aware choices
-- Proximity grenade & larpa tactical usage rules with tacticalWeaponAccuracy scaling
-- Danger escape: critical threat → flee toward cover, rope to ceiling if available
-- Moderate threat sidestep: perpendicular dodge while maintaining attack
+- Dead angle below: committed tactic system (strafe/zimm/rope/drop) with difficulty-scaled reaction delay
+- Stalemate detection: action fail timer forces direction reversal, weapon switch, rope reroute
+- New AIDifficulty fields: actionFailFrames, deadAngleReactionDelay
 - New AIDifficulty fields: trajectoryAwareness, suppressionDelay, tacticalWeaponAccuracy
 
 ### Next task to start

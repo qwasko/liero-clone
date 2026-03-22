@@ -34,6 +34,10 @@ export interface AIDifficulty {
   readonly suppressionDelay: number;
   /** 0-1: probability of using proximity grenade / larpa in correct situations. */
   readonly tacticalWeaponAccuracy: number;
+  /** Frames of shooting at obstacle with no result before forcing tactic change. */
+  readonly actionFailFrames: number;
+  /** Seconds before dead angle reaction kicks in. */
+  readonly deadAngleReactionDelay: number;
 }
 
 export const AI_DIFFICULTIES: Record<string, AIDifficulty> = {
@@ -42,18 +46,21 @@ export const AI_DIFFICULTIES: Record<string, AIDifficulty> = {
     digStuckThreshold: 30, useRope: false, weaponSelectAccuracy: 0.5,
     selfDamageAwareness: 0.9, escapeRopeProbability: 0.15,
     trajectoryAwareness: 0.4, suppressionDelay: 3.0, tacticalWeaponAccuracy: 0.3,
+    actionFailFrames: 180, deadAngleReactionDelay: 2.0,
   },
   medium: {
     label: 'Medium', visionMultiplier: 1.0, reactionFrames: 15, aimJitter: 7 * Math.PI / 180,
     digStuckThreshold: 10, useRope: true, weaponSelectAccuracy: 0.75,
     selfDamageAwareness: 0.6, escapeRopeProbability: 0.45,
     trajectoryAwareness: 0.75, suppressionDelay: 2.0, tacticalWeaponAccuracy: 0.65,
+    actionFailFrames: 90, deadAngleReactionDelay: 1.0,
   },
   hard: {
     label: 'Hard', visionMultiplier: 6, reactionFrames: 5, aimJitter: 2 * Math.PI / 180,
     digStuckThreshold: 6, useRope: true, weaponSelectAccuracy: 0.95,
     selfDamageAwareness: 0.3, escapeRopeProbability: 0.75,
     trajectoryAwareness: 0.95, suppressionDelay: 1.0, tacticalWeaponAccuracy: 0.9,
+    actionFailFrames: 45, deadAngleReactionDelay: 0.3,
   },
 };
 
@@ -216,6 +223,18 @@ export class AIController {
   private suppressionTimer = 0; // seconds in suppression state
   private dangerEscapeActive = false; // critical threat override
 
+  // ── Dead angle committed action ──────────────────────────────────
+  private deadAngleTimer = 0; // seconds in dead angle situation
+  private deadAngleTactic: 'none' | 'strafe' | 'zimm' | 'rope' | 'drop' = 'none';
+  private deadAngleStrafeDir: -1 | 1 = 1;
+  private deadAngleTacticTimer = 0; // seconds committed to current tactic
+
+  // ── Action fail / stalemate detection ────────────────────────────
+  private actionFailFrames = 0; // frames of ineffective obstacle shooting
+  private lastEnemyHp = 100; // track if we're dealing damage
+  private failedTacticCooldown = 0; // seconds before retrying failed approach
+  private failedDirection: -1 | 0 | 1 = 0; // direction that was marked as failed
+
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
     this.exploreTimer = this.randomExploreTime();
@@ -340,10 +359,39 @@ export class AIController {
     this.exploreJumpCooldown = Math.max(0, this.exploreJumpCooldown - dt);
     this.ropeCooldown = Math.max(0, this.ropeCooldown - dt);
     this.weaponCycleCooldown = Math.max(0, this.weaponCycleCooldown - dt);
+    this.failedTacticCooldown = Math.max(0, this.failedTacticCooldown - dt);
     this.jitterChangeTimer = Math.max(0, this.jitterChangeTimer - dt);
     if (this.jitterChangeTimer <= 0) {
       this.currentAimJitter = this.randomJitter();
       this.jitterChangeTimer = 0.8 + Math.random() * 1.2;
+    }
+
+    // ── Dead angle timer ───────────────────────────────────────────
+    if (delayed.inDeadAngle && delayed.enemyBelow) {
+      this.deadAngleTimer += dt;
+    } else {
+      this.deadAngleTimer = 0;
+      this.deadAngleTactic = 'none';
+      this.deadAngleTacticTimer = 0;
+    }
+
+    // ── Stalemate detection ────────────────────────────────────────
+    // Track if shooting at obstacle with no result
+    const enemyTookDamage = enemy.hp < this.lastEnemyHp;
+    this.lastEnemyHp = enemy.hp;
+    if (!delayed.hasLineOfSight && delayed.enemyVisible && !enemyTookDamage) {
+      this.actionFailFrames++;
+    } else {
+      this.actionFailFrames = 0;
+    }
+    // Force tactic change on stalemate
+    if (this.actionFailFrames >= this.difficulty.actionFailFrames) {
+      this.actionFailFrames = 0;
+      this.failedDirection = delayed.enemyX > self.x ? 1 : -1;
+      this.failedTacticCooldown = 5.0;
+      // Force weapon switch
+      this.weaponCycleCooldown = 0;
+      this.weaponCycleTarget = -1;
     }
 
     // ── DANGER: critical threat override ─────────────────────────────
@@ -632,6 +680,109 @@ export class AIController {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  DEAD ANGLE BELOW — committed tactic to deal with enemy below aim range
+  // ════════════════════════════════════════════════════════════════════════
+
+  private doDeadAngleBelow(
+    self: Worm, perception: AIPerception, loadout: Loadout,
+    terrain: TerrainMap,
+  ): InputState {
+    const input = emptyInputState();
+
+    // Commit to current tactic for 2-3s, then try next
+    this.deadAngleTacticTimer += 1 / 60; // approximate frame time
+    const tacticDuration = 2.0 + Math.random() * 1.0;
+
+    if (this.deadAngleTactic === 'none' || this.deadAngleTacticTimer > tacticDuration) {
+      // Pick next tactic in priority order
+      this.deadAngleTacticTimer = 0;
+      this.deadAngleTactic = this.pickDeadAngleTactic(self, perception, loadout, terrain);
+      this.deadAngleStrafeDir = Math.random() < 0.5 ? -1 : 1;
+    }
+
+    switch (this.deadAngleTactic) {
+      case 'strafe': {
+        // Move horizontally 50-80px to shift enemy out of dead angle
+        if (this.deadAngleStrafeDir > 0) input.right = true; else input.left = true;
+        // Aim as far down as possible while moving
+        if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
+        // Fire while strafing — projectile gravity helps
+        this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
+        break;
+      }
+      case 'zimm': {
+        // Fire zimm at nearby wall to bounce down toward enemy
+        this.startWeaponCycle(loadout, WEAPON_IDX.zimm);
+        // Aim toward nearest wall
+        const wallDir = this.findNearestWallDir(self, terrain);
+        if (wallDir > 0) input.right = true; else input.left = true;
+        if (self.aimAngle > 0) input.down = true; else input.up = true;
+        this.applyFire(input, 0.2, loadout, self, terrain, perception.enemyDist);
+        break;
+      }
+      case 'rope': {
+        // Rope to reposition to a different height
+        return this.doRopeLaunch(self);
+      }
+      case 'drop': {
+        // Hard bot only: drop grenade straight down, accepting self-damage risk
+        this.startWeaponCycle(loadout, WEAPON_IDX.grenade);
+        if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
+        // Fire even though it might damage us
+        if (this.fireCooldown <= 0 && loadout.canFire()) {
+          input.fire = true;
+          this.fireCooldown = 0.5;
+        }
+        // Move away immediately after firing
+        if (this.deadAngleStrafeDir > 0) input.right = true; else input.left = true;
+        break;
+      }
+      default:
+        // Fallback: just strafe
+        if (this.deadAngleStrafeDir > 0) input.right = true; else input.left = true;
+    }
+
+    return input;
+  }
+
+  /** Pick the best dead-angle-below tactic based on context. */
+  private pickDeadAngleTactic(
+    self: Worm, _perception: AIPerception, _loadout: Loadout,
+    terrain: TerrainMap,
+  ): 'strafe' | 'zimm' | 'rope' | 'drop' {
+    // Priority a) strafe out of dead zone (always available)
+    // Priority b) zimm bounce if enclosed space
+    // Priority c) rope if ceiling available
+    // Priority d) hard bot only: grenade drop
+
+    if (this.isEnclosed(self, terrain, 100)) {
+      return 'zimm'; // enclosed: bounce off walls
+    }
+    if (this.difficulty.useRope && this.ropeCooldown <= 0 &&
+        this.hasCeilingAbove(self, terrain, 150)) {
+      return 'rope'; // open space with ceiling: reposition via rope
+    }
+    if (this.difficulty.label === 'Hard' && Math.random() < 0.3) {
+      return 'drop'; // Hard bot: occasionally accept self-damage
+    }
+    return 'strafe'; // default: walk sideways
+  }
+
+  /** Find which horizontal direction has the nearest wall for zimm bounce. */
+  private findNearestWallDir(self: Worm, terrain: TerrainMap): -1 | 1 {
+    let leftDist = 200, rightDist = 200;
+    for (let d = 5; d < 200; d += 5) {
+      if (leftDist === 200 && terrain.isSolid(Math.round(self.x - d), Math.round(self.y))) {
+        leftDist = d;
+      }
+      if (rightDist === 200 && terrain.isSolid(Math.round(self.x + d), Math.round(self.y))) {
+        rightDist = d;
+      }
+    }
+    return leftDist < rightDist ? -1 : 1;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  ENGAGE — enemy visible, in range, has LOS → shoot primarily
   // ════════════════════════════════════════════════════════════════════════
 
@@ -643,18 +794,17 @@ export class AIController {
     const dx = perception.enemyX - self.x;
     const dy = perception.enemyY - self.y;
 
-    // ── Dead angle escape ────────────────────────────────────────────
-    if (perception.inDeadAngle) {
-      if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
-        const escapeDir = self.facingRight ? 1 : -1;
-        if (escapeDir > 0) input.right = true; else input.left = true;
-        if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-        this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
-        return input;
+    // ── Dead angle below — committed tactic system ───────────────────
+    if (perception.inDeadAngle && perception.enemyBelow) {
+      if (this.deadAngleTimer >= this.difficulty.deadAngleReactionDelay) {
+        return this.doDeadAngleBelow(self, perception, loadout, terrain);
       }
-      if (dy < 0 && Math.abs(dx) < 10) {
-        input.right = true;
-      }
+      // Below reaction delay: stand still briefly (human hesitation)
+      return input;
+    }
+    // Enemy directly above but very close — nudge sideways
+    if (perception.inDeadAngle && dy < 0 && Math.abs(dx) < 10) {
+      input.right = true;
     }
 
     // ── Moderate threat sidestep ─────────────────────────────────────
@@ -706,13 +856,12 @@ export class AIController {
     const dx = perception.enemyX - self.x;
     const dy = perception.enemyY - self.y;
 
-    // ── Dead angle escape ────────────────────────────────────────────
-    if (perception.inDeadAngle && Math.abs(dy) > Math.abs(dx) && dy > 0) {
-      const escapeDir = self.facingRight ? 1 : -1;
-      if (escapeDir > 0) input.right = true; else input.left = true;
-      if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-      this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
-      return input;
+    // ── Dead angle below — committed tactic system ───────────────────
+    if (perception.inDeadAngle && perception.enemyBelow) {
+      if (this.deadAngleTimer >= this.difficulty.deadAngleReactionDelay) {
+        return this.doDeadAngleBelow(self, perception, loadout, terrain);
+      }
+      return input; // hesitation before reacting
     }
 
     // ── Moderate threat sidestep ─────────────────────────────────────
@@ -755,13 +904,24 @@ export class AIController {
       }
     }
 
-    // ── Move toward enemy ────────────────────────────────────────────
+    // ── Move toward enemy (stalemate-aware) ─────────────────────────
+    let moveDir: -1 | 1 = dx > 0 ? 1 : -1;
+
+    // If current direction was marked as failed (stalemate), go around
+    if (this.failedTacticCooldown > 0 && moveDir === this.failedDirection) {
+      moveDir = (moveDir * -1) as -1 | 1; // reverse direction
+      // Also try rope for a completely different approach angle
+      if (this.difficulty.useRope && !hasRope && !hasHook &&
+          this.ropeCooldown <= 0 && this.hasCeilingAbove(self, terrain, 200)) {
+        return this.doRopeLaunch(self);
+      }
+    }
+
     if (Math.abs(dx) > 20) {
-      if (dx > 0) input.right = true; else input.left = true;
+      if (moveDir > 0) input.right = true; else input.left = true;
     }
 
     // ── Navigation ───────────────────────────────────────────────────
-    const moveDir: -1 | 1 = dx > 0 ? 1 : -1;
     const blocked = this.isBlockedHorizontally(self, terrain, moveDir);
     if (blocked) {
       this.applyNavigation(self, input, terrain, moveDir);
@@ -773,6 +933,7 @@ export class AIController {
     }
 
     // ── Fire: LOS clear OR dirt obstacle we can shoot through ────────
+    // Skip firing at rock obstacles (stalemate prevention)
     if (perception.hasLineOfSight ||
         (perception.blockType === 'dirt' && perception.blockThickness < 50)) {
       this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
