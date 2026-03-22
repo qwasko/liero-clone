@@ -262,6 +262,9 @@ export class PhysicsSystem {
       const grav = isFallingMine ? 1.0 : proj.weapon.projectileGravity;
       proj.vy += GRAVITY * grav * dt;
 
+      // Zimm stuck detection (runs every frame)
+      if (proj.weapon.behavior === 'zimm') this.checkZimmStuck(proj);
+
       // Ground friction for bounce weapons resting on terrain
       if (proj.weapon.behavior === 'bounce' && terrain.isSolid(proj.x, proj.y + 2)) {
         if (Math.abs(proj.vy) < 50) proj.vy = 0;
@@ -405,18 +408,44 @@ export class PhysicsSystem {
 
   /** Zimm: elastic (no dampen) infinite bounce — terrain never detonates it. */
   private bounceZimm(proj: Projectile, dx: number, dy: number): void {
+    // Reflect velocity
     if (Math.abs(dx) >= Math.abs(dy)) {
       proj.vx = -proj.vx;
+      proj.x -= Math.sign(dx) * 3;
     } else {
       proj.vy = -proj.vy;
+      proj.y -= Math.sign(dy) * 3;
     }
-    proj.x -= Math.sign(dx) * 3;
-    proj.y -= Math.sign(dy) * 3;
 
-    // Tiny angle jitter (±~2°) to break resonance loops
+    // Angle jitter (±~5°) to break resonance loops
     const speed = Math.hypot(proj.vx, proj.vy);
-    proj.vx += (Math.random() * 2 - 1) * 0.03 * speed;
-    proj.vy += (Math.random() * 2 - 1) * 0.03 * speed;
+    proj.vx += (Math.random() * 2 - 1) * 0.08 * speed;
+    proj.vy += (Math.random() * 2 - 1) * 0.08 * speed;
+  }
+
+  /** Zimm stuck detection: track positions, kick if trapped. */
+  private checkZimmStuck(proj: Projectile): void {
+    proj.posHistory.push({ x: proj.x, y: proj.y });
+    if (proj.posHistory.length > 10) proj.posHistory.shift();
+
+    if (proj.posHistory.length >= 10) {
+      const cx = proj.posHistory.reduce((s, p) => s + p.x, 0) / 10;
+      const cy = proj.posHistory.reduce((s, p) => s + p.y, 0) / 10;
+      const allClose = proj.posHistory.every(
+        p => Math.hypot(p.x - cx, p.y - cy) < 20
+      );
+      if (allClose) {
+        proj.stuckFrames++;
+        if (proj.stuckFrames >= 30) {
+          proj.vx += (Math.random() - 0.5) * 200;
+          proj.vy += (Math.random() - 0.5) * 200;
+          proj.posHistory.length = 0;
+          proj.stuckFrames = 0;
+        }
+      } else {
+        proj.stuckFrames = 0;
+      }
+    }
   }
 
   // ── Phase 1 fallback: solid floor at bottom ────────────────────────

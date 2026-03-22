@@ -40,6 +40,11 @@ export class Projectile {
   /** Trail spawn timer (ms). Counts down; when ≤ 0 a trail particle is spawned and timer resets. */
   trailTimer: number = 0;
 
+  /** Zimm stuck detection: circular buffer of recent positions. */
+  posHistory: { x: number; y: number }[] = [];
+  /** Zimm stuck detection: frames spent within a small radius. */
+  stuckFrames: number = 0;
+
   /** Set by PhysicsSystem just before onHit — reason for detonation. */
   hitReason: 'terrain' | 'worm' | 'timer' | 'oob' = 'terrain';
 
