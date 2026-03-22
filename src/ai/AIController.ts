@@ -218,6 +218,13 @@ export class AIController {
   private suppressionTimer = 0; // seconds in suppression state
   private dangerEscapeActive = false; // critical threat override
 
+  // ── Explosive burn learning ──────────────────────────────────────
+  /** Seconds remaining where bot forces safe weapons after upward self-damage. */
+  private explosiveBurnCooldown = 0;
+  /** Tracks self-damage from upward explosive shots in last 3s. */
+  private upwardSelfDamage = 0;
+  private upwardDamageDecay = 0;
+
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
     this.exploreTimer = this.randomExploreTime();
@@ -271,7 +278,10 @@ export class AIController {
 
     // ── Track damage for suppression ─────────────────────────────────
     const hpDelta = this.lastHp - self.hp;
-    if (hpDelta > 0) this.recentDamage += hpDelta;
+    if (hpDelta > 0) {
+      this.recentDamage += hpDelta;
+      this.upwardSelfDamage += hpDelta;
+    }
     this.lastHp = self.hp;
     // Decay damage accumulator over 2s window
     this.damageDecayTimer += dt;
@@ -279,6 +289,18 @@ export class AIController {
       this.recentDamage = Math.max(0, this.recentDamage - 4);
       this.damageDecayTimer = 0;
     }
+    // Decay upward self-damage over 3s window
+    this.upwardDamageDecay += dt;
+    if (this.upwardDamageDecay >= 0.5) {
+      this.upwardSelfDamage = Math.max(0, this.upwardSelfDamage - 3);
+      this.upwardDamageDecay = 0;
+    }
+    // "Learn" from mistake: force safe weapons after heavy upward self-damage
+    if (this.upwardSelfDamage > 20 && this.explosiveBurnCooldown <= 0) {
+      this.explosiveBurnCooldown = 5.0;
+      this.upwardSelfDamage = 0;
+    }
+    this.explosiveBurnCooldown = Math.max(0, this.explosiveBurnCooldown - dt);
 
     // Track frames without effective shot
     if (delayed.hasLineOfSight && delayed.enemyVisible) {
@@ -666,7 +688,7 @@ export class AIController {
     }
 
     // ── Weapon selection ─────────────────────────────────────────────
-    this.maybeSelectWeapon(loadout, perception);
+    this.maybeSelectWeapon(loadout, perception, self, terrain);
 
     // ── Aim toward enemy ─────────────────────────────────────────────
     const desiredAngle = perception.enemyAngle + this.currentAimJitter;
@@ -724,7 +746,7 @@ export class AIController {
     }
 
     // ── Weapon selection (full tactical ruleset) ─────────────────────
-    this.maybeSelectWeapon(loadout, perception);
+    this.maybeSelectWeapon(loadout, perception, self, terrain);
 
     // ── Aim toward enemy (with ballistic lob for grenades at range) ──
     let desiredAngle = perception.enemyAngle + this.currentAimJitter;
@@ -996,7 +1018,7 @@ export class AIController {
   //  Weapon selection — full tactical ruleset
   // ════════════════════════════════════════════════════════════════════════
 
-  private maybeSelectWeapon(loadout: Loadout, perception: AIPerception): void {
+  private maybeSelectWeapon(loadout: Loadout, perception: AIPerception, self: Worm, terrain: TerrainMap): void {
     if (this.weaponCycleTarget >= 0 || this.weaponCycleCooldown > 0) return;
     if (Math.random() > this.difficulty.weaponSelectAccuracy) return;
 
@@ -1027,14 +1049,32 @@ export class AIController {
         target = Math.random() < 0.5 ? WEAPON_IDX.larpa : WEAPON_IDX.grenade;
       }
     }
-    // ── Enemy above (>45° upward angle) ──────────────────────────────
+    // ── Enemy above (>45° upward angle) — clearance-aware ────────────
     else if (perception.enemyAbove && hasLOS) {
-      // Prefer bazooka (flies straight) and minigun (rapid accurate)
-      // Avoid grenades — they'll fall back on us
-      if (dist < RANGE_CLOSE) {
+      // Burned by self-damage recently → safe weapons only
+      if (this.explosiveBurnCooldown > 0) {
+        target = Math.random() < 0.6 ? WEAPON_IDX.minigun : WEAPON_IDX.shotgun;
+      } else if (dist < RANGE_CLOSE) {
         target = Math.random() < 0.7 ? WEAPON_IDX.shotgun : WEAPON_IDX.minigun;
       } else {
-        target = Math.random() < 0.7 ? WEAPON_IDX.bazooka : WEAPON_IDX.minigun;
+        // Check vertical clearance for explosive safety
+        const clearance = this.scanVerticalClearance(self, terrain);
+        if (clearance < 100) {
+          // Tight tunnel — no explosives upward
+          target = Math.random() < 0.6 ? WEAPON_IDX.minigun : WEAPON_IDX.shotgun;
+        } else if (dist > RANGE_MEDIUM) {
+          // Far + open: bazooka, maybe grenade if very far and escape route exists
+          const hasEscapeRoute = !this.isBlockedHorizontally(self, terrain, 1) ||
+                                 !this.isBlockedHorizontally(self, terrain, -1);
+          if (hasEscapeRoute && Math.random() < 0.3) {
+            target = WEAPON_IDX.grenade;
+          } else {
+            target = Math.random() < 0.7 ? WEAPON_IDX.bazooka : WEAPON_IDX.minigun;
+          }
+        } else {
+          // Medium range + open: bazooka preferred
+          target = Math.random() < 0.7 ? WEAPON_IDX.bazooka : WEAPON_IDX.minigun;
+        }
       }
     }
     // ── Enemy below (near dead angle) ────────────────────────────────
@@ -1167,32 +1207,59 @@ export class AIController {
   ): boolean {
     if (!EXPLOSIVE_WEAPONS.has(weapon.id)) return true;
 
+    // Burned by self-damage → force safe weapons
+    if (this.explosiveBurnCooldown > 0) return false;
+
     // Difficulty scaling: less cautious bots skip the check sometimes
     if (Math.random() > this.difficulty.selfDamageAwareness) return true;
 
     // Tunnel/enclosed space: avoid ALL explosives
     if (this.isEnclosed(self, terrain, weapon.splashRadius)) return false;
 
-    // ── Grenade trajectory intuition ─────────────────────────────────
+    // ── Upward explosive clearance check ──────────────────────────────
+    if (self.aimAngle < -Math.PI / 6) { // aiming >30° upward
+      const clearance = this.scanVerticalClearance(self, terrain);
+      // Difficulty error: sometimes get the estimate wrong
+      const errorRates: Record<string, number> = { Easy: 0.5, Medium: 0.25, Hard: 0.08 };
+      const errorRate = errorRates[this.difficulty.label] ?? 0.25;
+      const estimateCorrect = Math.random() > errorRate;
+
+      if (estimateCorrect) {
+        // Tight tunnel: no explosives upward
+        if (clearance < 100) return false;
+
+        // Check if explosion at estimated position would reach bot
+        const landDist = this.estimateLandingDist(self, weapon);
+        if (landDist < weapon.splashRadius * 1.5) return false;
+
+        // Grenade-specific: only allow at long range with escape route
+        if (GRENADE_WEAPONS.has(weapon.id)) {
+          if (self.aimAngle < -Math.PI / 3) {
+            // Steep upward grenade: Hard bot allows if far enough
+            if (this.difficulty.label === 'Hard' && landDist > 200) {
+              return true;
+            }
+            return false;
+          }
+          // Medium lob: require >250px and escape route
+          if (enemyDist < RANGE_MEDIUM) return false;
+          const hasEscape = !this.isBlockedHorizontally(self, terrain, 1) ||
+                            !this.isBlockedHorizontally(self, terrain, -1);
+          if (!hasEscape) return false;
+        }
+      }
+      // If estimate was wrong (errorRate), fall through to standard checks
+    }
+
+    // ── Grenade trajectory intuition (non-upward) ─────────────────────
     if (GRENADE_WEAPONS.has(weapon.id) &&
         Math.random() < this.difficulty.trajectoryAwareness) {
-      const aimAbs = Math.abs(self.aimAngle);
-
-      // Steep upward (>60° above horizontal = aimAngle < -π/3 ≈ -1.05)
       if (self.aimAngle < -Math.PI / 3) {
-        // Grenade will arc back down near self
-        // Hard bot: allow if estimated landing is >200px away
         if (this.difficulty.label === 'Hard') {
           const landDist = this.estimateLandingDist(self, weapon);
-          if (landDist > 200) return true; // allow with caution
+          if (landDist > 200) return true;
         }
-        return false; // unsafe for Easy/Medium
-      }
-
-      // Medium upward (30-60° = aimAngle between -π/6 and -π/3)
-      if (self.aimAngle < -Math.PI / 6 && aimAbs < Math.PI / 3) {
-        // May bounce back — defer to standard self-damage estimate
-        // (fall through to distance check below)
+        return false;
       }
     }
 
@@ -1249,6 +1316,14 @@ export class AIController {
       if (terrain.isSolid(Math.round(self.x), Math.round(self.y - dy))) return true;
     }
     return false;
+  }
+
+  /** Scan upward from bot and return pixels of open space before hitting terrain. */
+  private scanVerticalClearance(self: Worm, terrain: TerrainMap): number {
+    for (let dy = 5; dy < 400; dy += 5) {
+      if (terrain.isSolid(Math.round(self.x), Math.round(self.y - dy))) return dy;
+    }
+    return 400;
   }
 
   // ════════════════════════════════════════════════════════════════════════
