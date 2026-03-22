@@ -145,13 +145,17 @@
 
 ## STOPPED HERE — end of session 2026-03-22
 
-### Last completed
+### This session completed
+- AI tactical intelligence overhaul (threat scoring, suppression, grenade intuition, weapon tactics)
+- Dead angle + stalemate fix attempted → reverted (broke bot globally) — needs incremental approach
 - Rope escape direction fix: fires away from grenade instead of toward it
 - Upward weapon selection: clearance scan, difficulty error rates, burn learning
 - Enemy-above branch: tight tunnel → safe weapons, open space → bazooka/grenade with escape check
 
 ### Next task to start
 - Test AI in-game and tune all new systems
+- Dead angle below fix (incremental — do NOT bundle with other changes)
+- Obstacle stalemate detection (incremental — separate commit)
 
 ## Possible next steps (not planned)
 - Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
