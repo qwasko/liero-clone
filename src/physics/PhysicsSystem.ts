@@ -412,6 +412,11 @@ export class PhysicsSystem {
     }
     proj.x -= Math.sign(dx) * 3;
     proj.y -= Math.sign(dy) * 3;
+
+    // Tiny angle jitter (±~2°) to break resonance loops
+    const speed = Math.hypot(proj.vx, proj.vy);
+    proj.vx += (Math.random() * 2 - 1) * 0.03 * speed;
+    proj.vy += (Math.random() * 2 - 1) * 0.03 * speed;
   }
 
   // ── Phase 1 fallback: solid floor at bottom ────────────────────────
