@@ -35,7 +35,7 @@ export const AI_DIFFICULTIES: Record<string, AIDifficulty> = {
     digStuckThreshold: 10, useRope: true, weaponSelectAccuracy: 0.75,
   },
   hard: {
-    label: 'Hard', visionMultiplier: 1.5, reactionFrames: 5, aimJitter: 2 * Math.PI / 180,
+    label: 'Hard', visionMultiplier: 6, reactionFrames: 5, aimJitter: 2 * Math.PI / 180,
     digStuckThreshold: 6, useRope: true, weaponSelectAccuracy: 0.95,
   },
 };
@@ -59,6 +59,12 @@ interface AIPerception {
   threats: Projectile[];
   /** True if a straight line from self to enemy is mostly unobstructed. */
   hasLineOfSight: boolean;
+  /** Type of obstacle blocking LOS: 'none', 'dirt' (diggable), 'rock', 'mixed'. */
+  blockType: 'none' | 'dirt' | 'rock' | 'mixed';
+  /** Approximate thickness of blocking terrain in pixels (0 if none). */
+  blockThickness: number;
+  /** True if the enemy angle falls in the worm's aim dead zone (below +π/3). */
+  inDeadAngle: boolean;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -260,6 +266,7 @@ export class AIController {
     const dx = ex - self.x;
     const dy = ey - self.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
 
     const threats = projectiles.filter(
       p => p.active && p.ownerId !== self.playerId && this.inRect(p.x, p.y, vision),
@@ -267,10 +274,32 @@ export class AIController {
 
     const hasLineOfSight = enemyVisible ? this.checkLOS(self.x, self.y, ex, ey, terrain) : false;
 
+    // Obstacle analysis
+    let blockType: 'none' | 'dirt' | 'rock' | 'mixed' = 'none';
+    let blockThickness = 0;
+    if (enemyVisible && !hasLineOfSight) {
+      const obs = this.probeObstacle(self.x, self.y, ex, ey, terrain);
+      blockType = obs.type;
+      blockThickness = obs.thickness;
+    }
+
+    // Dead angle: enemy angle (in worm-aim space) falls outside aimable range
+    // Worm can aim from -π/2 (up) to +π/3 (60° below horizontal)
+    // Check if the world angle, after facing conversion, would be clamped
+    const aimAngle = this.toWormAimAngle(self, angle);
+    const unclamped = self.facingRight ? angle : (() => {
+      let a = Math.PI - angle;
+      if (a > Math.PI) a -= 2 * Math.PI;
+      if (a < -Math.PI) a += 2 * Math.PI;
+      return a;
+    })();
+    const inDeadAngle = enemyVisible && Math.abs(unclamped - aimAngle) > 0.15;
+
     return {
       enemyVisible, enemyX: ex, enemyY: ey,
-      enemyDist: dist, enemyAngle: Math.atan2(dy, dx),
+      enemyDist: dist, enemyAngle: angle,
       threats, hasLineOfSight,
+      blockType, blockThickness, inDeadAngle,
     };
   }
 
@@ -289,6 +318,34 @@ export class AIController {
     return blocked / (steps - 1) < 0.3;
   }
 
+  /** Probe the obstacle between two points: classify as dirt/rock/mixed and measure thickness. */
+  private probeObstacle(
+    x1: number, y1: number, x2: number, y2: number, terrain: TerrainMap,
+  ): { type: 'none' | 'dirt' | 'rock' | 'mixed'; thickness: number } {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) return { type: 'none', thickness: 0 };
+
+    const steps = Math.max(4, Math.ceil(dist / 4)); // sample every 4px
+    let solidCount = 0;
+    let rockCount = 0;
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const px = Math.round(x1 + dx * t);
+      const py = Math.round(y1 + dy * t);
+      if (terrain.isSolid(px, py)) {
+        solidCount++;
+        if (terrain.isRock(px, py)) rockCount++;
+      }
+    }
+    if (solidCount === 0) return { type: 'none', thickness: 0 };
+    const thickness = solidCount * (dist / steps); // approximate px of solid
+    if (rockCount === solidCount) return { type: 'rock', thickness };
+    if (rockCount === 0) return { type: 'dirt', thickness };
+    return { type: 'mixed', thickness };
+  }
+
   private inRect(x: number, y: number, r: VisionRect): boolean {
     return x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
   }
@@ -303,9 +360,28 @@ export class AIController {
   ): InputState {
     const input = emptyInputState();
     const dx = perception.enemyX - self.x;
+    const dy = perception.enemyY - self.y;
+
+    // ── Dead angle escape ────────────────────────────────────────────
+    if (perception.inDeadAngle) {
+      // Enemy directly below → strafe out of dead zone
+      if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
+        const escapeDir = self.facingRight ? 1 : -1;
+        if (escapeDir > 0) input.right = true; else input.left = true;
+        if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
+        this.applyFire(input, 0.1, loadout);
+        return input;
+      }
+      // Enemy directly above → aim up (worm CAN aim straight up)
+      // Just move slightly to side so we're not in the narrow dig dead zone
+      if (dy < 0 && Math.abs(dx) < 10) {
+        input.right = true; // nudge sideways
+      }
+    }
 
     // ── Weapon selection ─────────────────────────────────────────────
-    this.maybeSelectWeapon(loadout, perception.enemyDist, perception.hasLineOfSight);
+    this.maybeSelectWeapon(loadout, perception.enemyDist, perception.hasLineOfSight,
+      perception.blockType, perception.blockThickness);
 
     // ── Aim toward enemy ─────────────────────────────────────────────
     const desiredAngle = perception.enemyAngle + this.currentAimJitter;
@@ -347,15 +423,28 @@ export class AIController {
     const dx = perception.enemyX - self.x;
     const dy = perception.enemyY - self.y;
 
-    // ── Weapon selection ─────────────────────────────────────────────
-    this.maybeSelectWeapon(loadout, perception.enemyDist, perception.hasLineOfSight);
+    // ── Dead angle escape ────────────────────────────────────────────
+    // Enemy directly below us beyond aim range → move horizontally to get angle
+    if (perception.inDeadAngle && Math.abs(dy) > Math.abs(dx) && dy > 0) {
+      // Move horizontally to escape dead zone (pick direction away from nearest wall)
+      const escapeDir = self.facingRight ? 1 : -1;
+      if (escapeDir > 0) input.right = true; else input.left = true;
+      // Aim as far down as possible
+      if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
+      // Still fire — projectile gravity will help curve downward
+      this.applyFire(input, 0.1, loadout);
+      return input;
+    }
+
+    // ── Weapon selection (obstacle-aware) ────────────────────────────
+    this.maybeSelectWeapon(loadout, perception.enemyDist, perception.hasLineOfSight,
+      perception.blockType, perception.blockThickness);
 
     // ── Aim toward enemy (with ballistic lob for grenades at range) ──
     let desiredAngle = perception.enemyAngle + this.currentAimJitter;
-    // Lob compensation for high-gravity weapons at long range
     const wep = loadout.activeWeapon;
     if (wep.projectileGravity >= 0.8 && perception.enemyDist > 150) {
-      const lobAngle = -0.35 - (perception.enemyDist - 150) * 0.001; // -20° to -35°
+      const lobAngle = -0.35 - (perception.enemyDist - 150) * 0.001;
       desiredAngle = Math.atan2(dy, dx) + lobAngle + this.currentAimJitter;
     }
     const targetAngle = this.toWormAimAngle(self, desiredAngle);
@@ -369,6 +458,23 @@ export class AIController {
       if (wantRight) input.right = true; else input.left = true;
     }
 
+    // ── Active obstacle clearing ─────────────────────────────────────
+    // Fire 1: Thin dirt block nearby → blast through with current weapon
+    if (!perception.hasLineOfSight && perception.blockType === 'dirt') {
+      if (perception.blockThickness < 50 && perception.enemyDist < RANGE_CLOSE) {
+        // Close + thin dirt: shoot through it
+        this.applyFire(input, aimDiff, loadout);
+      } else if (perception.enemyDist >= RANGE_CLOSE) {
+        // Far + dirt: dig toward enemy
+        const moveDir: -1 | 1 = dx > 0 ? 1 : -1;
+        this.applyNavigation(self, input, terrain, moveDir);
+        // Also fire lob weapons (grenades arc over)
+        if (wep.projectileGravity >= 0.8) {
+          this.applyFire(input, aimDiff, loadout);
+        }
+      }
+    }
+
     // ── Move toward enemy ────────────────────────────────────────────
     if (Math.abs(dx) > 20) {
       if (dx > 0) input.right = true; else input.left = true;
@@ -380,16 +486,16 @@ export class AIController {
     if (blocked) {
       this.applyNavigation(self, input, terrain, moveDir);
 
-      // ── Rope for large gaps / high obstacles ─────────────────────
+      // Rope for large gaps / high obstacles
       if (this.difficulty.useRope && !hasRope && !hasHook &&
           this.ropeCooldown <= 0 && this.stuckFrames > this.difficulty.digStuckThreshold * 2) {
-        // Fire rope upward
         return this.doRopeLaunch(self);
       }
     }
 
-    // ── Fire opportunistically ───────────────────────────────────────
-    if (perception.hasLineOfSight) {
+    // ── Fire: LOS clear OR dirt obstacle we can shoot through ────────
+    if (perception.hasLineOfSight ||
+        (perception.blockType === 'dirt' && perception.blockThickness < 50)) {
       this.applyFire(input, aimDiff, loadout);
     }
 
@@ -586,8 +692,12 @@ export class AIController {
   //  Weapon selection
   // ════════════════════════════════════════════════════════════════════════
 
-  /** Decide which weapon to use based on range and LOS. Sets weaponCycleTarget. */
-  private maybeSelectWeapon(loadout: Loadout, dist: number, hasLOS: boolean): void {
+  /** Decide which weapon to use based on range, LOS, and obstacle type. */
+  private maybeSelectWeapon(
+    loadout: Loadout, dist: number, hasLOS: boolean,
+    blockType: 'none' | 'dirt' | 'rock' | 'mixed' = 'none',
+    blockThickness: number = 0,
+  ): void {
     // Don't re-select if already cycling or recently selected
     if (this.weaponCycleTarget >= 0 || this.weaponCycleCooldown > 0) return;
 
@@ -596,29 +706,39 @@ export class AIController {
 
     let target: number;
 
-    if (dist < RANGE_CLOSE && hasLOS) {
-      // Close range: shotgun or minigun
+    if (!hasLOS && blockType === 'dirt' && blockThickness < 50) {
+      // Thin dirt obstacle: shotgun to blast through
+      target = dist < RANGE_CLOSE
+        ? WEAPON_IDX.shotgun
+        : (Math.random() < 0.5 ? WEAPON_IDX.minigun : WEAPON_IDX.shotgun);
+    } else if (!hasLOS && blockType === 'dirt') {
+      // Thick dirt: lob grenade over/through
+      target = Math.random() < 0.6 ? WEAPON_IDX.grenade : WEAPON_IDX.cluster_bomb;
+    } else if (!hasLOS && (blockType === 'rock' || blockType === 'mixed')) {
+      // Rock blocking: lob weapons only, can't blast through
+      target = Math.random() < 0.7 ? WEAPON_IDX.grenade : WEAPON_IDX.chiquita;
+    } else if (dist < RANGE_CLOSE && hasLOS) {
+      // Close range, clear LOS
       target = Math.random() < 0.6 ? WEAPON_IDX.shotgun : WEAPON_IDX.minigun;
     } else if (dist < RANGE_MEDIUM && hasLOS) {
-      // Medium range with LOS: bazooka or minigun
+      // Medium range with LOS
       target = Math.random() < 0.7 ? WEAPON_IDX.bazooka : WEAPON_IDX.minigun;
     } else if (dist >= RANGE_MEDIUM && hasLOS) {
-      // Long range with LOS: minigun or zimm
+      // Long range with LOS
       target = Math.random() < 0.5 ? WEAPON_IDX.minigun : WEAPON_IDX.zimm;
     } else {
-      // No LOS: grenade (lob over terrain) or cluster bomb
+      // Fallback: grenade or cluster bomb
       target = Math.random() < 0.6 ? WEAPON_IDX.grenade : WEAPON_IDX.cluster_bomb;
     }
 
-    if (target === loadout.activeIndex) return; // already on it
+    if (target === loadout.activeIndex) return;
 
-    // Determine shortest cycling direction
-    const total = 11; // DEFAULT_LOADOUT length
+    const total = 11;
     const fwd = (target - loadout.activeIndex + total) % total;
     const bwd = (loadout.activeIndex - target + total) % total;
     this.weaponCycleDir = fwd <= bwd ? 1 : -1;
     this.weaponCycleTarget = target;
-    this.weaponCycleCooldown = 3.0 + Math.random() * 2.0; // don't re-evaluate for a few seconds
+    this.weaponCycleCooldown = 3.0 + Math.random() * 2.0;
   }
 
   /** Cycle toward target weapon index using CHANGE + LEFT/RIGHT. */
