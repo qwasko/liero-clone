@@ -28,6 +28,12 @@ export interface AIDifficulty {
   readonly selfDamageAwareness: number;
   /** 0-1: probability of attempting rope escape after throwing explosive. */
   readonly escapeRopeProbability: number;
+  /** 0-1: probability of checking grenade trajectory before firing. */
+  readonly trajectoryAwareness: number;
+  /** Seconds of sustained damage before suppression kicks in. */
+  readonly suppressionDelay: number;
+  /** 0-1: probability of using proximity grenade / larpa in correct situations. */
+  readonly tacticalWeaponAccuracy: number;
 }
 
 export const AI_DIFFICULTIES: Record<string, AIDifficulty> = {
@@ -35,16 +41,19 @@ export const AI_DIFFICULTIES: Record<string, AIDifficulty> = {
     label: 'Easy', visionMultiplier: 0.8, reactionFrames: 30, aimJitter: 15 * Math.PI / 180,
     digStuckThreshold: 30, useRope: false, weaponSelectAccuracy: 0.5,
     selfDamageAwareness: 0.9, escapeRopeProbability: 0.15,
+    trajectoryAwareness: 0.4, suppressionDelay: 3.0, tacticalWeaponAccuracy: 0.3,
   },
   medium: {
     label: 'Medium', visionMultiplier: 1.0, reactionFrames: 15, aimJitter: 7 * Math.PI / 180,
     digStuckThreshold: 10, useRope: true, weaponSelectAccuracy: 0.75,
     selfDamageAwareness: 0.6, escapeRopeProbability: 0.45,
+    trajectoryAwareness: 0.75, suppressionDelay: 2.0, tacticalWeaponAccuracy: 0.65,
   },
   hard: {
     label: 'Hard', visionMultiplier: 6, reactionFrames: 5, aimJitter: 2 * Math.PI / 180,
     digStuckThreshold: 6, useRope: true, weaponSelectAccuracy: 0.95,
     selfDamageAwareness: 0.3, escapeRopeProbability: 0.75,
+    trajectoryAwareness: 0.95, suppressionDelay: 1.0, tacticalWeaponAccuracy: 0.9,
   },
 };
 
@@ -73,6 +82,16 @@ interface AIPerception {
   blockThickness: number;
   /** True if the enemy angle falls in the worm's aim dead zone (below +π/3). */
   inDeadAngle: boolean;
+  /** Highest individual threat score among nearby projectiles. */
+  maxThreatScore: number;
+  /** True if enemy is above bot (angle > 45° upward). */
+  enemyAbove: boolean;
+  /** True if enemy is below bot (near dead angle area). */
+  enemyBelow: boolean;
+  /** True if enemy distance is decreasing (approaching). */
+  enemyApproaching: boolean;
+  /** True if bot is in an enclosed space (terrain in 3+ of 8 dirs within 200px). */
+  inEnclosedArea: boolean;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -106,11 +125,30 @@ const EXPLOSIVE_WEAPONS = new Set([
   'cluster_bomb', 'chiquita', 'zimm',
 ]);
 
+/** Grenade-type weapons that arc under gravity (self-damage from steep upward aim). */
+const GRENADE_WEAPONS = new Set([
+  'grenade', 'proximity_grenade', 'cluster_bomb', 'chiquita',
+]);
+
 /** Safe fallback weapon indices (direct-fire, small craters). */
 const SAFE_WEAPON_INDICES = [WEAPON_IDX.shotgun, WEAPON_IDX.minigun];
 
 /** Game gravity constant for ballistic estimation. */
 const GRAVITY_PXS2 = 600;
+
+/** Threat score thresholds. */
+const THREAT_CRITICAL = 80;
+const THREAT_MODERATE = 30;
+
+/** Threat scan radius in pixels. */
+const THREAT_SCAN_RADIUS = 200;
+
+/** Suppression: damage threshold in HP within window. */
+const SUPPRESSION_DAMAGE_THRESHOLD = 15;
+/** Suppression: frames without effective shot before considered suppressed. */
+const SUPPRESSION_NO_SHOT_FRAMES = 120;
+/** Suppression: max duration before giving up (seconds). */
+const SUPPRESSION_MAX_DURATION = 4.0;
 
 // ════════════════════════════════════════════════════════════════════════════
 //  AI Controller
@@ -126,6 +164,7 @@ export class AIController {
   private lastKnownEnemyX = 0;
   private lastKnownEnemyY = 0;
   private memorySecs = 0;
+  private prevEnemyDist = 0; // for approach detection
 
   // ── Explore ────────────────────────────────────────────────────────
   private exploreDir: -1 | 1 = 1;
@@ -150,17 +189,15 @@ export class AIController {
   private stuckFrames = 0;
 
   // ── Digging state ──────────────────────────────────────────────────
-  /** When true, the AI is in a dig sequence: first frame holds direction,
-   *  next frame taps opposite to trigger the DiggingSystem rising edge. */
   private digPhase: 'idle' | 'hold' | 'tap' = 'idle';
-  private digRockFrames = 0; // frames spent digging at rock — reroute if too many
+  private digRockFrames = 0;
 
   // ── Rope navigation ────────────────────────────────────────────────
   private ropeCooldown = 0;
-  private ropeSwingFrames = 0; // frames on rope — release after enough swing
+  private ropeSwingFrames = 0;
 
   // ── Weapon selection ───────────────────────────────────────────────
-  private weaponCycleTarget = -1; // target weapon index, or -1 if satisfied
+  private weaponCycleTarget = -1;
   private weaponCycleDir: -1 | 1 = 1;
   private weaponCycleCooldown = 0;
 
@@ -168,8 +205,16 @@ export class AIController {
   private escapePhase: 'none' | 'wait' | 'launch' = 'none';
   private escapeFrames = 0;
   private escapeTargetFrames = 0;
-  /** When true, doRopeSwing swings away from enemy instead of toward. */
   private swingAway = false;
+
+  // ── Threat / suppression tracking ─────────────────────────────────
+  private lastHp = 100;
+  private recentDamage = 0; // damage accumulated in rolling window
+  private damageDecayTimer = 0; // seconds since last damage decay
+  private framesWithoutShot = 0; // frames since bot last had clear shot opportunity
+  private suppressionActive = false;
+  private suppressionTimer = 0; // seconds in suppression state
+  private dangerEscapeActive = false; // critical threat override
 
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
@@ -222,6 +267,24 @@ export class AIController {
       this.memorySecs += dt;
     }
 
+    // ── Track damage for suppression ─────────────────────────────────
+    const hpDelta = this.lastHp - self.hp;
+    if (hpDelta > 0) this.recentDamage += hpDelta;
+    this.lastHp = self.hp;
+    // Decay damage accumulator over 2s window
+    this.damageDecayTimer += dt;
+    if (this.damageDecayTimer >= 0.5) {
+      this.recentDamage = Math.max(0, this.recentDamage - 4);
+      this.damageDecayTimer = 0;
+    }
+
+    // Track frames without effective shot
+    if (delayed.hasLineOfSight && delayed.enemyVisible) {
+      this.framesWithoutShot = 0;
+    } else {
+      this.framesWithoutShot++;
+    }
+
     // ── State transitions ────────────────────────────────────────────
     if (delayed.enemyVisible) {
       if (delayed.enemyDist < RANGE_MEDIUM && delayed.hasLineOfSight) {
@@ -234,6 +297,30 @@ export class AIController {
     } else {
       this.state = 'explore';
     }
+
+    // ── Suppression detection ────────────────────────────────────────
+    if (!this.suppressionActive) {
+      if (this.recentDamage >= SUPPRESSION_DAMAGE_THRESHOLD &&
+          !delayed.hasLineOfSight &&
+          this.framesWithoutShot >= SUPPRESSION_NO_SHOT_FRAMES) {
+        // Delay by difficulty
+        if (this.damageDecayTimer >= this.difficulty.suppressionDelay) {
+          this.suppressionActive = true;
+          this.suppressionTimer = 0;
+        }
+      }
+    } else {
+      this.suppressionTimer += dt;
+      // Exit suppression when LOS restored or timeout
+      if (delayed.hasLineOfSight || this.suppressionTimer > SUPPRESSION_MAX_DURATION) {
+        this.suppressionActive = false;
+        this.suppressionTimer = 0;
+        this.recentDamage = 0;
+      }
+    }
+
+    // ── Critical threat detection ────────────────────────────────────
+    this.dangerEscapeActive = delayed.maxThreatScore >= THREAT_CRITICAL;
 
     // ── Stuck detection ──────────────────────────────────────────────
     const moved = Math.abs(self.x - this.lastX) + Math.abs(self.y - this.lastY);
@@ -259,6 +346,11 @@ export class AIController {
       this.jitterChangeTimer = 0.8 + Math.random() * 1.2;
     }
 
+    // ── DANGER: critical threat override ─────────────────────────────
+    if (this.dangerEscapeActive && !hasRope) {
+      return this.doDangerEscape(self, delayed, terrain, hasRope, hasHook);
+    }
+
     // ── Throw-and-swing escape sequence ──────────────────────────────
     if (this.escapePhase === 'wait') {
       this.escapeFrames++;
@@ -282,6 +374,14 @@ export class AIController {
       return this.doWeaponCycle(loadout);
     }
     this.weaponCycleTarget = -1;
+
+    // ── SUPPRESSION: reposition override ─────────────────────────────
+    if (this.suppressionActive) {
+      return this.doReposition(self, delayed, loadout, terrain, hasRope, hasHook);
+    }
+
+    // ── Moderate threat: sidestep while attacking ────────────────────
+    // (applied as modifier inside engage/approach rather than separate state)
 
     // ── Produce input ────────────────────────────────────────────────
     switch (this.state) {
@@ -323,9 +423,7 @@ export class AIController {
       blockThickness = obs.thickness;
     }
 
-    // Dead angle: enemy angle (in worm-aim space) falls outside aimable range
-    // Worm can aim from -π/2 (up) to +π/3 (60° below horizontal)
-    // Check if the world angle, after facing conversion, would be clamped
+    // Dead angle detection
     const aimAngle = this.toWormAimAngle(self, angle);
     const unclamped = self.facingRight ? angle : (() => {
       let a = Math.PI - angle;
@@ -335,11 +433,40 @@ export class AIController {
     })();
     const inDeadAngle = enemyVisible && Math.abs(unclamped - aimAngle) > 0.15;
 
+    // Threat scoring — evaluate projectiles within scan radius
+    let maxThreatScore = 0;
+    for (const p of threats) {
+      const pdx = p.x - self.x;
+      const pdy = p.y - self.y;
+      const pDist = Math.max(10, Math.sqrt(pdx * pdx + pdy * pdy));
+      if (pDist > THREAT_SCAN_RADIUS) continue;
+
+      const damage = Math.max(p.weapon.splashDamage, p.weapon.hitDamage ?? 0, 5);
+      // Dot product: negative means approaching
+      const dot = pdx * p.vx + pdy * p.vy;
+      const approachFactor = dot < 0 ? 2.0 : 0.5;
+      const score = damage * (150 / pDist) * approachFactor;
+      if (score > maxThreatScore) maxThreatScore = score;
+    }
+
+    // Directional checks
+    const enemyAbove = dy < -Math.abs(dx); // enemy significantly above
+    const enemyBelow = dy > Math.abs(dx);  // enemy significantly below
+
+    // Enemy approaching: compare to previous distance
+    const enemyApproaching = enemyVisible && dist < this.prevEnemyDist - 1;
+    this.prevEnemyDist = dist;
+
+    // Enclosed area: terrain in 3+ of 8 directions within 200px
+    const inEnclosedArea = this.checkEnclosedArea(self, terrain, 200);
+
     return {
       enemyVisible, enemyX: ex, enemyY: ey,
       enemyDist: dist, enemyAngle: angle,
       threats, hasLineOfSight,
       blockType, blockThickness, inDeadAngle,
+      maxThreatScore, enemyAbove, enemyBelow,
+      enemyApproaching, inEnclosedArea,
     };
   }
 
@@ -367,7 +494,7 @@ export class AIController {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 1) return { type: 'none', thickness: 0 };
 
-    const steps = Math.max(4, Math.ceil(dist / 4)); // sample every 4px
+    const steps = Math.max(4, Math.ceil(dist / 4));
     let solidCount = 0;
     let rockCount = 0;
     for (let i = 1; i < steps; i++) {
@@ -380,7 +507,7 @@ export class AIController {
       }
     }
     if (solidCount === 0) return { type: 'none', thickness: 0 };
-    const thickness = solidCount * (dist / steps); // approximate px of solid
+    const thickness = solidCount * (dist / steps);
     if (rockCount === solidCount) return { type: 'rock', thickness };
     if (rockCount === 0) return { type: 'dirt', thickness };
     return { type: 'mixed', thickness };
@@ -388,6 +515,120 @@ export class AIController {
 
   private inRect(x: number, y: number, r: VisionRect): boolean {
     return x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
+  }
+
+  /** Check if position is enclosed (terrain in N+ of 8 directions at given radius). */
+  private checkEnclosedArea(self: Worm, terrain: TerrainMap, radius: number): boolean {
+    let blocked = 0;
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      if (terrain.isSolid(
+        Math.round(self.x + Math.cos(a) * radius),
+        Math.round(self.y + Math.sin(a) * radius),
+      )) blocked++;
+    }
+    return blocked >= 3;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  DANGER ESCAPE — critical threat, drop everything and flee
+  // ════════════════════════════════════════════════════════════════════════
+
+  private doDangerEscape(
+    self: Worm, perception: AIPerception, terrain: TerrainMap,
+    _hasRope: boolean, hasHook: boolean,
+  ): InputState {
+    const input = emptyInputState();
+
+    // Find the most dangerous threat direction and run opposite
+    let threatX = 0, worstScore = 0;
+    for (const p of perception.threats) {
+      const pdx = p.x - self.x;
+      const pdy = p.y - self.y;
+      const pDist = Math.max(10, Math.sqrt(pdx * pdx + pdy * pdy));
+      if (pDist > THREAT_SCAN_RADIUS) continue;
+      const damage = Math.max(p.weapon.splashDamage, p.weapon.hitDamage ?? 0, 5);
+      const dot = pdx * p.vx + pdy * p.vy;
+      const score = damage * (150 / pDist) * (dot < 0 ? 2.0 : 0.5);
+      if (score > worstScore) {
+        worstScore = score;
+        threatX = p.x;
+      }
+    }
+
+    // Run away from worst threat
+    const fleeDx = self.x - threatX;
+    if (fleeDx >= 0) input.right = true; else input.left = true;
+
+    // Jump to gain distance
+    input.jump = true;
+
+    // Try rope if ceiling available
+    if (this.difficulty.useRope && !hasHook && this.ropeCooldown <= 0) {
+      // Check for ceiling within 150px
+      if (this.hasCeilingAbove(self, terrain, 150)) {
+        return this.doRopeLaunch(self);
+      }
+    }
+
+    this.applyNavigation(self, input, terrain, fleeDx >= 0 ? 1 : -1);
+    return input;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  REPOSITION — under suppression, find new line of sight
+  // ════════════════════════════════════════════════════════════════════════
+
+  private doReposition(
+    self: Worm, perception: AIPerception, loadout: Loadout,
+    terrain: TerrainMap, hasRope: boolean, hasHook: boolean,
+  ): InputState {
+    const input = emptyInputState();
+    const dx = this.lastKnownEnemyX - self.x;
+
+    // Move perpendicular to enemy direction to find new angle
+    // Try moving along the axis we're NOT blocked on
+    const moveDir: -1 | 1 = Math.random() < 0.5 ? 1 : -1;
+    if (moveDir > 0) input.right = true; else input.left = true;
+
+    // Jump frequently while repositioning
+    if (Math.random() < 0.1) input.jump = true;
+
+    // Rope for fast repositioning (Hard bot prefers this)
+    if (this.difficulty.useRope && !hasRope && !hasHook &&
+        this.ropeCooldown <= 0 && this.hasCeilingAbove(self, terrain, 200)) {
+      return this.doRopeLaunch(self);
+    }
+
+    this.applyNavigation(self, input, terrain, moveDir);
+
+    // Area denial: lob grenade toward last known enemy position while moving
+    if (this.memorySecs < MEMORY_DURATION) {
+      const desiredAngle = Math.atan2(
+        this.lastKnownEnemyY - self.y,
+        dx,
+      );
+      const targetAngle = this.toWormAimAngle(self, desiredAngle);
+      const aimDiff = targetAngle - self.aimAngle;
+      if (aimDiff < -0.1) input.up = true;
+      else if (aimDiff > 0.1) input.down = true;
+
+      // Face toward enemy for the lob
+      if (dx >= 0 && !self.facingRight) input.right = true;
+      if (dx < 0 && self.facingRight) input.left = true;
+
+      // Try to select grenade for area denial
+      if (Math.random() < this.difficulty.tacticalWeaponAccuracy) {
+        this.startWeaponCycle(loadout, WEAPON_IDX.grenade);
+      }
+
+      // Fire blindly
+      if (this.fireCooldown <= 0 && Math.abs(aimDiff) < 0.5) {
+        this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
+      }
+    }
+
+    return input;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -404,7 +645,6 @@ export class AIController {
 
     // ── Dead angle escape ────────────────────────────────────────────
     if (perception.inDeadAngle) {
-      // Enemy directly below → strafe out of dead zone
       if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
         const escapeDir = self.facingRight ? 1 : -1;
         if (escapeDir > 0) input.right = true; else input.left = true;
@@ -412,16 +652,19 @@ export class AIController {
         this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
         return input;
       }
-      // Enemy directly above → aim up (worm CAN aim straight up)
-      // Just move slightly to side so we're not in the narrow dig dead zone
       if (dy < 0 && Math.abs(dx) < 10) {
-        input.right = true; // nudge sideways
+        input.right = true;
       }
     }
 
+    // ── Moderate threat sidestep ─────────────────────────────────────
+    if (perception.maxThreatScore >= THREAT_MODERATE &&
+        perception.maxThreatScore < THREAT_CRITICAL) {
+      this.applySidestep(self, perception, input);
+    }
+
     // ── Weapon selection ─────────────────────────────────────────────
-    this.maybeSelectWeapon(loadout, perception.enemyDist, perception.hasLineOfSight,
-      perception.blockType, perception.blockThickness);
+    this.maybeSelectWeapon(loadout, perception);
 
     // ── Aim toward enemy ─────────────────────────────────────────────
     const desiredAngle = perception.enemyAngle + this.currentAimJitter;
@@ -464,21 +707,22 @@ export class AIController {
     const dy = perception.enemyY - self.y;
 
     // ── Dead angle escape ────────────────────────────────────────────
-    // Enemy directly below us beyond aim range → move horizontally to get angle
     if (perception.inDeadAngle && Math.abs(dy) > Math.abs(dx) && dy > 0) {
-      // Move horizontally to escape dead zone (pick direction away from nearest wall)
       const escapeDir = self.facingRight ? 1 : -1;
       if (escapeDir > 0) input.right = true; else input.left = true;
-      // Aim as far down as possible
       if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-      // Still fire — projectile gravity will help curve downward
       this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
       return input;
     }
 
-    // ── Weapon selection (obstacle-aware) ────────────────────────────
-    this.maybeSelectWeapon(loadout, perception.enemyDist, perception.hasLineOfSight,
-      perception.blockType, perception.blockThickness);
+    // ── Moderate threat sidestep ─────────────────────────────────────
+    if (perception.maxThreatScore >= THREAT_MODERATE &&
+        perception.maxThreatScore < THREAT_CRITICAL) {
+      this.applySidestep(self, perception, input);
+    }
+
+    // ── Weapon selection (full tactical ruleset) ─────────────────────
+    this.maybeSelectWeapon(loadout, perception);
 
     // ── Aim toward enemy (with ballistic lob for grenades at range) ──
     let desiredAngle = perception.enemyAngle + this.currentAimJitter;
@@ -499,16 +743,12 @@ export class AIController {
     }
 
     // ── Active obstacle clearing ─────────────────────────────────────
-    // Fire 1: Thin dirt block nearby → blast through with current weapon
     if (!perception.hasLineOfSight && perception.blockType === 'dirt') {
       if (perception.blockThickness < 50 && perception.enemyDist < RANGE_CLOSE) {
-        // Close + thin dirt: shoot through it
         this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
       } else if (perception.enemyDist >= RANGE_CLOSE) {
-        // Far + dirt: dig toward enemy
         const moveDir: -1 | 1 = dx > 0 ? 1 : -1;
         this.applyNavigation(self, input, terrain, moveDir);
-        // Also fire lob weapons (grenades arc over)
         if (wep.projectileGravity >= 0.8) {
           this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
         }
@@ -526,7 +766,6 @@ export class AIController {
     if (blocked) {
       this.applyNavigation(self, input, terrain, moveDir);
 
-      // Rope for large gaps / high obstacles
       if (this.difficulty.useRope && !hasRope && !hasHook &&
           this.ropeCooldown <= 0 && this.stuckFrames > this.difficulty.digStuckThreshold * 2) {
         return this.doRopeLaunch(self);
@@ -559,24 +798,20 @@ export class AIController {
       if (dx > 0) input.right = true; else input.left = true;
     }
 
-    // Aim toward last known direction
     const desiredAngle = Math.atan2(dy, dx);
     const targetAngle = this.toWormAimAngle(self, desiredAngle);
     const aimDiff = targetAngle - self.aimAngle;
     if (aimDiff < -0.1) input.up = true;
     else if (aimDiff > 0.1) input.down = true;
 
-    // Navigation
     const moveDir: -1 | 1 = dx > 0 ? 1 : -1;
     this.applyNavigation(self, input, terrain, moveDir);
 
-    // Rope for large obstacles
     if (this.difficulty.useRope && !hasRope && !hasHook &&
         this.ropeCooldown <= 0 && this.stuckFrames > this.difficulty.digStuckThreshold * 3) {
       return this.doRopeLaunch(self);
     }
 
-    // Occasional fire
     if (this.searchFireCooldown <= 0 && Math.abs(aimDiff) < 0.5) {
       input.fire = true;
       this.searchFireCooldown = 1.5 + Math.random() * 2.0;
@@ -601,10 +836,8 @@ export class AIController {
     if (this.exploreDir > 0) input.right = true;
     else input.left = true;
 
-    // Navigation (jump/dig)
     this.applyNavigation(self, input, terrain, this.exploreDir);
 
-    // Flip direction if stuck too long even after digging
     if (this.stuckFrames > this.difficulty.digStuckThreshold * 3) {
       this.exploreDir = (this.exploreDir * -1) as -1 | 1;
       this.exploreTimer = this.randomExploreTime();
@@ -617,31 +850,55 @@ export class AIController {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  Threat sidestep (moderate threats — dodge while continuing action)
+  // ════════════════════════════════════════════════════════════════════════
+
+  private applySidestep(self: Worm, perception: AIPerception, input: InputState): void {
+    // Find approaching threat direction and step perpendicular
+    let worstX = 0, worstY = 0, worstScore = 0;
+    for (const p of perception.threats) {
+      const pdx = p.x - self.x;
+      const pdy = p.y - self.y;
+      const pDist = Math.max(10, Math.sqrt(pdx * pdx + pdy * pdy));
+      if (pDist > THREAT_SCAN_RADIUS) continue;
+      const damage = Math.max(p.weapon.splashDamage, p.weapon.hitDamage ?? 0, 5);
+      const dot = pdx * p.vx + pdy * p.vy;
+      const score = damage * (150 / pDist) * (dot < 0 ? 2.0 : 0.5);
+      if (score > worstScore) {
+        worstScore = score;
+        worstX = pdx;
+        worstY = pdy;
+      }
+    }
+    if (worstScore < THREAT_MODERATE) return;
+
+    // Step perpendicular to threat approach direction
+    // Choose the side that moves away from enemy least
+    if (Math.abs(worstY) > Math.abs(worstX)) {
+      // Threat coming vertically — dodge horizontally
+      if (worstX >= 0) input.left = true; else input.right = true;
+    } else {
+      // Threat coming horizontally — jump
+      input.jump = true;
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  Navigation helpers (dig, jump, reroute)
   // ════════════════════════════════════════════════════════════════════════
 
-  /**
-   * Apply jump/dig logic to the input when the AI is stuck or blocked.
-   * Modifies `input` in place. May override left/right for dig tap sequence.
-   */
   private applyNavigation(
     self: Worm, input: InputState, terrain: TerrainMap, moveDir: -1 | 0 | 1,
   ): void {
     if (moveDir === 0) return;
     const blocked = this.isBlockedHorizontally(self, terrain, moveDir);
+    if (!blocked) return;
 
-    if (!blocked) {
-      // Not blocked — check for small drop or gap ahead (still jump over small bumps)
-      return;
-    }
-
-    // ── Phase 1: Try jumping (small obstacles) ───────────────────────
     if (this.stuckFrames < this.difficulty.digStuckThreshold) {
       input.jump = true;
       return;
     }
 
-    // ── Phase 2: Dig through (if diggable dirt) ──────────────────────
     const probeX = self.x + moveDir * (self.width / 2 + 5);
     const probeY = self.y;
     const isRock = terrain.isRock(Math.round(probeX), Math.round(probeY));
@@ -649,13 +906,10 @@ export class AIController {
     if (isRock) {
       this.digRockFrames++;
       if (this.digRockFrames > ROCK_DIG_TIMEOUT) {
-        // Rock reroute: try moving vertically
         this.digRockFrames = 0;
         this.digPhase = 'idle';
-        // Try jumping up, or if we've been trying, flip direction
         input.jump = true;
         if (this.stuckFrames > this.difficulty.digStuckThreshold * 2) {
-          // Give up going this way — flip explore direction
           if (moveDir > 0) { input.right = false; input.left = true; }
           else { input.left = false; input.right = true; }
         }
@@ -665,16 +919,11 @@ export class AIController {
       this.digRockFrames = 0;
     }
 
-    // Dig sequence: two-frame pattern to trigger DiggingSystem rising edge
-    // Frame 1: hold movement direction only
-    // Frame 2: hold movement direction AND tap opposite → DiggingSystem detects rising edge
     if (this.digPhase === 'idle' || this.digPhase === 'tap') {
-      // Start or restart: hold direction only
       this.digPhase = 'hold';
       if (moveDir > 0) { input.right = true; input.left = false; }
       else { input.left = true; input.right = false; }
     } else if (this.digPhase === 'hold') {
-      // Tap opposite while still holding direction → triggers dig
       this.digPhase = 'tap';
       if (moveDir > 0) { input.right = true; input.left = true; }
       else { input.left = true; input.right = true; }
@@ -685,27 +934,22 @@ export class AIController {
   //  Rope navigation
   // ════════════════════════════════════════════════════════════════════════
 
-  /** Launch rope upward toward ceiling. Returns InputState for this frame. */
   private doRopeLaunch(self: Worm): InputState {
     const input = emptyInputState();
-    // Aim upward before launching
-    input.up = self.aimAngle > -Math.PI / 3; // aim up if not already
+    input.up = self.aimAngle > -Math.PI / 3;
     input.change = true;
-    input.jump = true; // CHANGE + JUMP launches rope
+    input.jump = true;
     this.ropeCooldown = ROPE_COOLDOWN;
     this.ropeSwingFrames = 0;
     return input;
   }
 
-  /** While on rope: swing toward enemy (or away if escaping), then release. */
   private doRopeSwing(self: Worm): InputState {
     const input = emptyInputState();
     this.ropeSwingFrames++;
 
-    // Swing direction: toward enemy normally, away if escaping a blast
     let targetX: number;
     if (this.swingAway) {
-      // Mirror enemy position — swing away from blast zone
       targetX = self.x - (this.lastKnownEnemyX - self.x);
     } else {
       targetX = this.memorySecs < MEMORY_DURATION
@@ -716,16 +960,13 @@ export class AIController {
     if (targetX > self.x) input.right = true;
     else input.left = true;
 
-    // Shorten rope to gain height
     if (this.ropeSwingFrames < 20) {
       input.change = true;
       input.up = true;
     }
 
-    // Release after enough swing time (40-70 frames = ~0.7-1.2s)
     const releaseTime = 40 + Math.floor(Math.random() * 30);
     if (this.ropeSwingFrames > releaseTime) {
-      // Release: JUMP alone (no CHANGE)
       input.jump = true;
       input.change = false;
       this.ropeSwingFrames = 0;
@@ -736,48 +977,102 @@ export class AIController {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Weapon selection
+  //  Weapon selection — full tactical ruleset
   // ════════════════════════════════════════════════════════════════════════
 
-  /** Decide which weapon to use based on range, LOS, and obstacle type. */
-  private maybeSelectWeapon(
-    loadout: Loadout, dist: number, hasLOS: boolean,
-    blockType: 'none' | 'dirt' | 'rock' | 'mixed' = 'none',
-    blockThickness: number = 0,
-  ): void {
-    // Don't re-select if already cycling or recently selected
+  private maybeSelectWeapon(loadout: Loadout, perception: AIPerception): void {
     if (this.weaponCycleTarget >= 0 || this.weaponCycleCooldown > 0) return;
-
-    // Random chance to skip optimal selection (difficulty scaling)
     if (Math.random() > this.difficulty.weaponSelectAccuracy) return;
+
+    const dist = perception.enemyDist;
+    const hasLOS = perception.hasLineOfSight;
+    const blockType = perception.blockType;
+    const blockThickness = perception.blockThickness;
+    const tactical = Math.random() < this.difficulty.tacticalWeaponAccuracy;
 
     let target: number;
 
-    if (!hasLOS && blockType === 'dirt' && blockThickness < 50) {
-      // Thin dirt obstacle: shotgun to blast through
+    // ── Enclosed space: larpa / zimm ─────────────────────────────────
+    if (perception.inEnclosedArea && hasLOS && tactical) {
+      if (dist > RANGE_CLOSE) {
+        // Larpa excels in enclosed spaces — bouncing coverage
+        target = Math.random() < 0.6 ? WEAPON_IDX.larpa : WEAPON_IDX.zimm;
+      } else {
+        // Too close for larpa — trail would damage self
+        target = Math.random() < 0.6 ? WEAPON_IDX.shotgun : WEAPON_IDX.minigun;
+      }
+    }
+    // ── Enemy approaching through corridor (no LOS, thin dirt) ───────
+    else if (!hasLOS && perception.enemyApproaching && tactical) {
+      // Proximity grenade as corridor trap
+      if (blockType === 'dirt' && blockThickness < 80) {
+        target = Math.random() < 0.6 ? WEAPON_IDX.proximity_grenade : WEAPON_IDX.mine;
+      } else {
+        target = Math.random() < 0.5 ? WEAPON_IDX.larpa : WEAPON_IDX.grenade;
+      }
+    }
+    // ── Enemy above (>45° upward angle) ──────────────────────────────
+    else if (perception.enemyAbove && hasLOS) {
+      // Prefer bazooka (flies straight) and minigun (rapid accurate)
+      // Avoid grenades — they'll fall back on us
+      if (dist < RANGE_CLOSE) {
+        target = Math.random() < 0.7 ? WEAPON_IDX.shotgun : WEAPON_IDX.minigun;
+      } else {
+        target = Math.random() < 0.7 ? WEAPON_IDX.bazooka : WEAPON_IDX.minigun;
+      }
+    }
+    // ── Enemy below (near dead angle) ────────────────────────────────
+    else if (perception.enemyBelow) {
+      // Zimm bounces can reach below; avoid grenades (dangerous below)
+      if (tactical && perception.inEnclosedArea) {
+        target = WEAPON_IDX.zimm;
+      } else {
+        target = Math.random() < 0.6 ? WEAPON_IDX.minigun : WEAPON_IDX.bazooka;
+      }
+    }
+    // ── No LOS, dirt obstacle ────────────────────────────────────────
+    else if (!hasLOS && blockType === 'dirt' && blockThickness < 50) {
       target = dist < RANGE_CLOSE
         ? WEAPON_IDX.shotgun
         : (Math.random() < 0.5 ? WEAPON_IDX.minigun : WEAPON_IDX.shotgun);
     } else if (!hasLOS && blockType === 'dirt') {
-      // Thick dirt: lob grenade over/through
       target = Math.random() < 0.6 ? WEAPON_IDX.grenade : WEAPON_IDX.cluster_bomb;
     } else if (!hasLOS && (blockType === 'rock' || blockType === 'mixed')) {
-      // Rock blocking: lob weapons only, can't blast through
-      target = Math.random() < 0.7 ? WEAPON_IDX.grenade : WEAPON_IDX.chiquita;
-    } else if (dist < RANGE_CLOSE && hasLOS) {
-      // Close range, clear LOS
+      // Rock: lob or larpa bounce
+      if (tactical) {
+        target = Math.random() < 0.5 ? WEAPON_IDX.larpa : WEAPON_IDX.grenade;
+      } else {
+        target = Math.random() < 0.7 ? WEAPON_IDX.grenade : WEAPON_IDX.chiquita;
+      }
+    }
+    // ── Close range, clear LOS ───────────────────────────────────────
+    else if (dist < RANGE_CLOSE && hasLOS) {
       target = Math.random() < 0.6 ? WEAPON_IDX.shotgun : WEAPON_IDX.minigun;
-    } else if (dist < RANGE_MEDIUM && hasLOS) {
-      // Medium range with LOS
-      target = Math.random() < 0.7 ? WEAPON_IDX.bazooka : WEAPON_IDX.minigun;
-    } else if (dist >= RANGE_MEDIUM && hasLOS) {
-      // Long range with LOS
+    }
+    // ── Medium range with LOS ────────────────────────────────────────
+    else if (dist < RANGE_MEDIUM && hasLOS) {
+      // Proximity grenade if enemy approaching
+      if (tactical && perception.enemyApproaching && Math.random() < 0.4) {
+        target = WEAPON_IDX.proximity_grenade;
+      } else {
+        target = Math.random() < 0.7 ? WEAPON_IDX.bazooka : WEAPON_IDX.minigun;
+      }
+    }
+    // ── Long range with LOS ──────────────────────────────────────────
+    else if (dist >= RANGE_MEDIUM && hasLOS) {
       target = Math.random() < 0.5 ? WEAPON_IDX.minigun : WEAPON_IDX.zimm;
-    } else {
-      // Fallback: grenade or cluster bomb
+    }
+    // ── Fallback ─────────────────────────────────────────────────────
+    else {
       target = Math.random() < 0.6 ? WEAPON_IDX.grenade : WEAPON_IDX.cluster_bomb;
     }
 
+    this.startWeaponCycle(loadout, target);
+  }
+
+  /** Begin cycling to a target weapon index (shortest path). */
+  private startWeaponCycle(loadout: Loadout, target: number): void {
+    if (this.weaponCycleTarget >= 0 || this.weaponCycleCooldown > 0) return;
     if (target === loadout.activeIndex) return;
 
     const total = 11;
@@ -788,16 +1083,11 @@ export class AIController {
     this.weaponCycleCooldown = 3.0 + Math.random() * 2.0;
   }
 
-  /** Cycle toward target weapon index using CHANGE + LEFT/RIGHT. */
   private doWeaponCycle(_loadout: Loadout): InputState {
     const input = emptyInputState();
     input.change = true;
     if (this.weaponCycleDir > 0) input.right = true;
     else input.left = true;
-
-    // Check if we reached the target
-    // (the actual cycling is done by GameState, we just hold the input)
-    // We hold for one frame then release to get one step
     return input;
   }
 
@@ -816,7 +1106,6 @@ export class AIController {
       // ── Self-damage safety check ──────────────────────────────────
       if (self && terrain && enemyDist !== undefined) {
         if (!this.isSafeToFire(self, weapon, terrain, enemyDist)) {
-          // Unsafe: switch to a safe weapon instead of firing
           this.switchToSafeWeapon(loadout);
           this.fireHeld = false;
           return;
@@ -843,7 +1132,7 @@ export class AIController {
         if (Math.random() < this.difficulty.escapeRopeProbability) {
           this.escapePhase = 'wait';
           this.escapeFrames = 0;
-          this.escapeTargetFrames = 20 + Math.floor(Math.random() * 11); // 20-30 frames
+          this.escapeTargetFrames = 20 + Math.floor(Math.random() * 11);
         }
       }
     } else {
@@ -855,11 +1144,9 @@ export class AIController {
   //  Self-damage awareness
   // ════════════════════════════════════════════════════════════════════════
 
-  /** Check if firing the current weapon would risk self-damage. */
   private isSafeToFire(
     self: Worm, weapon: WeaponDef, terrain: TerrainMap, enemyDist: number,
   ): boolean {
-    // Non-explosive weapons are always safe
     if (!EXPLOSIVE_WEAPONS.has(weapon.id)) return true;
 
     // Difficulty scaling: less cautious bots skip the check sometimes
@@ -867,6 +1154,29 @@ export class AIController {
 
     // Tunnel/enclosed space: avoid ALL explosives
     if (this.isEnclosed(self, terrain, weapon.splashRadius)) return false;
+
+    // ── Grenade trajectory intuition ─────────────────────────────────
+    if (GRENADE_WEAPONS.has(weapon.id) &&
+        Math.random() < this.difficulty.trajectoryAwareness) {
+      const aimAbs = Math.abs(self.aimAngle);
+
+      // Steep upward (>60° above horizontal = aimAngle < -π/3 ≈ -1.05)
+      if (self.aimAngle < -Math.PI / 3) {
+        // Grenade will arc back down near self
+        // Hard bot: allow if estimated landing is >200px away
+        if (this.difficulty.label === 'Hard') {
+          const landDist = this.estimateLandingDist(self, weapon);
+          if (landDist > 200) return true; // allow with caution
+        }
+        return false; // unsafe for Easy/Medium
+      }
+
+      // Medium upward (30-60° = aimAngle between -π/6 and -π/3)
+      if (self.aimAngle < -Math.PI / 6 && aimAbs < Math.PI / 3) {
+        // May bounce back — defer to standard self-damage estimate
+        // (fall through to distance check below)
+      }
+    }
 
     const dangerRadius = weapon.splashRadius * 1.5;
 
@@ -876,16 +1186,20 @@ export class AIController {
     }
 
     // Fused weapons: estimate detonation distance from self
-    const t = weapon.fuseMs / 1000;
+    const landDist = this.estimateLandingDist(self, weapon);
+    return landDist > dangerRadius;
+  }
+
+  /** Estimate how far from self a fused projectile will detonate. */
+  private estimateLandingDist(self: Worm, weapon: WeaponDef): number {
+    const t = (weapon.fuseMs ?? 1000) / 1000;
     const facing = self.facingRight ? 1 : -1;
     const vx = Math.cos(self.aimAngle) * weapon.projectileSpeed * facing;
     const vy = Math.sin(self.aimAngle) * weapon.projectileSpeed;
     const grav = weapon.projectileGravity * GRAVITY_PXS2;
     const landX = vx * t;
     const landY = vy * t + 0.5 * grav * t * t;
-    const distFromSelf = Math.sqrt(landX * landX + landY * landY);
-
-    return distFromSelf > dangerRadius;
+    return Math.sqrt(landX * landX + landY * landY);
   }
 
   /** Check if worm is in an enclosed space (terrain in 4+ of 8 directions). */
@@ -904,15 +1218,19 @@ export class AIController {
 
   /** Switch to a safe direct-fire weapon (shotgun or minigun). */
   private switchToSafeWeapon(loadout: Loadout): void {
-    if (this.weaponCycleTarget >= 0) return; // already cycling
+    if (this.weaponCycleTarget >= 0) return;
     const target = SAFE_WEAPON_INDICES[Math.floor(Math.random() * SAFE_WEAPON_INDICES.length)];
-    if (target === loadout.activeIndex) return;
-    const total = 11;
-    const fwd = (target - loadout.activeIndex + total) % total;
-    const bwd = (loadout.activeIndex - target + total) % total;
-    this.weaponCycleDir = fwd <= bwd ? 1 : -1;
-    this.weaponCycleTarget = target;
+    this.startWeaponCycle(loadout, target);
+    // Override the long cooldown for safety switches
     this.weaponCycleCooldown = 1.5 + Math.random() * 1.0;
+  }
+
+  /** Check if there's solid terrain above (ceiling for rope). */
+  private hasCeilingAbove(self: Worm, terrain: TerrainMap, maxDist: number): boolean {
+    for (let dy = 20; dy < maxDist; dy += 10) {
+      if (terrain.isSolid(Math.round(self.x), Math.round(self.y - dy))) return true;
+    }
+    return false;
   }
 
   // ════════════════════════════════════════════════════════════════════════
