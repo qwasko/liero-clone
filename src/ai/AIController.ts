@@ -241,7 +241,7 @@ export class AIController {
     const input = emptyInputState();
 
     // ── Aim toward enemy ───────────────────────────────────────────────
-    const desiredAngle = this.clampAimAngle(perception.enemyAngle + this.currentAimJitter);
+    const desiredAngle = perception.enemyAngle + this.currentAimJitter;
     const targetAngle = this.toWormAimAngle(self, desiredAngle);
     const aimDiff = targetAngle - self.aimAngle;
 
