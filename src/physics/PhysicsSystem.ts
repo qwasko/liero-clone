@@ -417,34 +417,44 @@ export class PhysicsSystem {
       proj.y -= Math.sign(dy) * 3;
     }
 
-    // Angle jitter (±~5°) to break resonance loops
+    // Angle jitter (±~5° base, escalated by stuck detection)
     const speed = Math.hypot(proj.vx, proj.vy);
-    proj.vx += (Math.random() * 2 - 1) * 0.08 * speed;
-    proj.vy += (Math.random() * 2 - 1) * 0.08 * speed;
+    const jitter = 0.08 * proj.jitterMult;
+    proj.vx += (Math.random() * 2 - 1) * jitter * speed;
+    proj.vy += (Math.random() * 2 - 1) * jitter * speed;
   }
 
-  /** Zimm stuck detection: track positions, kick if trapped. */
+  /** Zimm stuck detection: progressive jitter escalation based on position uniqueness. */
   private checkZimmStuck(proj: Projectile): void {
-    proj.posHistory.push({ x: proj.x, y: proj.y });
-    if (proj.posHistory.length > 10) proj.posHistory.shift();
+    // Reset escalation if projectile moved far from last recorded position
+    const last = proj.posHistory[proj.posHistory.length - 1];
+    if (last && Math.hypot(proj.x - last.x, proj.y - last.y) > 30) {
+      proj.jitterMult = 1;
+    }
 
-    if (proj.posHistory.length >= 10) {
-      const cx = proj.posHistory.reduce((s, p) => s + p.x, 0) / 10;
-      const cy = proj.posHistory.reduce((s, p) => s + p.y, 0) / 10;
-      const allClose = proj.posHistory.every(
-        p => Math.hypot(p.x - cx, p.y - cy) < 20
-      );
-      if (allClose) {
-        proj.stuckFrames++;
-        if (proj.stuckFrames >= 30) {
-          proj.vx += (Math.random() - 0.5) * 200;
-          proj.vy += (Math.random() - 0.5) * 200;
-          proj.posHistory.length = 0;
-          proj.stuckFrames = 0;
-        }
-      } else {
-        proj.stuckFrames = 0;
+    proj.posHistory.push({ x: proj.x, y: proj.y });
+    if (proj.posHistory.length > 20) proj.posHistory.shift();
+
+    if (proj.posHistory.length >= 20) {
+      // Count unique positions on a 5px grid
+      const seen = new Set<string>();
+      for (const p of proj.posHistory) {
+        seen.add(`${Math.round(p.x / 5)},${Math.round(p.y / 5)}`);
       }
+      const unique = seen.size;
+
+      if (unique < 2) {
+        // Truly stuck — random kick + reset
+        proj.vx += (Math.random() - 0.5) * 200;
+        proj.vy += (Math.random() - 0.5) * 200;
+        proj.jitterMult = 1;
+        proj.posHistory.length = 0;
+      } else if (unique < 3) {
+        proj.jitterMult = 4;
+      } else if (unique < 4) {
+        proj.jitterMult = 2;
+      }
+      // unique >= 4: no escalation, jitterMult stays at current value
     }
   }
 

@@ -42,8 +42,8 @@ export class Projectile {
 
   /** Zimm stuck detection: circular buffer of recent positions. */
   posHistory: { x: number; y: number }[] = [];
-  /** Zimm stuck detection: frames spent within a small radius. */
-  stuckFrames: number = 0;
+  /** Zimm: jitter multiplier, escalates when oscillating. */
+  jitterMult: number = 1;
 
   /** Set by PhysicsSystem just before onHit — reason for detonation. */
   hitReason: 'terrain' | 'worm' | 'timer' | 'oob' = 'terrain';
