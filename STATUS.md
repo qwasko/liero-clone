@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Zimm anti-resonance + safety fixes
+## Last completed: AI bot opponent (Phase 1)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -78,6 +78,18 @@
 - Projectiles travel full map dimensions before despawning
 - 4-segment worm sprites with aim-tracking eye (P1 green, P2 red)
 - Mode selection: Normal Deathmatch or Game of Tag
+- **AI bot opponent** (vs AI mode):
+  - AIController produces InputState — same interface as keyboard, game can't distinguish
+  - Vision-limited: AI sees only a viewport-sized rectangle centered on its worm
+  - Vision rect scales with camera zoom and difficulty visionMultiplier
+  - 3 behavior states: HUNT (enemy visible), SEARCH (memory <3s), EXPLORE (no info)
+  - Enemy memory: remembers last known position for 3 seconds after losing sight
+  - Reaction delay buffer: raw perceptions delayed by N frames before acting
+  - Aim jitter: re-rolled every 0.8-2s for natural-looking inaccuracy
+  - Fire control: respects single/auto fire modes, cooldown between shots
+  - Wall detection: jumps over horizontal obstacles
+  - 3 difficulty presets (Easy/Medium/Hard) with vision, reaction, and aim tuning
+  - Menu: TAB toggles 2P Local / vs AI, 1/2/3 selects difficulty
 
 ## Known issues / bugs
 - No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita, sticky_mine, proximity_grenade)
@@ -85,18 +97,18 @@
 - Diagnostic console.log still active in ExplosionSystem, GameState, ParticleSystem
   — remove before release
 
-## STOPPED HERE — end of session 2026-03-22
+## STOPPED HERE — session 2026-03-22
 
 ### Last completed
-- Zimm anti-resonance: gravity 0.15, ±5° bounce jitter, progressive stuck detection (jitter escalation)
-- Zimm safety: ownerGrace 429ms (30 frames), 15px spawn offset, added to hasOwnerGrace list
-- Zimm tuning (previous session): speed 600→400, visual trail, self-damage on direct hit
+- AI bot opponent Phase 1: vision-limited controller with HUNT/SEARCH/EXPLORE states
+- Menu integration: TAB toggles 2P/AI, 1/2/3 selects difficulty
+- Difficulty presets: Easy (0.8× vision, 30f delay, ±15°), Medium (1.0×, 15f, ±7°), Hard (1.5×, 5f, ±2°)
 
 ### Next task to start
-- No specific task planned — see possible next steps below
+- AI Phase 2: weapon selection, dodge, terrain digging, rope usage
 
 ## Possible next steps (not planned)
-- AI opponent (bot controller for P2)
+- AI Phase 2 (weapon selection, dodge, dig, rope)
 - Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
 - Flamethrower / homing missile (spec: do not implement yet)
 - Animated worm sprites instead of circle-segments

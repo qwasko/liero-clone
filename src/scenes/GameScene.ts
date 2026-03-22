@@ -10,6 +10,7 @@ import { GameEvent } from '../game/GameEvents';
 import { LevelPreset, LEVEL_PRESETS } from '../game/LevelPreset';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { CRATE_HALF } from '../game/CrateSystem';
+import { AIController, AI_DIFFICULTIES } from '../ai/AIController';
 
 /**
  * Thin Phaser orchestrator with splitscreen:
@@ -39,6 +40,9 @@ export class GameScene extends Phaser.Scene {
   private cameraFocusP2!: Phaser.GameObjects.Zone;
   private divider!: Phaser.GameObjects.Rectangle;
 
+  // AI controller (null = 2P local)
+  private aiController: AIController | null = null;
+
   // Tag mode "IT" indicator
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
@@ -49,7 +53,7 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
-  create(data?: { mode?: 'normal' | 'tag'; level?: LevelPreset }): void {
+  create(data?: { mode?: 'normal' | 'tag'; level?: LevelPreset; vsAI?: boolean; aiDifficulty?: string }): void {
     // ── Clean up stale state from previous game ──────────────────────────
     if (this.textures.exists('terrain')) {
       this.textures.remove('terrain');
@@ -84,6 +88,15 @@ export class GameScene extends Phaser.Scene {
     // ── Input + audio ────────────────────────────────────────────────────
     this.inputManager = new InputManager(this.input.keyboard!);
     this.audio        = new AudioManager();
+
+    // ── AI controller (when vs AI mode) ────────────────────────────────
+    if (data?.vsAI) {
+      const diffKey = data.aiDifficulty ?? 'medium';
+      const diff = AI_DIFFICULTIES[diffKey] ?? AI_DIFFICULTIES['medium'];
+      this.aiController = new AIController(diff);
+    } else {
+      this.aiController = null;
+    }
 
     // ════════════════════════════════════════════════════════════════════
     //  Splitscreen camera setup
@@ -160,7 +173,27 @@ export class GameScene extends Phaser.Scene {
 
     const dt     = delta / 1000;
     const input1 = this.inputManager.getPlayer1();
-    const input2 = this.inputManager.getPlayer2();
+
+    // ── P2 input: keyboard or AI ───────────────────────────────────────
+    let input2;
+    if (this.aiController) {
+      const [, worm2] = this.gameState.worms;
+      const [worm1]   = this.gameState.worms;
+      const loadout2  = this.gameState.loadouts.get(worm2)!;
+      // Viewport dimensions in world pixels (canvas half-width / zoom)
+      const zoom = this.p2Camera.zoom;
+      const vpW  = (CANVAS_WIDTH / 2) / zoom;
+      const vpH  = CANVAS_HEIGHT / zoom;
+      const crates = this.gameState.crateSystem.getCrates().filter(c => c.active);
+      input2 = this.aiController.getInput(
+        worm2, worm1, loadout2,
+        this.gameState.terrain,
+        this.gameState.activeProjectiles,
+        crates, vpW, vpH, dt,
+      );
+    } else {
+      input2 = this.inputManager.getPlayer2();
+    }
 
     // ── Tick game logic ──────────────────────────────────────────────────
     const events = this.gameState.update(dt, input1, input2);
