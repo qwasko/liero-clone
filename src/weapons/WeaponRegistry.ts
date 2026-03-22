@@ -164,6 +164,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     projectileSpeed: 400, projectileGravity: 0.15, projectileSize: 2, projectileColor: 0xffffff,
     pellets: 1, spread: 0, distribution: 0,
     behavior: 'zimm', maxBounces: 0, fuseMs: 14300,     // 1000 frames @ 70fps ≈ 14.3s
+    ownerGraceMs: 429,                                         // 30 frames — no self-hit on spawn
     hitDamage: 49,                                             // Liero: hitDmg=49
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,  // zimm_flash: cosmetic only, damage is via hitDmg
     ammoPerMag: 2, totalAmmo: 10000, infiniteAmmo: false,

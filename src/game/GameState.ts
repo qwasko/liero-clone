@@ -229,7 +229,7 @@ export class GameState {
       this.activeProjectiles, dt, this.terrain, this.worms,
       (proj, hitX, hitY) => {
         const hasOwnerGrace = proj.weapon.id === 'larpa' || proj.weapon.id === 'larpa_trail'
-          || proj.weapon.id === 'sticky_mine';
+          || proj.weapon.id === 'sticky_mine' || proj.weapon.id === 'zimm';
         const fullSelfDmg = proj.weapon.id === 'bazooka'
           || (hasOwnerGrace && proj.ownerGrace <= 0);
 

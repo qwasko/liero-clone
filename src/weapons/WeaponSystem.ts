@@ -36,8 +36,10 @@ export class WeaponSystem {
     const aimX = Math.cos(baseAngle);
     const aimY = Math.sin(baseAngle);
 
-    const spawnX = worm.x + aimX * (worm.width  / 2 + 3);
-    const spawnY = worm.y + aimY * (worm.height / 2 + 3);
+    // Zimm spawns 15px in front of worm to avoid self-hit and adjacent terrain
+    const spawnDist = weapon.behavior === 'zimm' ? 15 : (worm.width / 2 + 3);
+    const spawnX = worm.x + aimX * spawnDist;
+    const spawnY = worm.y + aimY * spawnDist;
 
     for (let i = 0; i < weapon.pellets; i++) {
       const speedMult = weapon.velocityVariance
