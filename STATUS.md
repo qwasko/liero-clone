@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: AI tactical intelligence — threat scoring, suppression, weapon tactics
+## Last completed: AI upward weapon selection — clearance scan, error rates, burn learning
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -123,6 +123,12 @@
     - Checks for ceiling within 150px before attempting
     - Sequence: fire → wait 20-30 frames → launch rope → swing away from enemy
     - Probability: Easy 15%, Medium 45%, Hard 75%
+  - **Rope escape direction**: fires rope away from grenade, not toward it
+  - **Upward weapon selection with self-damage awareness**:
+    - Vertical clearance scan: tight tunnel (<100px) forces minigun/shotgun
+    - Difficulty-scaled error rates (Easy 50%, Medium 25%, Hard 8% misjudge)
+    - Burn learning: tracks self-damage over 3s window, 5s explosive cooldown
+    - Enemy-above branch uses clearance + escape route checks
   - Dead angle escape: strafes out when enemy is in aim dead zone
   - 3 difficulty presets with full tuning:
     - Easy: 0.8× vision, 30f delay, ±15°, slow reactions, ~50% rule adherence
@@ -140,14 +146,9 @@
 ## STOPPED HERE — end of session 2026-03-22
 
 ### Last completed
-- Threat scoring: per-projectile danger evaluation with Critical/Moderate/Low tiers
-- Suppression detection: HP tracking + no-LOS + no-shot-frames → REPOSITION state
-- Grenade trajectory intuition: steep-angle rejection, difficulty-scaled awareness
-- Full tactical weapon selection: positional, obstacle, and approach-aware choices
-- Proximity grenade & larpa tactical usage rules with tacticalWeaponAccuracy scaling
-- Danger escape: critical threat → flee toward cover, rope to ceiling if available
-- Moderate threat sidestep: perpendicular dodge while maintaining attack
-- New AIDifficulty fields: trajectoryAwareness, suppressionDelay, tacticalWeaponAccuracy
+- Rope escape direction fix: fires away from grenade instead of toward it
+- Upward weapon selection: clearance scan, difficulty error rates, burn learning
+- Enemy-above branch: tight tunnel → safe weapons, open space → bazooka/grenade with escape check
 
 ### Next task to start
 - Test AI in-game and tune all new systems
