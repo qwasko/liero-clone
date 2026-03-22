@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Zimm tuning + weapon balance pass
+## Last completed: Zimm anti-resonance + safety fixes
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -34,7 +34,7 @@
   - Shotgun — 15 pellets, hitDamage 4/pellet, carve-only explosions, 3/mag
   - Proximity Grenade — bounce, proximity trigger (20px), 857ms activation delay, 35 fragments, 5000ms loading
   - Bouncy Larpa — elastic bounce (100%), 8000ms fuse, trail particles (3 dmg each), ownerGrace 857ms, 8 fragments, self-damage after grace
-  - Zimm — no gravity, elastic terrain bounce, worm-only explode, 49 splash dmg, speed 400, visual trail (white→blue), self-damage on direct hit
+  - Zimm — gravity 0.15, elastic terrain bounce, worm-only explode, 49 HP direct hit, speed 400, visual trail (white→blue), self-damage, ownerGrace 429ms, 15px spawn offset, progressive anti-stuck (jitter escalation + position tracking)
   - Cluster Bomb — bounce (50%), 1930ms fuse, 20 bomblets (bounce+430ms fuse), 20px crater
   - Mine — deploys on terrain, 857ms arm delay, proximity trigger (22px), 20 splash dmg, 8 fragments
   - Sticky Mine — fires with no gravity, attaches to terrain, detaches when terrain destroyed, re-attaches on fall, 857ms arm delay, proximity (25px), 60 HP flat damage, 8 dedicated fragments (8 dmg each), ownerGrace 857ms
@@ -54,6 +54,14 @@
 - **Trail particle system**: data-driven (trailWeaponId/trailIntervalMs on WeaponDef), trail particles inherit parent ownerGrace
 - **flatDamage**: ExplosionSystem option for full damage within radius (no distance falloff)
 - **hitsAllWorms**: fragments, larpa, larpa_trail, sticky_mine, sticky_mine_fragment, zimm skip owner exclusion on direct hit
+- **Zimm anti-resonance system**:
+  - Slight gravity (0.15) curves trajectory over time
+  - ±5° base jitter on each terrain bounce (escalated by stuck detection)
+  - Progressive stuck detection: track 20 positions on 5px grid
+    - < 4 unique → 2x jitter, < 3 → 4x jitter, < 2 → random velocity kick
+    - Reset escalation when projectile moves > 30px between frames
+  - 429ms owner grace (30 frames) prevents self-hit on spawn
+  - 15px spawn offset clears worm body and adjacent terrain
 - Object-pooled particle system (200 pool) with 3-phase animation
 - Self-damage: 50% of splash damage when owner worm is caught in own explosion (except fullSelfDamage weapons)
 - Ninja rope with spring/elastic physics (CHANGE+JUMP; anchor destruction releases rope)
@@ -77,17 +85,12 @@
 - Diagnostic console.log still active in ExplosionSystem, GameState, ParticleSystem
   — remove before release
 
-## STOPPED HERE — end of session 2026-03-20
+## STOPPED HERE — end of session 2026-03-22
 
 ### Last completed
-- Zimm tuning: speed 600→400, visual trail (fading white→light blue), self-damage on direct hit
-- Sticky mine: full lifecycle (fly→attach→detach→fall→re-attach), flat 60 HP damage, dedicated fragments
-- LARPA: trail particle system, ownerGrace, self-damage after grace period
-- Proximity grenade: activation delay, balanced weaker than grenade
-- Shotgun: hitDamage-only (4/pellet), carve-only explosions, 3/mag
-- Grenade: 2/mag
-- Mine: 857ms activation delay, 20 splash dmg, 8 fragments
-- Green worm change key: PERIOD → FORWARD_SLASH
+- Zimm anti-resonance: gravity 0.15, ±5° bounce jitter, progressive stuck detection (jitter escalation)
+- Zimm safety: ownerGrace 429ms (30 frames), 15px spawn offset, added to hasOwnerGrace list
+- Zimm tuning (previous session): speed 600→400, visual trail, self-damage on direct hit
 
 ### Next task to start
 - No specific task planned — see possible next steps below
