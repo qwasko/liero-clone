@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: AI bot opponent (Phase 1)
+## Last completed: AI self-damage awareness + throw-and-swing escape
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -82,13 +82,24 @@
   - AIController produces InputState — same interface as keyboard, game can't distinguish
   - Vision-limited: AI sees only a viewport-sized rectangle centered on its worm
   - Vision rect scales with camera zoom and difficulty visionMultiplier
-  - 3 behavior states: HUNT (enemy visible), SEARCH (memory <3s), EXPLORE (no info)
+  - 4 behavior states: ENGAGE, APPROACH, SEARCH, EXPLORE
   - Enemy memory: remembers last known position for 3 seconds after losing sight
   - Reaction delay buffer: raw perceptions delayed by N frames before acting
   - Aim jitter: re-rolled every 0.8-2s for natural-looking inaccuracy
   - Fire control: respects single/auto fire modes, cooldown between shots
-  - Wall detection: jumps over horizontal obstacles
-  - 3 difficulty presets (Easy/Medium/Hard) with vision, reaction, and aim tuning
+  - Navigation: jump, dig (2-frame rising edge), rock reroute, rope swing
+  - Obstacle-aware weapon selection: range + LOS + blockType + thickness
+  - Dead angle escape: strafes out when enemy is in aim dead zone
+  - **Self-damage awareness**: ballistic landing estimate, enclosed space detection
+    - Explosive weapons suppressed when blast would hit self (splashRadius × 1.5)
+    - Tunnel detection: terrain in 4+ of 8 directions → avoid all explosives
+    - Auto-switch to safe weapon (shotgun/minigun) when explosive is unsafe
+    - Difficulty scaling: Easy 90% cautious, Medium 60%, Hard 30%
+  - **Throw-and-swing escape**: after firing explosive, rope away from blast
+    - Sequence: fire → wait 20-30 frames → launch rope → swing away from enemy
+    - Probability: Easy 15%, Medium 45%, Hard 75%
+    - Swing direction mirrored (away from last known enemy position)
+  - 3 difficulty presets (Easy/Medium/Hard) with vision, reaction, aim, awareness tuning
   - Menu: TAB toggles 2P Local / vs AI, 1/2/3 selects difficulty
 
 ## Known issues / bugs
@@ -101,15 +112,15 @@
 ## STOPPED HERE — end of session 2026-03-22
 
 ### Last completed
-- AI bot opponent Phase 1: vision-limited controller with HUNT/SEARCH/EXPLORE states
-- Menu integration: TAB toggles 2P/AI, 1/2/3 selects difficulty
-- Difficulty presets: Easy (0.8× vision, 30f delay, ±15°), Medium (1.0×, 15f, ±7°), Hard (1.5×, 5f, ±2°)
+- AI self-damage awareness: ballistic estimate + enclosed space detection + auto-switch to safe weapon
+- AI throw-and-swing escape: fire explosive → wait → rope → swing away (difficulty-scaled probability)
+- New AIDifficulty fields: selfDamageAwareness, escapeRopeProbability
 
 ### Next task to start
-- AI Phase 2: weapon selection, dodge, terrain digging, rope usage
+- Test AI in-game and tune self-damage awareness thresholds / escape timing
 
 ## Possible next steps (not planned)
-- AI Phase 2 (weapon selection, dodge, dig, rope)
+- AI Phase 3: dodge incoming projectiles, advanced positioning
 - Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
 - Flamethrower / homing missile (spec: do not implement yet)
 - Animated worm sprites instead of circle-segments

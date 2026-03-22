@@ -2,6 +2,7 @@ import { InputState, emptyInputState } from '../input/InputState';
 import { Worm } from '../entities/Worm';
 import { Projectile } from '../entities/Projectile';
 import { Loadout } from '../weapons/Loadout';
+import { WeaponDef } from '../weapons/WeaponDef';
 import { TerrainMap } from '../terrain/TerrainMap';
 import { CrateData } from '../game/CrateSystem';
 
@@ -23,20 +24,27 @@ export interface AIDifficulty {
   readonly useRope: boolean;
   /** 0-1: probability each frame of picking optimal weapon vs random. */
   readonly weaponSelectAccuracy: number;
+  /** 0-1: how cautious about self-damage from explosives (1=very cautious, 0=reckless). */
+  readonly selfDamageAwareness: number;
+  /** 0-1: probability of attempting rope escape after throwing explosive. */
+  readonly escapeRopeProbability: number;
 }
 
 export const AI_DIFFICULTIES: Record<string, AIDifficulty> = {
   easy: {
     label: 'Easy', visionMultiplier: 0.8, reactionFrames: 30, aimJitter: 15 * Math.PI / 180,
     digStuckThreshold: 30, useRope: false, weaponSelectAccuracy: 0.5,
+    selfDamageAwareness: 0.9, escapeRopeProbability: 0.15,
   },
   medium: {
     label: 'Medium', visionMultiplier: 1.0, reactionFrames: 15, aimJitter: 7 * Math.PI / 180,
     digStuckThreshold: 10, useRope: true, weaponSelectAccuracy: 0.75,
+    selfDamageAwareness: 0.6, escapeRopeProbability: 0.45,
   },
   hard: {
     label: 'Hard', visionMultiplier: 6, reactionFrames: 5, aimJitter: 2 * Math.PI / 180,
     digStuckThreshold: 6, useRope: true, weaponSelectAccuracy: 0.95,
+    selfDamageAwareness: 0.3, escapeRopeProbability: 0.75,
   },
 };
 
@@ -92,6 +100,18 @@ const ROPE_COOLDOWN = 2.0;
 /** Max frames to dig at rock before giving up and rerouting. */
 const ROCK_DIG_TIMEOUT = 20;
 
+/** Weapons with significant self-damage risk from splash. */
+const EXPLOSIVE_WEAPONS = new Set([
+  'bazooka', 'grenade', 'proximity_grenade', 'larpa',
+  'cluster_bomb', 'chiquita', 'zimm',
+]);
+
+/** Safe fallback weapon indices (direct-fire, small craters). */
+const SAFE_WEAPON_INDICES = [WEAPON_IDX.shotgun, WEAPON_IDX.minigun];
+
+/** Game gravity constant for ballistic estimation. */
+const GRAVITY_PXS2 = 600;
+
 // ════════════════════════════════════════════════════════════════════════════
 //  AI Controller
 // ════════════════════════════════════════════════════════════════════════════
@@ -143,6 +163,13 @@ export class AIController {
   private weaponCycleTarget = -1; // target weapon index, or -1 if satisfied
   private weaponCycleDir: -1 | 1 = 1;
   private weaponCycleCooldown = 0;
+
+  // ── Throw-and-swing escape ───────────────────────────────────
+  private escapePhase: 'none' | 'wait' | 'launch' = 'none';
+  private escapeFrames = 0;
+  private escapeTargetFrames = 0;
+  /** When true, doRopeSwing swings away from enemy instead of toward. */
+  private swingAway = false;
 
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
@@ -230,6 +257,19 @@ export class AIController {
     if (this.jitterChangeTimer <= 0) {
       this.currentAimJitter = this.randomJitter();
       this.jitterChangeTimer = 0.8 + Math.random() * 1.2;
+    }
+
+    // ── Throw-and-swing escape sequence ──────────────────────────────
+    if (this.escapePhase === 'wait') {
+      this.escapeFrames++;
+      if (this.escapeFrames >= this.escapeTargetFrames) {
+        this.escapePhase = 'launch';
+      }
+    }
+    if (this.escapePhase === 'launch' && !hasRope && !hasHook) {
+      this.escapePhase = 'none';
+      this.swingAway = true;
+      return this.doRopeLaunch(self);
     }
 
     // ── On rope: swing and release logic ─────────────────────────────
@@ -369,7 +409,7 @@ export class AIController {
         const escapeDir = self.facingRight ? 1 : -1;
         if (escapeDir > 0) input.right = true; else input.left = true;
         if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-        this.applyFire(input, 0.1, loadout);
+        this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
         return input;
       }
       // Enemy directly above → aim up (worm CAN aim straight up)
@@ -406,7 +446,7 @@ export class AIController {
     this.applyNavigation(self, input, terrain, dx > 0 ? 1 : -1);
 
     // ── Fire ─────────────────────────────────────────────────────────
-    this.applyFire(input, aimDiff, loadout);
+    this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
 
     return input;
   }
@@ -432,7 +472,7 @@ export class AIController {
       // Aim as far down as possible
       if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
       // Still fire — projectile gravity will help curve downward
-      this.applyFire(input, 0.1, loadout);
+      this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
       return input;
     }
 
@@ -463,14 +503,14 @@ export class AIController {
     if (!perception.hasLineOfSight && perception.blockType === 'dirt') {
       if (perception.blockThickness < 50 && perception.enemyDist < RANGE_CLOSE) {
         // Close + thin dirt: shoot through it
-        this.applyFire(input, aimDiff, loadout);
+        this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
       } else if (perception.enemyDist >= RANGE_CLOSE) {
         // Far + dirt: dig toward enemy
         const moveDir: -1 | 1 = dx > 0 ? 1 : -1;
         this.applyNavigation(self, input, terrain, moveDir);
         // Also fire lob weapons (grenades arc over)
         if (wep.projectileGravity >= 0.8) {
-          this.applyFire(input, aimDiff, loadout);
+          this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
         }
       }
     }
@@ -496,7 +536,7 @@ export class AIController {
     // ── Fire: LOS clear OR dirt obstacle we can shoot through ────────
     if (perception.hasLineOfSight ||
         (perception.blockType === 'dirt' && perception.blockThickness < 50)) {
-      this.applyFire(input, aimDiff, loadout);
+      this.applyFire(input, aimDiff, loadout, self, terrain, perception.enemyDist);
     }
 
     return input;
@@ -657,15 +697,21 @@ export class AIController {
     return input;
   }
 
-  /** While on rope: swing toward enemy, then release. */
+  /** While on rope: swing toward enemy (or away if escaping), then release. */
   private doRopeSwing(self: Worm): InputState {
     const input = emptyInputState();
     this.ropeSwingFrames++;
 
-    // Swing toward target (last known enemy or explore direction)
-    const targetX = this.memorySecs < MEMORY_DURATION
-      ? this.lastKnownEnemyX
-      : self.x + this.exploreDir * 100;
+    // Swing direction: toward enemy normally, away if escaping a blast
+    let targetX: number;
+    if (this.swingAway) {
+      // Mirror enemy position — swing away from blast zone
+      targetX = self.x - (this.lastKnownEnemyX - self.x);
+    } else {
+      targetX = this.memorySecs < MEMORY_DURATION
+        ? this.lastKnownEnemyX
+        : self.x + this.exploreDir * 100;
+    }
 
     if (targetX > self.x) input.right = true;
     else input.left = true;
@@ -683,6 +729,7 @@ export class AIController {
       input.jump = true;
       input.change = false;
       this.ropeSwingFrames = 0;
+      this.swingAway = false;
     }
 
     return input;
@@ -758,10 +805,24 @@ export class AIController {
   //  Fire logic (shared between states)
   // ════════════════════════════════════════════════════════════════════════
 
-  private applyFire(input: InputState, aimDiff: number, loadout: Loadout): void {
+  private applyFire(
+    input: InputState, aimDiff: number, loadout: Loadout,
+    self?: Worm, terrain?: TerrainMap, enemyDist?: number,
+  ): void {
     const aimThreshold = this.difficulty.aimJitter + 0.15;
     if (Math.abs(aimDiff) < aimThreshold && this.fireCooldown <= 0 && loadout.canFire()) {
       const weapon = loadout.activeWeapon;
+
+      // ── Self-damage safety check ──────────────────────────────────
+      if (self && terrain && enemyDist !== undefined) {
+        if (!this.isSafeToFire(self, weapon, terrain, enemyDist)) {
+          // Unsafe: switch to a safe weapon instead of firing
+          this.switchToSafeWeapon(loadout);
+          this.fireHeld = false;
+          return;
+        }
+      }
+
       if (weapon.fireMode === 'auto') {
         input.fire = true;
         this.fireCooldown = 0.05;
@@ -774,9 +835,84 @@ export class AIController {
           this.fireHeld = false;
         }
       }
+
+      // ── Throw-and-swing escape trigger ────────────────────────────
+      if (input.fire && self && EXPLOSIVE_WEAPONS.has(weapon.id) &&
+          this.difficulty.useRope && this.escapePhase === 'none' &&
+          this.ropeCooldown <= 0) {
+        if (Math.random() < this.difficulty.escapeRopeProbability) {
+          this.escapePhase = 'wait';
+          this.escapeFrames = 0;
+          this.escapeTargetFrames = 20 + Math.floor(Math.random() * 11); // 20-30 frames
+        }
+      }
     } else {
       this.fireHeld = false;
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Self-damage awareness
+  // ════════════════════════════════════════════════════════════════════════
+
+  /** Check if firing the current weapon would risk self-damage. */
+  private isSafeToFire(
+    self: Worm, weapon: WeaponDef, terrain: TerrainMap, enemyDist: number,
+  ): boolean {
+    // Non-explosive weapons are always safe
+    if (!EXPLOSIVE_WEAPONS.has(weapon.id)) return true;
+
+    // Difficulty scaling: less cautious bots skip the check sometimes
+    if (Math.random() > this.difficulty.selfDamageAwareness) return true;
+
+    // Tunnel/enclosed space: avoid ALL explosives
+    if (this.isEnclosed(self, terrain, weapon.splashRadius)) return false;
+
+    const dangerRadius = weapon.splashRadius * 1.5;
+
+    // Impact weapons (no fuse): explosion at enemy position
+    if (weapon.fuseMs === null) {
+      return enemyDist > dangerRadius;
+    }
+
+    // Fused weapons: estimate detonation distance from self
+    const t = weapon.fuseMs / 1000;
+    const facing = self.facingRight ? 1 : -1;
+    const vx = Math.cos(self.aimAngle) * weapon.projectileSpeed * facing;
+    const vy = Math.sin(self.aimAngle) * weapon.projectileSpeed;
+    const grav = weapon.projectileGravity * GRAVITY_PXS2;
+    const landX = vx * t;
+    const landY = vy * t + 0.5 * grav * t * t;
+    const distFromSelf = Math.sqrt(landX * landX + landY * landY);
+
+    return distFromSelf > dangerRadius;
+  }
+
+  /** Check if worm is in an enclosed space (terrain in 4+ of 8 directions). */
+  private isEnclosed(self: Worm, terrain: TerrainMap, radius: number): boolean {
+    let blockedDirs = 0;
+    for (let i = 0; i < 8; i++) {
+      const angle = i * Math.PI / 4;
+      const px = self.x + Math.cos(angle) * radius;
+      const py = self.y + Math.sin(angle) * radius;
+      if (terrain.isSolid(Math.round(px), Math.round(py))) {
+        blockedDirs++;
+      }
+    }
+    return blockedDirs >= 4;
+  }
+
+  /** Switch to a safe direct-fire weapon (shotgun or minigun). */
+  private switchToSafeWeapon(loadout: Loadout): void {
+    if (this.weaponCycleTarget >= 0) return; // already cycling
+    const target = SAFE_WEAPON_INDICES[Math.floor(Math.random() * SAFE_WEAPON_INDICES.length)];
+    if (target === loadout.activeIndex) return;
+    const total = 11;
+    const fwd = (target - loadout.activeIndex + total) % total;
+    const bwd = (loadout.activeIndex - target + total) % total;
+    this.weaponCycleDir = fwd <= bwd ? 1 : -1;
+    this.weaponCycleTarget = target;
+    this.weaponCycleCooldown = 1.5 + Math.random() * 1.0;
   }
 
   // ════════════════════════════════════════════════════════════════════════
