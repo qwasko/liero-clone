@@ -350,10 +350,10 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
  * Internal weapons (cluster_bomblet, chiquita_fragment) are NOT included.
  */
 export const DEFAULT_LOADOUT: WeaponDef[] = [
+  WeaponRegistry.shotgun,
   WeaponRegistry.bazooka,
   WeaponRegistry.minigun,
   WeaponRegistry.grenade,
-  WeaponRegistry.shotgun,
   WeaponRegistry.proximity_grenade,
   WeaponRegistry.larpa,
   WeaponRegistry.zimm,

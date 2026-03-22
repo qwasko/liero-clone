@@ -56,6 +56,14 @@ export class TerrainMap {
     }
   }
 
+  /** Returns true if the position is indestructible rock (cell value 2). */
+  isRock(x: number, y: number): boolean {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    if (xi < 0 || xi >= this.width || yi < 0 || yi >= this.height) return true;
+    return this.data[yi * this.width + xi] === 2;
+  }
+
   /** Direct buffer access for TerrainRenderer and TerrainGenerator. */
   getData(): Uint8Array {
     return this.data;

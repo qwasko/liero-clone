@@ -185,11 +185,13 @@ export class GameScene extends Phaser.Scene {
       const vpW  = (CANVAS_WIDTH / 2) / zoom;
       const vpH  = CANVAS_HEIGHT / zoom;
       const crates = this.gameState.crateSystem.getCrates().filter(c => c.active);
+      const rope   = this.gameState.ropeSystem;
       input2 = this.aiController.getInput(
         worm2, worm1, loadout2,
         this.gameState.terrain,
         this.gameState.activeProjectiles,
         crates, vpW, vpH, dt,
+        rope.hasRope(worm2), rope.hasHook(worm2),
       );
     } else {
       input2 = this.inputManager.getPlayer2();
