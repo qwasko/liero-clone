@@ -206,6 +206,8 @@ export class AIController {
   private escapeFrames = 0;
   private escapeTargetFrames = 0;
   private swingAway = false;
+  /** Direction to escape from grenade: -1 = left, 1 = right (opposite of throw). */
+  private escapeAwayDir: -1 | 1 = 1;
 
   // ── Threat / suppression tracking ─────────────────────────────────
   private lastHp = 100;
@@ -361,7 +363,7 @@ export class AIController {
     if (this.escapePhase === 'launch' && !hasRope && !hasHook) {
       this.escapePhase = 'none';
       this.swingAway = true;
-      return this.doRopeLaunch(self);
+      return this.doEscapeRopeLaunch(self);
     }
 
     // ── On rope: swing and release logic ─────────────────────────────
@@ -944,6 +946,20 @@ export class AIController {
     return input;
   }
 
+  /** Launch rope away from grenade — face opposite to throw direction, aim up. */
+  private doEscapeRopeLaunch(_self: Worm): InputState {
+    const input = emptyInputState();
+    // Face away from grenade before launching rope
+    if (this.escapeAwayDir > 0) input.right = true; else input.left = true;
+    // Aim upward — always safe escape direction
+    input.up = true;
+    input.change = true;
+    input.jump = true;
+    this.ropeCooldown = ROPE_COOLDOWN;
+    this.ropeSwingFrames = 0;
+    return input;
+  }
+
   private doRopeSwing(self: Worm): InputState {
     const input = emptyInputState();
     this.ropeSwingFrames++;
@@ -1133,6 +1149,8 @@ export class AIController {
           this.escapePhase = 'wait';
           this.escapeFrames = 0;
           this.escapeTargetFrames = 20 + Math.floor(Math.random() * 11);
+          // Escape opposite to throw direction
+          this.escapeAwayDir = self.facingRight ? -1 : 1;
         }
       }
     } else {
