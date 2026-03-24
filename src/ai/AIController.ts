@@ -241,10 +241,18 @@ export class AIController {
   private deadAngleActionFrames = 0;
   /** Direction chosen for reposition (-1 left, 1 right). */
   private deadAngleRepositionDir: -1 | 1 = 1;
-  /** X position when dead angle jump loop detection started. */
-  private deadAngleJumpOriginX = 0;
-  /** Frames spent jumping in dead angle without horizontal progress. */
-  private deadAngleJumpStuckFrames = 0;
+  /** X position at last jump loop reset. */
+  private jumpLoopOriginX = 0;
+  /** Consecutive jumps without >15px horizontal progress. */
+  private jumpLoopCount = 0;
+  /** Frames remaining where jumping is suppressed after loop detected. */
+  private jumpSuppressFrames = 0;
+  /** Frames remaining for forced horizontal movement after loop break. */
+  private jumpLoopMoveFrames = 0;
+  /** Direction for forced horizontal movement. */
+  private jumpLoopMoveDir: -1 | 1 = 1;
+  /** Whether loop break chose rope instead of horizontal move. */
+  private jumpLoopRope = false;
 
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
@@ -386,6 +394,8 @@ export class AIController {
     this.ropeCooldown = Math.max(0, this.ropeCooldown - dt);
     this.weaponCycleCooldown = Math.max(0, this.weaponCycleCooldown - dt);
     this.jitterChangeTimer = Math.max(0, this.jitterChangeTimer - dt);
+    this.jumpSuppressFrames = Math.max(0, this.jumpSuppressFrames - 1);
+    this.jumpLoopMoveFrames = Math.max(0, this.jumpLoopMoveFrames - 1);
     if (this.jitterChangeTimer <= 0) {
       this.currentAimJitter = this.randomJitter();
       this.jitterChangeTimer = 0.8 + Math.random() * 1.2;
@@ -445,6 +455,58 @@ export class AIController {
       const edx = delayed.enemyX - self.x;
       if (edx >= 0 && !self.facingRight) result.right = true;
       else if (edx < 0 && self.facingRight) result.left = true;
+    }
+
+    // ── Jump loop detection and suppression ─────────────────────────
+    // Track consecutive jumps without horizontal progress.
+    if (result.jump) {
+      const hProg = Math.abs(self.x - this.jumpLoopOriginX);
+      if (hProg > 15) {
+        this.jumpLoopOriginX = self.x;
+        this.jumpLoopCount = 0;
+      } else {
+        this.jumpLoopCount++;
+      }
+      // After 5 consecutive stuck jumps: trigger loop break
+      if (this.jumpLoopCount >= 5 && this.jumpSuppressFrames <= 0) {
+        this.jumpLoopCount = 0;
+        this.jumpSuppressFrames = 120; // suppress jumping for ~2s
+        this.jumpLoopOriginX = self.x;
+        // 60% horizontal move, 40% rope (if available)
+        if (this.difficulty.useRope && this.ropeCooldown <= 0 &&
+            !hasRope && !hasHook &&
+            this.hasCeilingAbove(self, terrain, 150) &&
+            Math.random() < 0.4) {
+          this.jumpLoopRope = true;
+          this.jumpLoopMoveFrames = 0;
+        } else {
+          this.jumpLoopRope = false;
+          this.jumpLoopMoveFrames = 90; // ~1.5s
+          const randDir: -1 | 1 = Math.random() < 0.5 ? -1 : 1;
+          this.jumpLoopMoveDir = !this.isBlockedHorizontally(self, terrain, randDir)
+            ? randDir : (-randDir) as -1 | 1;
+        }
+      }
+    } else {
+      // Not jumping — reset origin so only consecutive jumps count
+      this.jumpLoopOriginX = self.x;
+    }
+
+    // Enforce jump suppression
+    if (this.jumpSuppressFrames > 0) {
+      result.jump = false;
+    }
+
+    // Forced rope launch (one-shot)
+    if (this.jumpLoopRope && !hasRope && !hasHook) {
+      this.jumpLoopRope = false;
+      return this.doRopeLaunch(self);
+    }
+
+    // Forced horizontal movement override
+    if (this.jumpLoopMoveFrames > 0) {
+      result.jump = false;
+      if (this.jumpLoopMoveDir > 0) { result.right = true; } else { result.left = true; }
     }
 
     return result;
@@ -1400,29 +1462,6 @@ export class AIController {
 
     // Aim as far down as possible
     if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-
-    // ── Jump loop detection: jumping in place without horizontal progress ──
-    const horizProgress = Math.abs(self.x - this.deadAngleJumpOriginX);
-    if (horizProgress > 20) {
-      this.deadAngleJumpOriginX = self.x;
-      this.deadAngleJumpStuckFrames = 0;
-    } else {
-      this.deadAngleJumpStuckFrames++;
-    }
-    if (this.deadAngleJumpStuckFrames > 60 && this.deadAngleAction !== 'reposition') {
-      this.deadAngleAction = 'reposition';
-      this.deadAngleActionFrames = 0;
-      this.deadAngleJumpStuckFrames = 0;
-      this.deadAngleJumpOriginX = self.x;
-      const randDir: -1 | 1 = Math.random() < 0.5 ? -1 : 1;
-      if (!this.isBlockedHorizontally(self, terrain, randDir)) {
-        this.deadAngleRepositionDir = randDir;
-      } else {
-        this.deadAngleRepositionDir = (-randDir) as -1 | 1;
-      }
-      this.applyDeadAngleAction(self, perception, loadout, terrain, input);
-      return input;
-    }
 
     // 2. If committed to an action and not expired, continue it
     if (this.deadAngleAction !== 'none') {
