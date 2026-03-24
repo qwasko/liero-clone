@@ -51,6 +51,16 @@ export class Loadout {
     return slot.def.infiniteAmmo || slot.magAmmo > 0;
   }
 
+  /** Check if weapon at a specific index has ammo and isn't mid-reload. */
+  canFireAt(index: number): boolean {
+    const slot = this.slots[index];
+    if (!slot) return false;
+    if (slot.reloadTimer > 0) return false;
+    return slot.def.infiniteAmmo || slot.magAmmo > 0;
+  }
+
+  get weaponCount(): number { return this.slots.length; }
+
   consumeAmmo(): void {
     const slot = this.slots[this.activeIndex];
     if (!slot.def.infiniteAmmo) {

@@ -210,6 +210,10 @@ export class AIController {
   private weaponCycleDir: -1 | 1 = 1;
   private weaponCycleCooldown = 0;
 
+  // ── Reload awareness ─────────────────────────────────────────────
+  private reloadSwitchCooldown = 0;
+  private allWeaponsReloading = false;
+
   // ── Throw-and-swing escape ───────────────────────────────────
   private escapePhase: 'none' | 'wait' | 'launch' = 'none';
   private escapeFrames = 0;
@@ -393,6 +397,7 @@ export class AIController {
     this.exploreJumpCooldown = Math.max(0, this.exploreJumpCooldown - dt);
     this.ropeCooldown = Math.max(0, this.ropeCooldown - dt);
     this.weaponCycleCooldown = Math.max(0, this.weaponCycleCooldown - dt);
+    this.reloadSwitchCooldown = Math.max(0, this.reloadSwitchCooldown - dt);
     this.jitterChangeTimer = Math.max(0, this.jitterChangeTimer - dt);
     this.jumpSuppressFrames = Math.max(0, this.jumpSuppressFrames - 1);
     this.jumpLoopMoveFrames = Math.max(0, this.jumpLoopMoveFrames - 1);
@@ -433,6 +438,14 @@ export class AIController {
     // ── SUPPRESSION: reposition override ─────────────────────────────
     if (this.suppressionActive) {
       return this.doReposition(self, delayed, loadout, terrain, hasRope, hasHook);
+    }
+
+    // ── Reload awareness: switch weapon when current is reloading ───
+    this.maybeReloadSwitch(loadout, delayed, self, terrain);
+
+    // ── All weapons reloading: evasive retreat ─────────────────────
+    if (this.allWeaponsReloading && (this.state === 'engage' || this.state === 'approach')) {
+      return this.doReloadRetreat(self, delayed, terrain, hasRope, hasHook);
     }
 
     // ── Moderate threat: sidestep while attacking ────────────────────
@@ -1420,6 +1433,119 @@ export class AIController {
     this.startWeaponCycle(loadout, target);
     // Override the long cooldown for safety switches
     this.weaponCycleCooldown = 1.5 + Math.random() * 1.0;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Reload awareness — switch to loaded weapon when current is reloading
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * When the current weapon starts reloading, evaluate the situation and
+   * switch to the best loaded weapon that fits.  If nothing is available,
+   * set allWeaponsReloading so the bot retreats.
+   */
+  private maybeReloadSwitch(
+    loadout: Loadout, perception: AIPerception, self: Worm, terrain: TerrainMap,
+  ): void {
+    // Not reloading → clear retreat flag, nothing to do
+    if (!loadout.isReloading) {
+      this.allWeaponsReloading = false;
+      return;
+    }
+    // Already cycling or on cooldown
+    if (this.weaponCycleTarget >= 0 || this.reloadSwitchCooldown > 0) return;
+
+    const candidates = this.getReloadCandidates(perception, self, terrain);
+
+    // Try situation-appropriate weapons first
+    for (const idx of candidates) {
+      if (idx === loadout.activeIndex) continue;
+      if (loadout.canFireAt(idx)) {
+        this.startWeaponCycle(loadout, idx);
+        this.weaponCycleCooldown = 1.0 + Math.random() * 0.5;
+        this.reloadSwitchCooldown = 0.8;
+        this.allWeaponsReloading = false;
+        return;
+      }
+    }
+
+    // Fallback: any loaded weapon at all
+    for (let i = 0; i < loadout.weaponCount; i++) {
+      if (i === loadout.activeIndex) continue;
+      if (loadout.canFireAt(i)) {
+        this.startWeaponCycle(loadout, i);
+        this.weaponCycleCooldown = 1.0 + Math.random() * 0.5;
+        this.reloadSwitchCooldown = 0.8;
+        this.allWeaponsReloading = false;
+        return;
+      }
+    }
+
+    // Nothing available
+    this.allWeaponsReloading = true;
+  }
+
+  /** Ranked weapon candidates for reload-switch based on current situation. */
+  private getReloadCandidates(
+    perception: AIPerception, _self: Worm, _terrain: TerrainMap,
+  ): number[] {
+    const dist = perception.enemyDist;
+    const hasLOS = perception.hasLineOfSight;
+
+    // Burned by self-damage → safe weapons only
+    if (this.explosiveBurnCooldown > 0) {
+      return [WEAPON_IDX.shotgun, WEAPON_IDX.minigun];
+    }
+
+    // Enclosed space
+    if (perception.inEnclosedArea && hasLOS) {
+      return dist < 150
+        ? [WEAPON_IDX.shotgun, WEAPON_IDX.minigun]
+        : [WEAPON_IDX.larpa, WEAPON_IDX.zimm, WEAPON_IDX.shotgun, WEAPON_IDX.minigun];
+    }
+
+    // Close range — NO explosives
+    if (dist < 150) {
+      return [WEAPON_IDX.shotgun, WEAPON_IDX.minigun];
+    }
+
+    // No LOS — lob/bounce weapons
+    if (!hasLOS) {
+      return [WEAPON_IDX.grenade, WEAPON_IDX.larpa, WEAPON_IDX.cluster_bomb,
+              WEAPON_IDX.chiquita, WEAPON_IDX.minigun];
+    }
+
+    // Medium range with LOS
+    if (dist < 300) {
+      return [WEAPON_IDX.bazooka, WEAPON_IDX.minigun, WEAPON_IDX.shotgun, WEAPON_IDX.zimm];
+    }
+
+    // Long range
+    return [WEAPON_IDX.minigun, WEAPON_IDX.zimm, WEAPON_IDX.bazooka, WEAPON_IDX.shotgun];
+  }
+
+  /** Evasive retreat when all weapons are reloading. */
+  private doReloadRetreat(
+    self: Worm, perception: AIPerception, terrain: TerrainMap,
+    hasRope: boolean, hasHook: boolean,
+  ): InputState {
+    const input = emptyInputState();
+    const dx = perception.enemyX - self.x;
+
+    // Move away from enemy
+    if (dx > 0) input.left = true; else input.right = true;
+
+    // Jump frequently for evasion
+    if (Math.random() < 0.12) input.jump = true;
+
+    // Try rope for fast repositioning
+    if (this.difficulty.useRope && !hasRope && !hasHook &&
+        this.ropeCooldown <= 0 && this.hasCeilingAbove(self, terrain, 150)) {
+      return this.doRopeLaunch(self);
+    }
+
+    this.applyNavigation(self, input, terrain, dx > 0 ? -1 : 1);
+    return input;
   }
 
   /** Check if there's solid terrain above (ceiling for rope). */
