@@ -67,6 +67,9 @@ export interface WeaponDef {
   readonly splashDamage:    number;
   readonly splashRadius:    number;
 
+  // Recoil: impulse applied to shooter opposite to aim direction (px/s)
+  readonly recoilForce?:    number;
+
   // Ammo & reload (magazine system)
   readonly ammoPerMag:     number;  // shots per magazine
   readonly totalAmmo:      number;  // total reserve ammo (10000 = effectively unlimited)

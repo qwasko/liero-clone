@@ -21,7 +21,11 @@ import {
   DEFAULT_LIVES,
   RESPAWN_DELAY_MS,
   WORM_MAX_HP,
+  KNOCKBACK_MINE_FACTOR,
+  MAX_WORM_VX,
+  MAX_WORM_VY,
 } from './constants';
+import { computeKnockback, getKnockbackForce } from '../utils/Knockback';
 
 /**
  * Pure game logic — owns all systems, has no Phaser dependency.
@@ -186,6 +190,17 @@ export class GameState {
         events.push({ type: 'muzzle_flash', x: p.x, y: p.y });
         events.push({ type: 'sound_fire', weaponId: p.weapon.id });
       }
+      // ── Recoil: push shooter opposite to aim direction ───────────
+      if (projs.length > 0) {
+        const recoil = projs[0].weapon.recoilForce ?? 0;
+        if (recoil > 0) {
+          const baseAngle = worm.facingRight ? worm.aimAngle : Math.PI - worm.aimAngle;
+          worm.vx -= Math.cos(baseAngle) * recoil;
+          worm.vy -= Math.sin(baseAngle) * recoil;
+          if (Math.abs(worm.vx) > MAX_WORM_VX) worm.vx = Math.sign(worm.vx) * MAX_WORM_VX;
+          if (Math.abs(worm.vy) > MAX_WORM_VY) worm.vy = Math.sign(worm.vy) * MAX_WORM_VY;
+        }
+      }
     });
 
     // ── Physics ────────────────────────────────────────────────────────
@@ -242,6 +257,24 @@ export class GameState {
           fullSelfDmg,
           proj.weapon.id === 'sticky_mine', // flat damage — full 60 HP within radius
         );
+
+        // ── Mine knockback: detach deployed mines and give them velocity ─
+        const mineKbForce = getKnockbackForce(proj.weapon.explosionRadius) * KNOCKBACK_MINE_FACTOR;
+        for (const mine of this.activeProjectiles) {
+          if (!mine.active || mine.weapon.behavior !== 'mine' || !mine.deployed) continue;
+          if (mine === proj) continue; // skip the exploding projectile itself
+          const mineDist = Math.hypot(mine.x - hitX, mine.y - hitY);
+          if (mineDist < proj.weapon.splashRadius) {
+            const kb = computeKnockback(
+              mine.x, mine.y, hitX, hitY, mineKbForce, proj.weapon.splashRadius,
+            );
+            mine.vx = kb.dvx;
+            mine.vy = kb.dvy;
+            mine.deployed = false;
+            mine.hasDeployed = false;
+            mine.detachCooldown = 200; // brief cooldown before re-attaching
+          }
+        }
 
         // ── Cluster bomb: spray bomblets ──────────────────────────────
         if (proj.weapon.clusterCount && proj.weapon.clusterWeapon) {

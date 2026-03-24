@@ -2,7 +2,7 @@ import { Worm } from '../entities/Worm';
 import { Projectile } from '../entities/Projectile';
 import { TerrainMap } from '../terrain/TerrainMap';
 import { CollisionUtils } from './CollisionUtils';
-import { GRAVITY } from '../game/constants';
+import { GRAVITY, MAX_WORM_VX, MAX_WORM_VY } from '../game/constants';
 
 /** Maximum pixels a worm can "step up" to climb a slope in one frame. */
 const MAX_STEP_HEIGHT = 8;
@@ -28,6 +28,10 @@ export class PhysicsSystem {
   }
 
   private stepWorm(worm: Worm, dt: number, terrain: TerrainMap | null): void {
+    // ── Velocity cap (knockback, recoil, etc.) ──────────────────────
+    if (Math.abs(worm.vx) > MAX_WORM_VX) worm.vx = Math.sign(worm.vx) * MAX_WORM_VX;
+    if (Math.abs(worm.vy) > MAX_WORM_VY) worm.vy = Math.sign(worm.vy) * MAX_WORM_VY;
+
     // ── Horizontal move ─────────────────────────────────────────────
     worm.x += worm.vx * dt;
 

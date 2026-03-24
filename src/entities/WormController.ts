@@ -5,6 +5,9 @@ import { MOVE_SPEED, JUMP_VELOCITY } from '../game/constants';
 /** Aim rotation speed in radians/s — full 180° arc in ~1 second. */
 const AIM_SPEED = Math.PI;
 
+/** Per-second decay rate for horizontal velocity when airborne with no input. */
+const AIR_FRICTION = 3.0;
+
 /**
  * Maximum downward aim angle: 60° below horizontal ≈ 30° from straight down.
  * The ~60° dead cone directly below is always blocked.
@@ -66,12 +69,22 @@ export class WormController {
         } else if (input.right) {
           w.vx = MOVE_SPEED;
           w.facingRight = true;
+        } else if (w.state === 'airborne') {
+          // Airborne with no input: preserve momentum (knockback/recoil)
+          // Apply air friction so it decays naturally (~95% gone in 1s)
+          w.vx *= Math.max(0, 1 - AIR_FRICTION * dt);
+          if (Math.abs(w.vx) < 1) w.vx = 0;
         } else {
           w.vx = 0;
         }
       } else if (!bothHoriz) {
-        // CHANGE held, no dig — stop movement
-        w.vx = 0;
+        // CHANGE held, no dig — preserve airborne momentum, stop if grounded
+        if (w.state === 'airborne') {
+          w.vx *= Math.max(0, 1 - AIR_FRICTION * dt);
+          if (Math.abs(w.vx) < 1) w.vx = 0;
+        } else {
+          w.vx = 0;
+        }
       }
       // bothHoriz on ground: keep current vx (worm continues held direction)
     }

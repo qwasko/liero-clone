@@ -41,6 +41,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     hitDamage: 12,                                             // Liero: hitDmg=12
     chiquitaFragments: 12,                              // 12 splinters (particle__small_damage)
     explosionRadius: 8, splashDamage: 50, splashRadius: 20,   // large_explosion, boosted damage
+    recoilForce: 80,
     ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 1071, loadingTimeMs: 5857,                 // Liero: delay=75, loadingTime=410
   },
@@ -58,6 +59,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 1,                                              // tuned: 1 per bullet
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only, no worm damage
+    recoilForce: 15,
     ammoPerMag: 70, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 7143,                    // Liero: delay=0, loadingTime=500
   },
@@ -78,6 +80,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     wormCollide: false,                                  // passes through worms, fuse-only detonation
     chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
+    recoilForce: 30,
     ammoPerMag: 2, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 3714,                    // Liero: delay=0, loadingTime=260
   },
@@ -114,6 +117,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 4,                                              // direct pellet hit only, no splash
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only
+    recoilForce: 120,
     ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 814, loadingTimeMs: 3357,                  // Liero: delay=57, loadingTime=235
   },
@@ -133,6 +137,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     trailWeaponId: 'larpa_trail', trailIntervalMs: 114,  // every 8 frames @ 70fps
     chiquitaFragments: 8,
     explosionRadius: 10, splashDamage: 50, splashRadius: 20,
+    recoilForce: 40,
     ammoPerMag: 4, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 429, loadingTimeMs: 5571,
   },
@@ -167,6 +172,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     ownerGraceMs: 429,                                         // 30 frames — no self-hit on spawn
     hitDamage: 49,                                             // Liero: hitDmg=49
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,  // zimm_flash: cosmetic only, damage is via hitDmg
+    recoilForce: 60,
     ammoPerMag: 2, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 1000, loadingTimeMs: 7714,                 // Liero: delay=70, loadingTime=540
   },
@@ -186,6 +192,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 50,
     clusterWeapon: 'cluster_bomblet', clusterCount: 20, // 20 bomblets!
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
+    recoilForce: 40,
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 5714,                    // Liero: delay=0, loadingTime=400
   },
@@ -278,6 +285,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     bouncePercent: 40,
     chiquitaFragments: 22,                               // 22 bomblets!
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
+    recoilForce: 40,
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 8571,                    // Liero: delay=0, loadingTime=600
   },

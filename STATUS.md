@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Splitscreen minimap HUD overlay
+## Last completed: Knockback and recoil physics
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -154,24 +154,36 @@
     - Hard: 6× vision, 5f delay, ±2°, fast tactical, ~90% rules (not perfect)
   - Menu: TAB toggles 2P Local / vs AI, 1/2/3 selects difficulty
 
+- **Knockback & recoil physics**:
+  - Explosion knockback: worms pushed away from blast center, force scales with proximity
+    - Large explosion (crater >= 8px): 150 px/s base
+    - Medium explosion (crater >= 6px): 100 px/s base
+    - Small explosion (crater < 6px): 40 px/s base
+  - Weapon recoil: shooter pushed opposite to aim direction on fire
+    - Shotgun 120, Bazooka 80, Zimm 60, Larpa/Cluster/Chiquita 40, Grenade 30, Minigun 15
+    - Deployables (mine, sticky mine, proximity grenade): 0
+  - Mine knockback: deployed mines detached and flung by nearby explosions (50% force)
+  - Velocity caps: 400 px/s horizontal, 500 px/s vertical
+  - Air friction: airborne worms preserve horizontal momentum with natural decay (~95% gone in 1s)
+  - Worm on rope: knockback applies normally, rope spring handles the swing
+  - Shared utility: `computeKnockback()` + `getKnockbackForce()` in `src/utils/Knockback.ts`
+
 ## Known issues / bugs
 - No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita, sticky_mine, proximity_grenade)
   — they use generic fire/explosion audio
 - Diagnostic console.log still active in ExplosionSystem, GameState, ParticleSystem
   — remove before release
 - AI bot not yet tested in-game — may need tuning
+- Knockback/recoil values may need in-game tuning
 
 ## STOPPED HERE — end of session 2026-03-24
 
 ### This session completed
-- AI dead angle below fix: detect + respond when enemy directly beneath (dig/grenade/reposition)
-- AI facing direction fix: updates toward enemy X every frame when idle
-- AI jump loop breaker: 5 consecutive stuck jumps → suppress jumping 2s, force move+dig or rope
-- Dig-through-dirt during forced horizontal movement after jump loop
+- Knockback and recoil physics (full implementation)
 
 ### Next task to start
+- Test knockback/recoil in-game and tune values
 - Test AI in-game and tune all new systems
-- Obstacle stalemate detection (incremental — separate commit)
 
 ## Possible next steps (not planned)
 - Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
