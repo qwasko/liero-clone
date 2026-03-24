@@ -425,12 +425,25 @@ export class AIController {
     // (applied as modifier inside engage/approach rather than separate state)
 
     // ── Produce input ────────────────────────────────────────────────
+    let result: InputState;
     switch (this.state) {
-      case 'engage':  return this.doEngage(self, delayed, loadout, terrain, dt);
-      case 'approach': return this.doApproach(self, delayed, loadout, terrain, dt, hasRope, hasHook);
-      case 'search':  return this.doSearch(self, terrain, dt, hasRope, hasHook);
-      case 'explore': return this.doExplore(self, terrain, dt);
+      case 'engage':  result = this.doEngage(self, delayed, loadout, terrain, dt); break;
+      case 'approach': result = this.doApproach(self, delayed, loadout, terrain, dt, hasRope, hasHook); break;
+      case 'search':  result = this.doSearch(self, terrain, dt, hasRope, hasHook); break;
+      case 'explore': result = this.doExplore(self, terrain, dt); break;
     }
+
+    // ── Face toward enemy every frame ──────────────────────────────
+    // If enemy is visible and no directional input was set by the state
+    // handler, inject a facing correction so the bot doesn't stare the
+    // wrong way when the enemy crosses to the opposite side.
+    if (delayed.enemyVisible && !result.left && !result.right && !result.change) {
+      const edx = delayed.enemyX - self.x;
+      if (edx >= 0 && !self.facingRight) result.right = true;
+      else if (edx < 0 && self.facingRight) result.left = true;
+    }
+
+    return result;
   }
 
   // ════════════════════════════════════════════════════════════════════════
