@@ -142,17 +142,6 @@ const GRENADE_WEAPONS = new Set([
 /** Safe fallback weapon indices (direct-fire, small craters). */
 const SAFE_WEAPON_INDICES = [WEAPON_IDX.shotgun, WEAPON_IDX.minigun];
 
-/**
- * Weapon categories for downward firing safety.
- * SAFE_DOWNWARD: direct-fire, no/low gravity, no large self-explosion risk.
- * RISKY_DOWNWARD: arc, bounce, large blast radius — dangerous when enemy is below.
- */
-const SAFE_DOWNWARD_INDICES = [WEAPON_IDX.minigun, WEAPON_IDX.shotgun, WEAPON_IDX.zimm];
-const RISKY_DOWNWARD = new Set([
-  'grenade', 'proximity_grenade', 'cluster_bomb', 'chiquita',
-  'larpa', 'mine', 'sticky_mine',
-]);
-
 /** Game gravity constant for ballistic estimation. */
 const GRAVITY_PXS2 = 600;
 
@@ -252,10 +241,6 @@ export class AIController {
   private deadAngleActionFrames = 0;
   /** Direction chosen for reposition (-1 left, 1 right). */
   private deadAngleRepositionDir: -1 | 1 = 1;
-  /** X position when dead angle jump loop detection started. */
-  private deadAngleJumpOriginX = 0;
-  /** Frames spent jumping in dead angle without horizontal progress. */
-  private deadAngleJumpStuckFrames = 0;
 
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
@@ -1123,20 +1108,13 @@ export class AIController {
         }
       }
     }
-    // ── Enemy below (near dead angle) — category-based safety ────────
+    // ── Enemy below (near dead angle) ────────────────────────────────
     else if (perception.enemyBelow) {
-      const tight = this.checkEnclosedArea(self, terrain, 80);
-      const hasEscapeSpace = !this.isBlockedHorizontally(self, terrain, 1) &&
-                             !this.isBlockedHorizontally(self, terrain, -1);
-      const allowRisky = !tight && hasEscapeSpace &&
-                         this.difficulty.label === 'Hard' && Math.random() < 0.3;
-
-      if (allowRisky) {
-        // Hard bot with escape space: occasionally use risky weapon
-        target = Math.random() < 0.5 ? WEAPON_IDX.grenade : WEAPON_IDX.cluster_bomb;
+      // Zimm bounces can reach below; avoid grenades (dangerous below)
+      if (tactical && perception.inEnclosedArea) {
+        target = WEAPON_IDX.zimm;
       } else {
-        // Default: safe downward weapons only
-        target = SAFE_DOWNWARD_INDICES[Math.floor(Math.random() * SAFE_DOWNWARD_INDICES.length)];
+        target = Math.random() < 0.6 ? WEAPON_IDX.minigun : WEAPON_IDX.bazooka;
       }
     }
     // ── No LOS, dirt obstacle ────────────────────────────────────────
@@ -1363,14 +1341,6 @@ export class AIController {
     this.weaponCycleCooldown = 1.5 + Math.random() * 1.0;
   }
 
-  /** Switch to a safe downward weapon (minigun, shotgun, or zimm). */
-  private switchToSafeDownward(loadout: Loadout): void {
-    if (this.weaponCycleTarget >= 0) return;
-    const target = SAFE_DOWNWARD_INDICES[Math.floor(Math.random() * SAFE_DOWNWARD_INDICES.length)];
-    this.startWeaponCycle(loadout, target);
-    this.weaponCycleCooldown = 1.5 + Math.random() * 1.0;
-  }
-
   /** Check if there's solid terrain above (ceiling for rope). */
   private hasCeilingAbove(self: Worm, terrain: TerrainMap, maxDist: number): boolean {
     for (let dy = 20; dy < maxDist; dy += 10) {
@@ -1426,32 +1396,6 @@ export class AIController {
 
     // Aim as far down as possible
     if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-
-    // ── Jump loop detection: jumping in place without horizontal progress ──
-    const horizProgress = Math.abs(self.x - this.deadAngleJumpOriginX);
-    if (horizProgress > 20) {
-      // Making progress — reset tracker
-      this.deadAngleJumpOriginX = self.x;
-      this.deadAngleJumpStuckFrames = 0;
-    } else {
-      this.deadAngleJumpStuckFrames++;
-    }
-    // If stuck jumping >60 frames, force horizontal reposition
-    if (this.deadAngleJumpStuckFrames > 60 && this.deadAngleAction !== 'reposition') {
-      this.deadAngleAction = 'reposition';
-      this.deadAngleActionFrames = 0;
-      this.deadAngleJumpStuckFrames = 0;
-      this.deadAngleJumpOriginX = self.x;
-      // Pick random direction, prefer unblocked side
-      const randDir: -1 | 1 = Math.random() < 0.5 ? -1 : 1;
-      if (!this.isBlockedHorizontally(self, terrain, randDir)) {
-        this.deadAngleRepositionDir = randDir;
-      } else {
-        this.deadAngleRepositionDir = (-randDir) as -1 | 1;
-      }
-      this.applyDeadAngleAction(self, perception, loadout, terrain, input);
-      return input;
-    }
 
     // 2. If committed to an action and not expired, continue it
     if (this.deadAngleAction !== 'none') {
@@ -1516,10 +1460,6 @@ export class AIController {
         // Trigger dig: the sideways movement + aim down will carve terrain
         // Also apply navigation to handle stuck/dig mechanic
         this.applyNavigation(self, input, terrain, shiftDir);
-        // Switch to safe weapon if currently holding risky one
-        if (RISKY_DOWNWARD.has(loadout.activeWeapon.id)) {
-          this.switchToSafeDownward(loadout);
-        }
         // Fire to help dig through
         this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
         break;
