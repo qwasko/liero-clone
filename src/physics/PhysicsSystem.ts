@@ -325,7 +325,9 @@ export class PhysicsSystem {
         } // end wormCollide check
 
         // ── Terrain hit (skip during grace period or mine detach cooldown) ─
-        const mineOnCooldown = proj.weapon.behavior === 'mine' && proj.detachCooldown > 0;
+        // Mine cooldown disables terrain collision for normal detach (terrain destroyed).
+        // Knockback mines use terrainGrace instead — they must collide with terrain.
+        const mineOnCooldown = proj.weapon.behavior === 'mine' && proj.detachCooldown > 0 && proj.terrainGrace <= 0;
         if (terrain.isSolid(tx, ty) && proj.terrainGrace <= 0 && !mineOnCooldown) {
           if (proj.weapon.behavior === 'bounce' && proj.bounceCount < proj.weapon.maxBounces) {
             this.bounceProjectile(proj, dx, dy);

@@ -268,11 +268,29 @@ export class GameState {
             const kb = computeKnockback(
               mine.x, mine.y, hitX, hitY, mineKbForce, proj.weapon.splashRadius,
             );
+            // 1. Apply knockback impulse
             mine.vx = kb.dvx;
             mine.vy = kb.dvy;
             mine.deployed = false;
             mine.hasDeployed = false;
-            mine.detachCooldown = 200; // brief cooldown before re-attaching
+            // 2. Resolve terrain at current position — push toward blast crater (carved open)
+            if (this.terrain.isSolid(Math.round(mine.x), Math.round(mine.y))) {
+              const toBlastDist = Math.hypot(hitX - mine.x, hitY - mine.y);
+              if (toBlastDist > 1) {
+                const nx = (hitX - mine.x) / toBlastDist;
+                const ny = (hitY - mine.y) / toBlastDist;
+                for (let s = 1; s <= 20; s++) {
+                  if (!this.terrain.isSolid(Math.round(mine.x + nx * s), Math.round(mine.y + ny * s))) {
+                    mine.x += nx * s;
+                    mine.y += ny * s;
+                    break;
+                  }
+                }
+              }
+            }
+            // terrainGrace lets mine escape crater edge; clears once in air
+            mine.terrainGrace = 0.15;
+            mine.detachCooldown = 50; // tiny window to prevent instant re-attach
           }
         }
 
