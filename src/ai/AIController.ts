@@ -119,6 +119,15 @@ const ROPE_COOLDOWN = 2.0;
 /** Max frames to dig at rock before giving up and rerouting. */
 const ROCK_DIG_TIMEOUT = 20;
 
+/** Dead angle below: minimum Y offset to consider enemy "below". */
+const DEAD_ANGLE_BELOW_MIN_DY = 20;
+/** Dead angle below: half-angle cone from straight down (30° = ~0.524 rad). */
+const DEAD_ANGLE_BELOW_CONE = 30 * Math.PI / 180;
+/** Dead angle below: commit to chosen action for this many frames (~2s at 60fps). */
+const DEAD_ANGLE_COMMIT_FRAMES = 120;
+/** Dead angle below: minimum open space below for grenade drop (px). */
+const DEAD_ANGLE_GRENADE_CLEARANCE = 80;
+
 /** Weapons with significant self-damage risk from splash. */
 const EXPLOSIVE_WEAPONS = new Set([
   'bazooka', 'grenade', 'proximity_grenade', 'larpa',
@@ -224,6 +233,14 @@ export class AIController {
   /** Tracks self-damage from upward explosive shots in last 3s. */
   private upwardSelfDamage = 0;
   private upwardDamageDecay = 0;
+
+  // ── Dead angle below handling ──────────────────────────────────
+  /** Currently committed dead-angle action: 'none' | 'dig' | 'reposition' | 'grenade'. */
+  private deadAngleAction: 'none' | 'dig' | 'reposition' | 'grenade' = 'none';
+  /** Frames spent in dead-angle committed action. */
+  private deadAngleActionFrames = 0;
+  /** Direction chosen for reposition (-1 left, 1 right). */
+  private deadAngleRepositionDir: -1 | 1 = 1;
 
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
@@ -667,18 +684,19 @@ export class AIController {
     const dx = perception.enemyX - self.x;
     const dy = perception.enemyY - self.y;
 
-    // ── Dead angle escape ────────────────────────────────────────────
-    if (perception.inDeadAngle) {
-      if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
-        const escapeDir = self.facingRight ? 1 : -1;
-        if (escapeDir > 0) input.right = true; else input.left = true;
-        if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-        this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
-        return input;
-      }
-      if (dy < 0 && Math.abs(dx) < 10) {
-        input.right = true;
-      }
+    // ── Dead angle below — enemy directly beneath ───────────────────
+    if (this.isInLowerDeadAngle(self, perception.enemyX, perception.enemyY)) {
+      return this.doDeadAngleBelow(self, perception, loadout, terrain);
+    }
+    // Reset dead angle commitment when no longer in dead angle
+    if (this.deadAngleAction !== 'none') {
+      this.deadAngleAction = 'none';
+      this.deadAngleActionFrames = 0;
+    }
+
+    // ── Dead angle escape (enemy above, very close horizontally) ────
+    if (perception.inDeadAngle && dy < 0 && Math.abs(dx) < 10) {
+      input.right = true;
     }
 
     // ── Moderate threat sidestep ─────────────────────────────────────
@@ -730,13 +748,13 @@ export class AIController {
     const dx = perception.enemyX - self.x;
     const dy = perception.enemyY - self.y;
 
-    // ── Dead angle escape ────────────────────────────────────────────
-    if (perception.inDeadAngle && Math.abs(dy) > Math.abs(dx) && dy > 0) {
-      const escapeDir = self.facingRight ? 1 : -1;
-      if (escapeDir > 0) input.right = true; else input.left = true;
-      if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
-      this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
-      return input;
+    // ── Dead angle below — enemy directly beneath ───────────────────
+    if (this.isInLowerDeadAngle(self, perception.enemyX, perception.enemyY)) {
+      return this.doDeadAngleBelow(self, perception, loadout, terrain);
+    }
+    if (this.deadAngleAction !== 'none') {
+      this.deadAngleAction = 'none';
+      this.deadAngleActionFrames = 0;
     }
 
     // ── Moderate threat sidestep ─────────────────────────────────────
@@ -1324,6 +1342,135 @@ export class AIController {
       if (terrain.isSolid(Math.round(self.x), Math.round(self.y - dy))) return dy;
     }
     return 400;
+  }
+
+  /** Scan downward from bot: returns { clearance, isDirt }. clearance = open pixels, isDirt = first solid is diggable. */
+  private scanBelow(self: Worm, terrain: TerrainMap): { clearance: number; isDirt: boolean } {
+    for (let dy = 5; dy < 300; dy += 5) {
+      const px = Math.round(self.x);
+      const py = Math.round(self.y + dy);
+      if (terrain.isSolid(px, py)) {
+        return { clearance: dy, isDirt: !terrain.isRock(px, py) };
+      }
+    }
+    return { clearance: 300, isDirt: false };
+  }
+
+  /** Check if enemy is in the lower dead angle cone (below ±30° of straight down). */
+  private isInLowerDeadAngle(self: Worm, enemyX: number, enemyY: number): boolean {
+    const dx = enemyX - self.x;
+    const dy = enemyY - self.y;
+    if (dy <= DEAD_ANGLE_BELOW_MIN_DY) return false;
+    // Angle from straight down: atan2(|dx|, dy)
+    const angleFromDown = Math.atan2(Math.abs(dx), dy);
+    return angleFromDown <= DEAD_ANGLE_BELOW_CONE;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Dead angle below — enemy directly beneath, can't aim down enough
+  // ════════════════════════════════════════════════════════════════════════
+
+  private doDeadAngleBelow(
+    self: Worm, perception: AIPerception, loadout: Loadout,
+    terrain: TerrainMap,
+  ): InputState {
+    const input = emptyInputState();
+    const dx = perception.enemyX - self.x;
+
+    // 1. Always update facing toward enemy X
+    if (dx >= 0 && !self.facingRight) input.right = true;
+    if (dx < 0 && self.facingRight) input.left = true;
+
+    // Aim as far down as possible
+    if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
+
+    // 2. If committed to an action and not expired, continue it
+    if (this.deadAngleAction !== 'none') {
+      this.deadAngleActionFrames++;
+      if (this.deadAngleActionFrames < DEAD_ANGLE_COMMIT_FRAMES) {
+        this.applyDeadAngleAction(self, perception, loadout, terrain, input);
+        return input;
+      }
+      // Expired — reset and re-evaluate
+      this.deadAngleAction = 'none';
+      this.deadAngleActionFrames = 0;
+    }
+
+    // 3. Pick an action
+    const below = this.scanBelow(self, terrain);
+
+    // Option A — Dig down toward enemy (terrain below is diggable dirt)
+    if (below.clearance < 30 && below.isDirt) {
+      this.deadAngleAction = 'dig';
+      this.deadAngleActionFrames = 0;
+      // Pick sideways shift direction: toward enemy X to angle the dig
+      this.deadAngleRepositionDir = dx >= 0 ? 1 : -1;
+      this.applyDeadAngleAction(self, perception, loadout, terrain, input);
+      return input;
+    }
+
+    // Option B — Drop grenade down (hard bot only, 40% chance, enough open space)
+    if (this.difficulty.label === 'Hard' && Math.random() < 0.4 &&
+        below.clearance >= DEAD_ANGLE_GRENADE_CLEARANCE) {
+      this.deadAngleAction = 'grenade';
+      this.deadAngleActionFrames = 0;
+      this.startWeaponCycle(loadout, WEAPON_IDX.grenade);
+      this.applyDeadAngleAction(self, perception, loadout, terrain, input);
+      return input;
+    }
+
+    // Option C — Reposition horizontally until enemy is at 45°+
+    this.deadAngleAction = 'reposition';
+    this.deadAngleActionFrames = 0;
+    // Move so enemy angle opens up — pick direction away from enemy X if close,
+    // otherwise move in whichever direction is not blocked
+    const tryDir: -1 | 1 = dx >= 0 ? -1 : 1;
+    if (!this.isBlockedHorizontally(self, terrain, tryDir)) {
+      this.deadAngleRepositionDir = tryDir;
+    } else {
+      this.deadAngleRepositionDir = (-tryDir) as -1 | 1;
+    }
+    this.applyDeadAngleAction(self, perception, loadout, terrain, input);
+    return input;
+  }
+
+  /** Continue the committed dead-angle action. */
+  private applyDeadAngleAction(
+    self: Worm, perception: AIPerception, loadout: Loadout,
+    terrain: TerrainMap, input: InputState,
+  ): void {
+    switch (this.deadAngleAction) {
+      case 'dig': {
+        // Shift sideways 20px first, then dig downward
+        const shiftDir = this.deadAngleRepositionDir;
+        if (shiftDir > 0) input.right = true; else input.left = true;
+        // Trigger dig: the sideways movement + aim down will carve terrain
+        // Also apply navigation to handle stuck/dig mechanic
+        this.applyNavigation(self, input, terrain, shiftDir);
+        // Fire to help dig through
+        this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
+        break;
+      }
+      case 'grenade': {
+        // Aim down and fire grenade
+        this.applyFire(input, 0.1, loadout, self, terrain, perception.enemyDist);
+        break;
+      }
+      case 'reposition': {
+        // Move horizontally to escape dead angle
+        const dir = this.deadAngleRepositionDir;
+        if (dir > 0) input.right = true; else input.left = true;
+        this.applyNavigation(self, input, terrain, dir);
+        // Jump to speed up lateral movement
+        if (this.deadAngleActionFrames % 30 === 0) input.jump = true;
+        // Check if enemy is no longer in dead angle — exit early
+        if (!this.isInLowerDeadAngle(self, perception.enemyX, perception.enemyY)) {
+          this.deadAngleAction = 'none';
+          this.deadAngleActionFrames = 0;
+        }
+        break;
+      }
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════

@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: AI upward weapon selection — clearance scan, error rates, burn learning
+## Last completed: Splitscreen minimap HUD overlay
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -78,6 +78,11 @@
 - Projectiles travel full map dimensions before despawning
 - 4-segment worm sprites with aim-tracking eye (P1 green, P2 red)
 - Mode selection: Normal Deathmatch or Game of Tag
+- **Minimap** — per-viewport overlay (Tab to toggle):
+  - ~120×80px, proportional to map aspect ratio
+  - P1: bottom-right of left viewport, P2: bottom-left of right viewport
+  - Terrain: brown=dirt, gray=rock, black=air (redraws every 10 frames)
+  - Green dot=P1, red dot=P2, yellow dots=projectiles, white squares=crates
 - **AI bot opponent** (vs AI mode):
   - AIController produces InputState — same interface as keyboard, game can't distinguish
   - Vision-limited: AI sees only a viewport-sized rectangle centered on its worm
@@ -136,6 +141,15 @@
     - Hard: 6× vision, 5f delay, ±2°, fast tactical, ~90% rules (not perfect)
   - Menu: TAB toggles 2P Local / vs AI, 1/2/3 selects difficulty
 
+- **Dead angle below response** (AI):
+  - Detects enemy in ±30° cone below bot (>20px below)
+  - Updates facing toward enemy X immediately
+  - Option A: dig down (shift sideways + dig toward enemy, if terrain is diggable dirt)
+  - Option B: drop grenade (Hard bot only, 40% chance, requires >80px open space below)
+  - Option C: reposition horizontally (move until enemy exits dead angle cone)
+  - Priority: A → C (B for Hard bot), commits to action for ~2s before switching
+  - Never freezes in dead angle — always picks an action
+
 ## Known issues / bugs
 - No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita, sticky_mine, proximity_grenade)
   — they use generic fire/explosion audio
@@ -143,18 +157,13 @@
   — remove before release
 - AI bot not yet tested in-game — may need tuning
 
-## STOPPED HERE — end of session 2026-03-22
+## STOPPED HERE — end of session 2026-03-24
 
 ### This session completed
-- AI tactical intelligence overhaul (threat scoring, suppression, grenade intuition, weapon tactics)
-- Dead angle + stalemate fix attempted → reverted (broke bot globally) — needs incremental approach
-- Rope escape direction fix: fires away from grenade instead of toward it
-- Upward weapon selection: clearance scan, difficulty error rates, burn learning
-- Enemy-above branch: tight tunnel → safe weapons, open space → bazooka/grenade with escape check
+- Dead angle below fix: bot no longer freezes when enemy is directly beneath
 
 ### Next task to start
 - Test AI in-game and tune all new systems
-- Dead angle below fix (incremental — do NOT bundle with other changes)
 - Obstacle stalemate detection (incremental — separate commit)
 
 ## Possible next steps (not planned)
