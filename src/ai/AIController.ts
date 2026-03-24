@@ -506,7 +506,22 @@ export class AIController {
     // Forced horizontal movement override
     if (this.jumpLoopMoveFrames > 0) {
       result.jump = false;
-      if (this.jumpLoopMoveDir > 0) { result.right = true; } else { result.left = true; }
+      const dir = this.jumpLoopMoveDir;
+      if (dir > 0) { result.right = true; } else { result.left = true; }
+
+      // Dig through dirt: alternate hold/tap to trigger dig mechanic
+      if (this.isBlockedHorizontally(self, terrain, dir)) {
+        const probeX = self.x + dir * (self.width / 2 + 5);
+        const isDirt = !terrain.isRock(Math.round(probeX), Math.round(self.y));
+        if (isDirt) {
+          // Even frames: hold direction only (already set above)
+          // Odd frames: tap opposite (both keys) to trigger dig
+          if (this.jumpLoopMoveFrames % 2 === 1) {
+            result.left = true;
+            result.right = true;
+          }
+        }
+      }
     }
 
     return result;
