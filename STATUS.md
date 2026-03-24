@@ -134,21 +134,25 @@
     - Difficulty-scaled error rates (Easy 50%, Medium 25%, Hard 8% misjudge)
     - Burn learning: tracks self-damage over 3s window, 5s explosive cooldown
     - Enemy-above branch uses clearance + escape route checks
+  - **Dead angle below response**:
+    - Detects enemy in ±30° cone below bot (>20px below)
+    - Updates facing toward enemy X immediately every frame
+    - Option A: dig down (shift sideways + dig, if diggable dirt)
+    - Option B: drop grenade (Hard only, 40%, >80px open below)
+    - Option C: reposition horizontally until enemy exits cone
+    - Priority: A → C (B for Hard bot), commits for ~2s
+  - **Jump loop breaker** (global, all states):
+    - Tracks consecutive jumps without >15px horizontal progress
+    - After 5 stuck jumps: suppress all jumping for 2s
+    - 60% force horizontal move (1.5s) with dig-through-dirt
+    - 40% fire rope toward nearest ceiling
+  - **Facing direction fix**: updates toward enemy X every frame when idle
   - Dead angle escape: strafes out when enemy is in aim dead zone
   - 3 difficulty presets with full tuning:
     - Easy: 0.8× vision, 30f delay, ±15°, slow reactions, ~50% rule adherence
     - Medium: 1.0× vision, 15f delay, ±7°, human-like mistakes, ~70% rules
     - Hard: 6× vision, 5f delay, ±2°, fast tactical, ~90% rules (not perfect)
   - Menu: TAB toggles 2P Local / vs AI, 1/2/3 selects difficulty
-
-- **Dead angle below response** (AI):
-  - Detects enemy in ±30° cone below bot (>20px below)
-  - Updates facing toward enemy X immediately
-  - Option A: dig down (shift sideways + dig toward enemy, if terrain is diggable dirt)
-  - Option B: drop grenade (Hard bot only, 40% chance, requires >80px open space below)
-  - Option C: reposition horizontally (move until enemy exits dead angle cone)
-  - Priority: A → C (B for Hard bot), commits to action for ~2s before switching
-  - Never freezes in dead angle — always picks an action
 
 ## Known issues / bugs
 - No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita, sticky_mine, proximity_grenade)
@@ -160,7 +164,10 @@
 ## STOPPED HERE — end of session 2026-03-24
 
 ### This session completed
-- Dead angle below fix: bot no longer freezes when enemy is directly beneath
+- AI dead angle below fix: detect + respond when enemy directly beneath (dig/grenade/reposition)
+- AI facing direction fix: updates toward enemy X every frame when idle
+- AI jump loop breaker: 5 consecutive stuck jumps → suppress jumping 2s, force move+dig or rope
+- Dig-through-dirt during forced horizontal movement after jump loop
 
 ### Next task to start
 - Test AI in-game and tune all new systems
