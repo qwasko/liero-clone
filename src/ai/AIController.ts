@@ -241,6 +241,10 @@ export class AIController {
   private deadAngleActionFrames = 0;
   /** Direction chosen for reposition (-1 left, 1 right). */
   private deadAngleRepositionDir: -1 | 1 = 1;
+  /** X position when dead angle jump loop detection started. */
+  private deadAngleJumpOriginX = 0;
+  /** Frames spent jumping in dead angle without horizontal progress. */
+  private deadAngleJumpStuckFrames = 0;
 
   constructor(difficulty: AIDifficulty) {
     this.difficulty = difficulty;
@@ -1396,6 +1400,29 @@ export class AIController {
 
     // Aim as far down as possible
     if (self.aimAngle < Math.PI / 3 - 0.05) input.down = true;
+
+    // ── Jump loop detection: jumping in place without horizontal progress ──
+    const horizProgress = Math.abs(self.x - this.deadAngleJumpOriginX);
+    if (horizProgress > 20) {
+      this.deadAngleJumpOriginX = self.x;
+      this.deadAngleJumpStuckFrames = 0;
+    } else {
+      this.deadAngleJumpStuckFrames++;
+    }
+    if (this.deadAngleJumpStuckFrames > 60 && this.deadAngleAction !== 'reposition') {
+      this.deadAngleAction = 'reposition';
+      this.deadAngleActionFrames = 0;
+      this.deadAngleJumpStuckFrames = 0;
+      this.deadAngleJumpOriginX = self.x;
+      const randDir: -1 | 1 = Math.random() < 0.5 ? -1 : 1;
+      if (!this.isBlockedHorizontally(self, terrain, randDir)) {
+        this.deadAngleRepositionDir = randDir;
+      } else {
+        this.deadAngleRepositionDir = (-randDir) as -1 | 1;
+      }
+      this.applyDeadAngleAction(self, perception, loadout, terrain, input);
+      return input;
+    }
 
     // 2. If committed to an action and not expired, continue it
     if (this.deadAngleAction !== 'none') {
