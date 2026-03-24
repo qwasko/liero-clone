@@ -4,6 +4,7 @@ import { TerrainGenerator } from '../terrain/TerrainGenerator';
 import { TerrainRenderer } from '../terrain/TerrainRenderer';
 import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
+import { Minimap } from '../ui/Minimap';
 import { GameState } from '../game/GameState';
 import { GameRenderer } from '../game/GameRenderer';
 import { GameEvent } from '../game/GameEvents';
@@ -26,6 +27,7 @@ export class GameScene extends Phaser.Scene {
   private terrainRenderer!: TerrainRenderer;
   private audio!: AudioManager;
   private hud!: HUD;
+  private minimap!: Minimap;
 
   // Phaser display layers
   private wormLayer!: Phaser.GameObjects.Graphics;
@@ -58,6 +60,8 @@ export class GameScene extends Phaser.Scene {
     if (this.textures.exists('terrain')) {
       this.textures.remove('terrain');
     }
+    if (this.textures.exists('minimap1')) this.textures.remove('minimap1');
+    if (this.textures.exists('minimap2')) this.textures.remove('minimap2');
     this.crateVisuals.clear();
 
     const mode  = data?.mode ?? 'normal';
@@ -136,6 +140,15 @@ export class GameScene extends Phaser.Scene {
     // ── HUD (splitscreen layout) ─────────────────────────────────────────
     this.hud = new HUD(this, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+    // ── Minimap ────────────────────────────────────────────────────────────
+    this.minimap = new Minimap(this, terrain);
+
+    // Toggle minimap with Tab
+    this.input.keyboard!.on('keydown-TAB', (e: KeyboardEvent) => {
+      e.preventDefault();
+      this.minimap.toggle();
+    });
+
     // ── HUD camera (full-screen overlay, renders last → on top) ──────────
     this.hudCamera = this.cameras.add(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, false, 'hud');
     this.hudCamera.setZoom(1);
@@ -161,6 +174,7 @@ export class GameScene extends Phaser.Scene {
       this.flashRect,
       this.divider,
       ...this.hud.objects,
+      ...this.minimap.objects,
     ];
     for (const obj of hudObjects) {
       cam1.ignore(obj);
@@ -249,6 +263,13 @@ export class GameScene extends Phaser.Scene {
     cam1.scrollY = Math.round(cam1.scrollY);
     this.p2Camera.scrollX = Math.round(this.p2Camera.scrollX);
     this.p2Camera.scrollY = Math.round(this.p2Camera.scrollY);
+
+    // ── Minimap ────────────────────────────────────────────────────────────
+    this.minimap.update(
+      state.worms,
+      state.activeProjectiles,
+      state.crateSystem.getCrates(),
+    );
 
     // ── HUD ──────────────────────────────────────────────────────────────
     this.hud.update(
