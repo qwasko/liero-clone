@@ -79,7 +79,6 @@ export interface NetGameSettings {
   matchDurationSeconds: number;
   p1Hp: number;
   p2Hp: number;
-  levelWidth: number;
-  levelHeight: number;
+  levelIndex: number;
   gameMode: 'normal' | 'tag';
 }

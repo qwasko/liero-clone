@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { loadSettings } from '../game/GameSettings';
-import { LEVEL_PRESETS } from '../game/LevelPreset';
 import type { NetGameSettings, ServerMessage } from '../network/protocol';
 
 type LobbyState = 'menu' | 'hosting' | 'joining' | 'waiting' | 'error';
@@ -361,15 +360,13 @@ export class LobbyScene extends Phaser.Scene {
 
   private buildNetSettings(): NetGameSettings {
     const s = loadSettings();
-    const level = LEVEL_PRESETS[s.levelIndex] ?? LEVEL_PRESETS[0];
     return {
       lives: s.lives,
       reloadMultiplier: s.reloadSpeedPercent / 100,
       matchDurationSeconds: s.matchTimerMinutes > 0 ? s.matchTimerMinutes * 60 : 0,
       p1Hp: s.p1Hp,
       p2Hp: s.p2Hp,
-      levelWidth: level.width,
-      levelHeight: level.height,
+      levelIndex: s.levelIndex,
       gameMode: s.gameMode,
     };
   }

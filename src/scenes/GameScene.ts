@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { InputManager } from '../input/InputManager';
+import { InputState } from '../input/InputState';
 import { TerrainGenerator } from '../terrain/TerrainGenerator';
 import { TerrainRenderer } from '../terrain/TerrainRenderer';
 import { AudioManager } from '../utils/AudioManager';
@@ -13,6 +14,10 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { CRATE_HALF } from '../game/CrateSystem';
 import { AIController, AI_DIFFICULTIES } from '../ai/AIController';
 import { GameSettings, PlayerType, loadSettings } from '../game/GameSettings';
+import { NetworkClient } from '../network/NetworkClient';
+import { LockstepManager } from '../network/LockstepManager';
+import type { NetGameSettings } from '../network/protocol';
+import type { Socket } from 'socket.io-client';
 
 /**
  * Thin Phaser orchestrator with splitscreen:
@@ -58,11 +63,26 @@ export class GameScene extends Phaser.Scene {
   private pauseOverlay: Phaser.GameObjects.GameObject[] = [];
   private pauseSelected = 0;
 
+  // Online multiplayer
+  private isOnline = false;
+  private networkClient: NetworkClient | null = null;
+  private lockstepManager: LockstepManager | null = null;
+  private localPlayerIndex: 0 | 1 = 0;
+  private stallText: Phaser.GameObjects.Text | null = null;
+
   constructor() {
     super({ key: 'GameScene' });
   }
 
-  create(data?: { settings?: GameSettings }): void {
+  create(data?: {
+    settings?: GameSettings;
+    online?: {
+      socket: unknown;
+      seed: number;
+      settings: NetGameSettings;
+      playerIndex: 0 | 1;
+    };
+  }): void {
     // ── Clean up stale state from previous game ──────────────────────────
     if (this.textures.exists('terrain')) {
       this.textures.remove('terrain');
@@ -70,30 +90,64 @@ export class GameScene extends Phaser.Scene {
     if (this.textures.exists('minimap1')) this.textures.remove('minimap1');
     if (this.textures.exists('minimap2')) this.textures.remove('minimap2');
     this.crateVisuals.clear();
+    this.isOnline = !!data?.online;
+    this.networkClient = null;
+    this.lockstepManager = null;
+    this.stallText = null;
 
     // ── Settings ─────────────────────────────────────────────────────────
+    const online = data?.online;
+    let mode: 'normal' | 'tag';
+    let levelIndex: number;
+    let reloadMultiplier: number;
+    let matchDuration: number;
+    let lives: number;
+    let p1Hp: number;
+    let p2Hp: number;
+    let seed: number | undefined;
+
+    if (online) {
+      // Online mode: use settings from the server (host's settings)
+      const ns = online.settings;
+      mode = ns.gameMode;
+      levelIndex = ns.levelIndex;
+      reloadMultiplier = ns.reloadMultiplier;
+      matchDuration = ns.matchDurationSeconds > 0 ? ns.matchDurationSeconds : Infinity;
+      lives = ns.lives;
+      p1Hp = ns.p1Hp;
+      p2Hp = ns.p2Hp;
+      seed = online.seed;
+      this.localPlayerIndex = online.playerIndex;
+    } else {
+      // Local mode: use local settings
+      const settings = data?.settings ?? loadSettings();
+      mode = settings.gameMode;
+      levelIndex = settings.levelIndex;
+      reloadMultiplier = settings.reloadSpeedPercent / 100;
+      matchDuration = settings.matchTimerMinutes > 0 ? settings.matchTimerMinutes * 60 : Infinity;
+      lives = settings.lives;
+      p1Hp = settings.p1Hp;
+      p2Hp = settings.p2Hp;
+    }
+
     const settings = data?.settings ?? loadSettings();
-    const mode  = settings.gameMode;
-    const level = LEVEL_PRESETS[settings.levelIndex] ?? LEVEL_PRESETS[0];
-    const reloadMultiplier = settings.reloadSpeedPercent / 100;
-    const matchDuration = settings.matchTimerMinutes > 0
-      ? settings.matchTimerMinutes * 60
-      : Infinity;
+    const level = LEVEL_PRESETS[levelIndex] ?? LEVEL_PRESETS[0];
     const halfW = CANVAS_WIDTH / 2;
 
     // ── Terrain ──────────────────────────────────────────────────────────
     const spawnP1 = { x: level.width * 0.25, y: level.height * 0.44 };
     const spawnP2 = { x: level.width * 0.75, y: level.height * 0.44 };
-    const terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain);
+    const terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain, seed);
     this.terrainRenderer = new TerrainRenderer(this, terrain);
 
     // ── GameState ────────────────────────────────────────────────────────
     this.gameState = new GameState(terrain, level, mode, {
-      lives: settings.lives,
+      lives,
       reloadMultiplier,
       matchDurationSeconds: matchDuration,
-      p1Hp: settings.p1Hp,
-      p2Hp: settings.p2Hp,
+      p1Hp,
+      p2Hp,
+      seed,
     });
     this.gameRenderer = new GameRenderer();
 
@@ -112,15 +166,19 @@ export class GameScene extends Phaser.Scene {
     this.inputManager = new InputManager(this.input.keyboard!, settings.p1Keys, settings.p2Keys);
     this.audio        = new AudioManager();
 
-    // ── AI controllers (per player) ──────────────────────────────────────
-    const makeAI = (playerType: PlayerType): AIController | null => {
-      if (playerType === 'human') return null;
-      const diffKey = playerType.replace('ai_', '');
-      const diff = AI_DIFFICULTIES[diffKey] ?? AI_DIFFICULTIES['medium'];
-      return new AIController(diff, settings.botUseMinimap);
-    };
-    this.aiController1 = makeAI(settings.player1Type);
-    this.aiController2 = makeAI(settings.player2Type);
+    // ── AI controllers (disabled in online mode) ────────────────────────
+    this.aiController1 = null;
+    this.aiController2 = null;
+    if (!this.isOnline) {
+      const makeAI = (playerType: PlayerType): AIController | null => {
+        if (playerType === 'human') return null;
+        const diffKey = playerType.replace('ai_', '');
+        const diff = AI_DIFFICULTIES[diffKey] ?? AI_DIFFICULTIES['medium'];
+        return new AIController(diff, settings.botUseMinimap);
+      };
+      this.aiController1 = makeAI(settings.player1Type);
+      this.aiController2 = makeAI(settings.player2Type);
+    }
 
     // ════════════════════════════════════════════════════════════════════
     //  Splitscreen camera setup
@@ -214,52 +272,91 @@ export class GameScene extends Phaser.Scene {
       cam1.ignore(obj);
       this.p2Camera.ignore(obj);
     }
+
+    // ── Online multiplayer setup ────────────────────────────────────────
+    if (online) {
+      const sock = online.socket as Socket;
+      this.networkClient = new NetworkClient(sock);
+      this.lockstepManager = new LockstepManager(
+        this.networkClient,
+        this.localPlayerIndex,
+        (dt, input1, input2) => this.tickAndRender(dt, input1, input2),
+        (stalled) => this.onStallChange(stalled),
+        () => this.onNetworkDisconnect(),
+      );
+
+      // Stall overlay text (hidden by default)
+      this.stallText = this.add.text(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 'Waiting for opponent...', {
+        fontSize: '20px', color: '#ffcc00', fontFamily: 'monospace',
+        backgroundColor: '#000000aa',
+        padding: { x: 16, y: 8 },
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setVisible(false);
+      cam1.ignore(this.stallText);
+      this.p2Camera.ignore(this.stallText);
+    }
   }
 
   update(_time: number, delta: number): void {
     if (this.paused || this.gameState.matchOver) return;
 
-    const dt     = delta / 1000;
-    const state  = this.gameState;
-    const [worm1, worm2] = state.worms;
-
-    // ── P1 input: keyboard or AI ───────────────────────────────────────
-    let input1;
-    if (this.aiController1) {
-      const loadout1 = state.loadouts.get(worm1)!;
-      const zoom1 = this.cameras.main.zoom;
-      const vpW1  = (CANVAS_WIDTH / 2) / zoom1;
-      const vpH1  = (CANVAS_HEIGHT - HUD.HEIGHT) / zoom1;
-      const crates = state.crateSystem.getCrates().filter(c => c.active);
-      const rope   = state.ropeSystem;
-      input1 = this.aiController1.getInput(
-        worm1, worm2, loadout1,
-        state.terrain, state.activeProjectiles,
-        crates, vpW1, vpH1, dt,
-        rope.hasRope(worm1), rope.hasHook(worm1),
-      );
+    if (this.isOnline && this.lockstepManager) {
+      // ── Online mode: feed local input to lockstep manager ─────────────
+      const localInput = this.inputManager.getPlayer1(); // always use P1 keys for local player
+      this.lockstepManager.update(localInput);
     } else {
-      input1 = this.inputManager.getPlayer1();
-    }
+      // ── Local mode: get inputs and tick directly ──────────────────────
+      const dt     = delta / 1000;
+      const state  = this.gameState;
+      const [worm1, worm2] = state.worms;
 
-    // ── P2 input: keyboard or AI ───────────────────────────────────────
-    let input2;
-    if (this.aiController2) {
-      const loadout2 = state.loadouts.get(worm2)!;
-      const zoom2 = this.p2Camera.zoom;
-      const vpW2  = (CANVAS_WIDTH / 2) / zoom2;
-      const vpH2  = (CANVAS_HEIGHT - HUD.HEIGHT) / zoom2;
-      const crates = state.crateSystem.getCrates().filter(c => c.active);
-      const rope   = state.ropeSystem;
-      input2 = this.aiController2.getInput(
-        worm2, worm1, loadout2,
-        state.terrain, state.activeProjectiles,
-        crates, vpW2, vpH2, dt,
-        rope.hasRope(worm2), rope.hasHook(worm2),
-      );
-    } else {
-      input2 = this.inputManager.getPlayer2();
+      // P1 input: keyboard or AI
+      let input1;
+      if (this.aiController1) {
+        const loadout1 = state.loadouts.get(worm1)!;
+        const zoom1 = this.cameras.main.zoom;
+        const vpW1  = (CANVAS_WIDTH / 2) / zoom1;
+        const vpH1  = (CANVAS_HEIGHT - HUD.HEIGHT) / zoom1;
+        const crates = state.crateSystem.getCrates().filter(c => c.active);
+        const rope   = state.ropeSystem;
+        input1 = this.aiController1.getInput(
+          worm1, worm2, loadout1,
+          state.terrain, state.activeProjectiles,
+          crates, vpW1, vpH1, dt,
+          rope.hasRope(worm1), rope.hasHook(worm1),
+        );
+      } else {
+        input1 = this.inputManager.getPlayer1();
+      }
+
+      // P2 input: keyboard or AI
+      let input2;
+      if (this.aiController2) {
+        const loadout2 = state.loadouts.get(worm2)!;
+        const zoom2 = this.p2Camera.zoom;
+        const vpW2  = (CANVAS_WIDTH / 2) / zoom2;
+        const vpH2  = (CANVAS_HEIGHT - HUD.HEIGHT) / zoom2;
+        const crates = state.crateSystem.getCrates().filter(c => c.active);
+        const rope   = state.ropeSystem;
+        input2 = this.aiController2.getInput(
+          worm2, worm1, loadout2,
+          state.terrain, state.activeProjectiles,
+          crates, vpW2, vpH2, dt,
+          rope.hasRope(worm2), rope.hasHook(worm2),
+        );
+      } else {
+        input2 = this.inputManager.getPlayer2();
+      }
+
+      this.tickAndRender(dt, input1, input2);
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Core tick + render (called by both local update and lockstep manager)
+  // ════════════════════════════════════════════════════════════════════════
+
+  private tickAndRender(dt: number, input1: InputState, input2: InputState): void {
+    const state = this.gameState;
 
     // ── Tick game logic ──────────────────────────────────────────────────
     const events = state.update(dt, input1, input2);
@@ -281,6 +378,7 @@ export class GameScene extends Phaser.Scene {
     this.syncCrateVisuals();
 
     // ── Draw ─────────────────────────────────────────────────────────────
+    const [worm1, worm2] = state.worms;
     this.gameRenderer.drawWorms(this.wormLayer, state.worms);
     this.particleLayer.clear();
 
@@ -326,6 +424,37 @@ export class GameScene extends Phaser.Scene {
       state.tagSystem,
       state.maxHp,
     );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Online multiplayer callbacks
+  // ════════════════════════════════════════════════════════════════════════
+
+  private onStallChange(stalled: boolean): void {
+    if (this.stallText) {
+      this.stallText.setVisible(stalled);
+    }
+  }
+
+  private onNetworkDisconnect(): void {
+    // Clean up network
+    this.lockstepManager?.destroy();
+    this.lockstepManager = null;
+    this.networkClient = null;
+
+    // Show disconnect message briefly, then return to menu
+    if (this.stallText) {
+      this.stallText.setText('Opponent disconnected');
+      this.stallText.setStyle({
+        fontSize: '20px', color: '#ff4444', fontFamily: 'monospace',
+        backgroundColor: '#000000aa',
+        padding: { x: 16, y: 8 },
+      });
+      this.stallText.setVisible(true);
+    }
+    this.time.delayedCall(2000, () => {
+      this.scene.start('MenuScene');
+    });
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -519,6 +648,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleMatchOver(event: GameEvent & { type: 'match_over' }): void {
+    // Clean up network on match end
+    if (this.isOnline) {
+      this.lockstepManager?.destroy();
+      this.lockstepManager = null;
+      this.networkClient = null;
+    }
+
     if (event.mode === 'tag') {
       this.time.delayedCall(800, () => {
         this.scene.start('TagOverScene', {
