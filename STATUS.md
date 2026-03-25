@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Online multiplayer bug fix (2026-03-25)
+## Last completed: Online multiplayer bug fixes (2026-03-25)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -49,26 +49,48 @@
 - Ninja rope, digging, magazine ammo, bonus crates, procedural audio
 - Game of Tag mode (any death = become IT)
 - ARCHITECTURE.md documenting full system design
-- **Online multiplayer (lockstep)**:
+- **Online multiplayer (lockstep) — partially working**:
   - Server: Node.js + Socket.io, room creation with 4-char codes, input relay
   - Client: LobbyScene (host/join UI), NetworkClient, LockstepManager
   - Deterministic: SeededRNG replaces Math.random, shared seed for terrain
   - INPUT_DELAY=3 frames, stall detection with 5s timeout
   - Host settings propagated to joiner via server
+  - Worms appear and move on both clients — basic lockstep is functional
 
 ## Known issues / bugs
 - No dedicated sounds for new weapons — they use generic fire/explosion audio
 - AI bot may need further tuning
-- Online multiplayer not yet tested end-to-end after socket bug fix
-- No reconnection handling — WebSocket drop = 5s stall then disconnect
+- **[ONLINE] "Waiting for opponent" overlay stays visible** even after game starts — stall text not hidden on unstall
+- **[ONLINE] Physics feels faster than local mode, knockback too strong** — likely a timestep mismatch: lockstep uses fixed FIXED_DT=1/60 but local mode uses Phaser's variable `delta`. If Phaser ticks faster than 60fps, lockstep runs fewer ticks per second than local, making forces/velocities accumulate differently
+- **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine), but worth noting
 
-## Next steps
-- Test online multiplayer end-to-end (two browser tabs)
-- Handle edge cases: mid-game disconnect UI, return to lobby
-- Consider adding latency display / frame counter for debugging
+## STOPPED HERE — end of session 2026-03-25
+
+### This session completed
+- SeededRNG: replaced Math.random with deterministic PRNG throughout game logic
+- Server: Socket.io server with rooms, input relay, seed generation
+- LobbyScene: host/join UI with 4-char room codes
+- NetworkClient + LockstepManager + GameScene integration
+- Bug fix: duplicate game_start — socket.io Socket was stored as WebSocket, cleanup() called `.close()` (no-op), causing stacked listeners and multiple connections
+- Bug fix: local input gaps — update() only buffered one frame per call, but tryAdvance() consumes up to 4; frames had no local input causing immediate stall at frame 3-4
+
+### Next session: fix online multiplayer remaining issues
+
+**Fix 1 (easy): "Waiting for opponent" overlay stuck**
+- `onStall(false)` is called when stall clears, which calls `onStallChange(false)`
+- `onStallChange` sets `stallText.setVisible(stalled)` — check if this is actually being called
+- Likely: stall clears but stallText visibility not updated, or stallText created before HUD camera setup
+
+**Fix 2 (investigate): physics faster + knockback stronger in online mode**
+- Local mode: `dt = delta / 1000` where delta is Phaser's variable frame time
+- Lockstep: `FIXED_DT = 1/60 = 0.01667s` always
+- If local game runs at >60fps (e.g. 120fps), local dt = ~0.0083s per tick, so forces are applied more gradually
+- Lockstep at true 60fps ticks accumulate forces at exactly 1/60 per tick
+- Solution: cap local dt to 1/60 to match lockstep, OR adjust FIXED_DT to match actual render rate
 
 ## Possible future steps (not planned)
 - Weapon-specific audio cues
 - Flamethrower / homing missile
 - Animated worm sprites
 - Sound effects from files
+- Reconnection handling (currently: 5s stall → disconnect → return to menu)

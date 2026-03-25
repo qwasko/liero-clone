@@ -46,7 +46,7 @@ Browser-based 2-player worm combat game. Core design principle: **pure game logi
 | File | Responsibility |
 |---|---|
 | `TerrainMap.ts` | Authoritative pixel-level bitmap. Values: 0=air, 1=dirt, 2=rock (indestructible). |
-| `TerrainGenerator.ts` | Procedural level creation: cave bubbles, winding tunnels, rock clusters. |
+| `TerrainGenerator.ts` | Procedural level creation: cave bubbles, winding tunnels, rock clusters. Accepts seed for deterministic output. |
 | `TerrainDestroyer.ts` | Wraps `carveCircle()`, tracks dirty regions for efficient re-rendering. |
 | `TerrainRenderer.ts` | Maintains Phaser CanvasTexture mirroring TerrainMap. Redraws only dirty regions. |
 
@@ -61,8 +61,23 @@ Browser-based 2-player worm combat game. Core design principle: **pure game logi
 
 | File | Responsibility |
 |---|---|
-| `InputState.ts` | Frame snapshot: `{ left, right, up, down, jump, fire, change }`. |
+| `InputState.ts` | Frame snapshot: `{ left, right, up, down, jump, fire, change }`. Also `emptyInputState()`. |
 | `InputManager.ts` | Polls Phaser keyboard → `InputState` per player. Respects custom keybindings. |
+
+### Network (`src/network/`)
+
+| File | Responsibility |
+|---|---|
+| `protocol.ts` | Shared message types for client↔server communication. `ClientMessage`, `ServerMessage`, `NetInputState`, `NetGameSettings`. Used by both browser client and Node server. |
+| `NetworkClient.ts` | Thin wrapper around a socket.io `Socket`. Sends `ClientInput` messages, routes incoming `ServerMessage` to a single handler. |
+| `LockstepManager.ts` | Deterministic lockstep synchronization. Buffers local input with INPUT_DELAY=3 frames, waits for remote input before advancing `GameState`. Stall detection with 5s disconnect timeout. |
+
+### Server (`server/src/`)
+
+| File | Responsibility |
+|---|---|
+| `index.ts` | Node.js + Socket.io server. Handles room create/join, relays `ClientInput` to opponent as `ServerRemoteInput`, sends `game_start` with shared seed to both players on room fill. |
+| `Room.ts` | Room data: code, seed (generated at creation), settings, player list. Tracks started state. |
 
 ### AI (`src/ai/`)
 
@@ -89,16 +104,18 @@ Browser-based 2-player worm combat game. Core design principle: **pure game logi
 |---|---|
 | `Knockback.ts` | `computeKnockback()` — flat force within blast radius. `getKnockbackForce()` — tier by splash damage. |
 | `AudioManager.ts` | Procedural sound via Web Audio API (no audio files). |
+| `SeededRNG.ts` | Deterministic PRNG (mulberry32). Replaces `Math.random` everywhere in game logic for lockstep determinism. |
 
 ### Scenes (`src/scenes/`)
 
 | File | Responsibility |
 |---|---|
 | `BootScene.ts` | Brief splash, transition to menu. |
-| `MenuScene.ts` | Main menu: New Game, Settings, Controls, Quit. Shows settings summary. |
+| `MenuScene.ts` | Main menu: New Game, Online Play, Settings, Controls, Quit. |
+| `LobbyScene.ts` | Online multiplayer lobby. HOST creates room (gets 4-char code), JOIN enters code. Manages socket.io connection lifecycle, hands socket to GameScene on `game_start`. |
 | `SettingsScene.ts` | Data-driven settings rows. UP/DOWN navigate, LEFT/RIGHT change values. |
 | `ControlsScene.ts` | Two-column key binding editor. ENTER to rebind, captures next keypress. |
-| `GameScene.ts` | **Main orchestrator.** Wires input → GameState → rendering. Manages cameras, HUD, AI, pause menu, crate visuals. |
+| `GameScene.ts` | **Main orchestrator.** Wires input → GameState → rendering. Manages cameras, HUD, AI, pause menu, crate visuals. In online mode: feeds local input to LockstepManager instead of directly to GameState. |
 | `GameOverScene.ts` | Deathmatch results screen. |
 | `TagOverScene.ts` | Tag mode results with time breakdown. |
 
@@ -106,7 +123,7 @@ Browser-based 2-player worm combat game. Core design principle: **pure game logi
 
 ## 2. Data Flow
 
-### Per-Frame Game Loop
+### Per-Frame Game Loop (local mode)
 
 ```
 GameScene.update(delta)
@@ -153,6 +170,52 @@ GameScene.update(delta)
    └─ P2 camera   → follows worm2
 ```
 
+### Per-Frame Game Loop (online/lockstep mode)
+
+```
+GameScene.update(delta)
+│
+├─ INPUT
+│  └─ InputManager.getPlayer1()  →  localInput  (always P1 keys — each machine is local P1)
+│
+├─ LOCKSTEP
+│  └─ LockstepManager.update(localInput)
+│     ├─ Buffer localInput for frames currentFrame .. currentFrame + INPUT_DELAY
+│     ├─ NetworkClient.sendInput(frame, input)  →  server  →  opponent
+│     └─ tryAdvance(): for each frame where both local + remote input available:
+│           GameState.update(FIXED_DT, input1, input2)  →  GameEvent[]  [same as local]
+│           (stall if remote input missing; disconnect after 5s stall)
+│
+├─ EVENTS → SIDE EFFECTS   [same as local]
+│
+├─ RENDERING               [same as local]
+│
+└─ CAMERA                  [same as local]
+
+Incoming from server (async, via socket.io):
+  ServerRemoteInput  →  LockstepManager.remoteInputs.set(frame, input)
+  ServerPlayerDisconnected  →  LockstepManager.onDisconnect()
+```
+
+### Lobby / Game Start Flow (online)
+
+```
+LobbyScene (HOST)                    Server                    LobbyScene (JOIN)
+     │                                  │                            │
+     ├─ create_room(settings) ─────────►│                            │
+     │◄─ room_created(code, seed) ──────┤                            │
+     │  [show code to user]             │                            │
+     │                                  │◄─── join_room(code) ───────┤
+     │                                  │  room.start()              │
+     │◄─ game_start(seed, P0) ──────────┤                            │
+     │                                  ├──── game_start(seed, P1) ──►│
+     │  sock.off() → GameScene          │          sock.off() → GameScene
+     │  GameScene.create({ online })    │          GameScene.create({ online })
+     │  TerrainGenerator(seed) ─────────────────── TerrainGenerator(seed)  [identical]
+     │  NetworkClient + LockstepManager │          NetworkClient + LockstepManager
+     └─ [game loop begins] ─────────────────────── [game loop begins]
+```
+
 ### Settings Flow
 
 ```
@@ -167,6 +230,9 @@ MenuScene  →  GameScene.create({ settings })
                 ├─ Cameras (p1Zoom, p2Zoom)
                 ├─ InputManager(p1Keys, p2Keys)
                 └─ AIController(difficulty, botUseMinimap)
+
+Online mode: host's settings are sent to server in create_room,
+server stores them in Room, sends to both clients in game_start.
 ```
 
 ---
@@ -184,7 +250,8 @@ PhysicsSystem, CollisionUtils
 WeaponSystem, WeaponDef, WeaponRegistry, Loadout
 ExplosionSystem, RopeSystem, DiggingSystem, CrateSystem, TagSystem
 TerrainMap, TerrainDestroyer, TerrainGenerator
-Knockback, AIController
+Knockback, AIController, SeededRNG
+NetworkClient, LockstepManager, protocol  (socket.io-client only, no Phaser)
 ```
 
 ### Phaser-Coupled Layer
@@ -192,17 +259,27 @@ Knockback, AIController
 These depend on Phaser for rendering, input, or scene management:
 
 ```
-GameScene, MenuScene, SettingsScene, ControlsScene, GameOverScene, TagOverScene, BootScene
+GameScene, MenuScene, LobbyScene, SettingsScene, ControlsScene, GameOverScene, TagOverScene, BootScene
 InputManager, GameRenderer, TerrainRenderer
 HUD, Minimap, AudioManager (Web Audio API)
 GameConfig
+```
+
+### Server Layer (Node.js only, no browser APIs)
+
+```
+server/src/index.ts, server/src/Room.ts
+Shares: src/network/protocol.ts (types only, no runtime deps)
 ```
 
 ### Dependency Direction
 
 ```
 Scenes  →  Pure Logic  →  (nothing external)
-   ↓
+   ↓          ↓
+   └──────────┴──  Network layer  →  socket.io-client (browser)
+                                  →  socket.io (server)
+
 UI / Renderers  →  Entity types only (Worm, Projectile, Loadout)
 ```
 
@@ -212,24 +289,22 @@ Key rules:
 - **GameScene is the only bridge** between input, logic, and rendering.
 - **AIController produces InputState** — same interface as keyboard input. GameState doesn't know the difference.
 - **GameState communicates outward only via GameEvent[]** — no callbacks, no observer pattern.
+- **LockstepManager wraps GameState.update()** — GameState doesn't know it's being called from lockstep vs local.
+- **protocol.ts is shared** between browser and server with no platform-specific imports.
 
 ---
 
 ## 4. Extension Seams
 
-### Multiplayer (WebSocket)
+### Multiplayer (WebSocket) — implemented
 
-**Input seam:** `GameState.update()` accepts two `InputState` objects. For networked play:
-- Replace `InputManager` with a network adapter that sends local input and receives remote input.
-- GameState runs identically — it doesn't care where input comes from.
+**Authority model chosen: lockstep.** Both clients run identical `GameState` with shared seed and exchanged inputs.
 
-**Serialization seam:** All entities are plain data (no Phaser objects). Worm, Projectile, TerrainMap are trivially serializable.
+**Input seam:** `LockstepManager` wraps `GameState.update()`, supplying `(FIXED_DT, localInput, remoteInput)`. GameState is unchanged.
 
-**Authority models:**
-- *Lockstep:* Both clients run GameState, exchange inputs. Deterministic (no `Math.random` seeding yet — would need fixing).
-- *Server-authoritative:* Server runs GameState, sends entity snapshots. Client runs GameRenderer only.
+**Determinism:** `SeededRNG` replaces `Math.random` everywhere. Both clients use the same seed (from server) → identical terrain, identical physics.
 
-**Event seam:** `GameEvent[]` can be transmitted for remote audio/visual sync.
+**Known limitation:** Physics runs at fixed 60fps in lockstep but at variable fps locally. If local game runs at >60fps, local dt < 1/60s per tick, making forces feel lighter. To fully match: cap local dt to 1/60 as well.
 
 ### AI Extensions
 
@@ -273,3 +348,5 @@ Key rules:
 | **UI** | `HUD.ts` | `Minimap.ts` |
 | **Rendering** | `GameRenderer.ts` | `TerrainRenderer.ts` |
 | **Audio** | `AudioManager.ts` | (self-contained, Web Audio API) |
+| **Network (client)** | `LockstepManager.ts` | `NetworkClient.ts`, `protocol.ts` |
+| **Network (server)** | `server/src/index.ts` | `server/src/Room.ts`, `src/network/protocol.ts` |
