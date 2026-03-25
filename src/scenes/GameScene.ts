@@ -53,6 +53,11 @@ export class GameScene extends Phaser.Scene {
   // Crate visuals synced to GameState crate data
   private crateVisuals = new Map<number, { body: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Text }>();
 
+  // Pause menu
+  private paused = false;
+  private pauseOverlay: Phaser.GameObjects.GameObject[] = [];
+  private pauseSelected = 0;
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -165,6 +170,16 @@ export class GameScene extends Phaser.Scene {
       this.minimap.toggle();
     });
 
+    // Pause menu with ESC
+    this.paused = false;
+    this.pauseOverlay = [];
+    this.pauseSelected = 0;
+    this.input.keyboard!.on('keydown-ESC', () => {
+      if (this.gameState.matchOver) return;
+      if (this.paused) this.resumeGame();
+      else this.showPauseMenu();
+    });
+
     // ── HUD camera (full-screen overlay, renders last → on top) ──────────
     this.hudCamera = this.cameras.add(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, false, 'hud');
     this.hudCamera.setZoom(1);
@@ -199,7 +214,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    if (this.gameState.matchOver) return;
+    if (this.paused || this.gameState.matchOver) return;
 
     const dt     = delta / 1000;
     const state  = this.gameState;
@@ -354,6 +369,82 @@ export class GameScene extends Phaser.Scene {
         this.handleMatchOver(event);
         break;
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Pause menu
+  // ════════════════════════════════════════════════════════════════════════
+
+  private showPauseMenu(): void {
+    this.paused = true;
+    this.pauseSelected = 0;
+
+    const cx = CANVAS_WIDTH / 2;
+    const cy = CANVAS_HEIGHT / 2;
+
+    const bg = this.add.rectangle(cx, cy, CANVAS_WIDTH, CANVAS_HEIGHT, 0x000000, 0.65)
+      .setScrollFactor(0).setDepth(100);
+
+    const title = this.add.text(cx, cy - 60, 'PAUSED', {
+      fontSize: '36px', color: '#ffffff', fontFamily: 'monospace',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+
+    const items = ['CONTINUE', 'NEW GAME'];
+    const texts = items.map((label, i) =>
+      this.add.text(cx, cy + 10 + i * 36, label, {
+        fontSize: '22px', color: '#444444', fontFamily: 'monospace',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(101),
+    );
+
+    this.pauseOverlay = [bg, title, ...texts];
+
+    // Hide from world cameras, show only on HUD camera
+    for (const obj of this.pauseOverlay) {
+      this.cameras.main.ignore(obj);
+      this.p2Camera.ignore(obj);
+    }
+
+    const refreshPause = () => {
+      texts.forEach((t, i) => {
+        const active = i === this.pauseSelected;
+        t.setText(active ? `▶ ${items[i]}` : `  ${items[i]}`);
+        t.setStyle({
+          fontSize: active ? '24px' : '20px',
+          color: active ? '#ffffff' : '#444444',
+          fontFamily: 'monospace',
+        });
+      });
+    };
+    refreshPause();
+
+    const onUp = () => { this.pauseSelected = (this.pauseSelected + 1) % 2; refreshPause(); };
+    const onDown = () => { this.pauseSelected = (this.pauseSelected + 1) % 2; refreshPause(); };
+    const onEnter = () => {
+      cleanup();
+      if (this.pauseSelected === 0) this.resumeGame();
+      else this.scene.start('MenuScene');
+    };
+
+    const keys = this.input.keyboard!;
+    keys.on('keydown-UP', onUp);
+    keys.on('keydown-DOWN', onDown);
+    keys.on('keydown-ENTER', onEnter);
+
+    const cleanup = () => {
+      keys.off('keydown-UP', onUp);
+      keys.off('keydown-DOWN', onDown);
+      keys.off('keydown-ENTER', onEnter);
+    };
+
+    // Store cleanup so resumeGame can call it
+    (this as any)._pauseCleanup = cleanup;
+  }
+
+  private resumeGame(): void {
+    (this as any)._pauseCleanup?.();
+    for (const obj of this.pauseOverlay) obj.destroy();
+    this.pauseOverlay = [];
+    this.paused = false;
   }
 
   // ════════════════════════════════════════════════════════════════════════
