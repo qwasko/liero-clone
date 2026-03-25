@@ -44,7 +44,7 @@ io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
 
   socket.on('message', (msg: ClientMessage) => {
-    console.log(`[msg] ${socket.id} → ${msg.type}`);
+    console.log(`[msg] ${socket.id} → ${msg.type}`, msg.type === 'input' ? `frame=${msg.frame}` : JSON.stringify(msg));
     switch (msg.type) {
       case 'create_room':
         handleCreateRoom(socket, msg.settings);
@@ -117,7 +117,7 @@ function handleJoinRoom(socket: import('socket.io').Socket, code: string): void 
       settings: room.settings,
       playerIndex: p.playerIndex,
     };
-    console.log(`[room] emitting game_start to player ${p.playerIndex} (socket=${p.socket.id})`);
+    console.log(`[room] emitting game_start to player ${p.playerIndex} (socket=${p.socket.id}, seed=${room.seed})`);
     p.socket.emit('message', start);
   }
   console.log(`[room] ${socket.id} joined room ${code} — game starting (seed=${room.seed})`);

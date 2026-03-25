@@ -70,8 +70,11 @@ Update STATUS.md with a clear "STOPPED HERE" section:
 - Any unfinished work in progress
 - Open decisions that need to be made
 
-### At start of every session:
-Read CLAUDE.md and STATUS.md before doing anything else.
+## Documentation
+- CLAUDE.md — project rules and conventions
+- STATUS.md — current state, last session
+- ARCHITECTURE.md — system design, data flow, seams
+Read all three at session start, before doing anything else.
 Summarize current state and confirm next step with me.
 
 ## Completion Signals
