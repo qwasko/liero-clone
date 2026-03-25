@@ -7,6 +7,7 @@ import { GameOverScene } from '../scenes/GameOverScene';
 import { TagOverScene } from '../scenes/TagOverScene';
 import { SettingsScene } from '../scenes/SettingsScene';
 import { ControlsScene } from '../scenes/ControlsScene';
+import { LobbyScene } from '../scenes/LobbyScene';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -23,5 +24,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     default: 'arcade',
     arcade: { debug: false },
   },
-  scene: [BootScene, MenuScene, SettingsScene, ControlsScene, GameScene, GameOverScene, TagOverScene],
+  scene: [BootScene, MenuScene, SettingsScene, ControlsScene, LobbyScene, GameScene, GameOverScene, TagOverScene],
 };

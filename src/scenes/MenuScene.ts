@@ -15,7 +15,7 @@ export class MenuScene extends Phaser.Scene {
   private summaryText!: Phaser.GameObjects.Text;
   private starting = false;
 
-  private readonly ITEMS = ['NEW GAME', 'SETTINGS', 'CONTROLS', 'QUIT'];
+  private readonly ITEMS = ['NEW GAME', 'ONLINE', 'SETTINGS', 'CONTROLS', 'QUIT'];
 
   constructor() {
     super({ key: 'MenuScene' });
@@ -96,15 +96,19 @@ export class MenuScene extends Phaser.Scene {
         this.starting = true;
         this.scene.start('GameScene', { settings: loadSettings() });
         break;
-      case 1: // SETTINGS
+      case 1: // ONLINE
+        this.starting = true;
+        this.scene.start('LobbyScene');
+        break;
+      case 2: // SETTINGS
         this.starting = true;
         this.scene.start('SettingsScene');
         break;
-      case 2: // CONTROLS
+      case 3: // CONTROLS
         this.starting = true;
         this.scene.start('ControlsScene');
         break;
-      case 3: // QUIT
+      case 4: // QUIT
         break;
     }
   }
