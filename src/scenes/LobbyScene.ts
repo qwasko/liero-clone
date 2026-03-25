@@ -251,6 +251,8 @@ export class LobbyScene extends Phaser.Scene {
   // ── Server message handling ───────────────────────────────────────────
 
   private handleServerMessage(msg: ServerMessage): void {
+    if (!this.scene.isActive()) return;
+    console.log('[LobbyScene] received message:', msg.type, msg);
     switch (msg.type) {
       case 'room_created':
         this.roomCode = msg.code;
@@ -258,7 +260,14 @@ export class LobbyScene extends Phaser.Scene {
         this.refreshDisplay();
         break;
 
-      case 'game_start':
+      case 'game_start': {
+        console.log('[LobbyScene] game_start! seed=', msg.seed, 'playerIndex=', msg.playerIndex);
+        // Remove all LobbyScene listeners before handing socket to GameScene
+        const sock = this.socket as unknown as import('socket.io-client').Socket;
+        sock.off('message');
+        sock.off('connect');
+        sock.off('connect_error');
+        sock.off('disconnect');
         // Transition to GameScene with network settings
         this.scene.start('GameScene', {
           settings: loadSettings(),
@@ -272,6 +281,7 @@ export class LobbyScene extends Phaser.Scene {
         // Don't close socket — GameScene takes ownership
         this.socket = null;
         break;
+      }
 
       case 'error':
         this.showError(msg.message);
@@ -345,6 +355,7 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private showError(message: string): void {
+    if (!this.scene.isActive()) return;
     this.state = 'error';
     this.menuTexts.forEach(t => t.setVisible(false));
     this.codeText.setVisible(false);

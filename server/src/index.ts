@@ -44,6 +44,7 @@ io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
 
   socket.on('message', (msg: ClientMessage) => {
+    console.log(`[msg] ${socket.id} → ${msg.type}`);
     switch (msg.type) {
       case 'create_room':
         handleCreateRoom(socket, msg.settings);
@@ -107,6 +108,7 @@ function handleJoinRoom(socket: import('socket.io').Socket, code: string): void 
   socketToRoom.set(socket.id, code);
 
   // Room is now full — start the game for both players
+  console.log(`[room] ${code} now has ${room.players.length} players, isFull=${room.isFull}`);
   room.start();
   for (const p of room.players) {
     const start: ServerGameStart = {
@@ -115,6 +117,7 @@ function handleJoinRoom(socket: import('socket.io').Socket, code: string): void 
       settings: room.settings,
       playerIndex: p.playerIndex,
     };
+    console.log(`[room] emitting game_start to player ${p.playerIndex} (socket=${p.socket.id})`);
     p.socket.emit('message', start);
   }
   console.log(`[room] ${socket.id} joined room ${code} — game starting (seed=${room.seed})`);
