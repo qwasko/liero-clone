@@ -4,6 +4,7 @@ import { ExplosionSystem } from './ExplosionSystem';
 import { Loadout } from '../weapons/Loadout';
 import { WeaponRegistry } from '../weapons/WeaponRegistry';
 import { WORM_MAX_HP } from './constants';
+import { SeededRNG } from '../utils/SeededRNG';
 
 export type CrateKind = 'weapon' | 'health' | 'booby';
 
@@ -50,6 +51,7 @@ export class CrateSystem {
     private worms:           Worm[],
     private loadouts:        Map<Worm, Loadout>,
     private maxHp:           Map<Worm, number> = new Map(),
+    private rng:             SeededRNG = new SeededRNG(0),
   ) {}
 
   getCrates(): readonly CrateData[] { return this.crates; }
@@ -87,17 +89,17 @@ export class CrateSystem {
     const pos = this.findSurface();
     if (!pos) return;
 
-    const roll = Math.random();
+    const roll = this.rng.next();
     let kind: CrateKind;
     let weaponId: string | undefined;
     let healAmount: number | undefined;
 
     if (roll < 0.50) {
       kind     = 'weapon';
-      weaponId = CRATE_WEAPONS[Math.floor(Math.random() * CRATE_WEAPONS.length)];
+      weaponId = CRATE_WEAPONS[Math.floor(this.rng.next() * CRATE_WEAPONS.length)];
     } else if (roll < 0.80) {
       kind       = 'health';
-      healAmount = 10 + Math.floor(Math.random() * 41); // 10–50
+      healAmount = 10 + Math.floor(this.rng.next() * 41); // 10–50
     } else {
       kind = 'booby';
     }
@@ -140,7 +142,7 @@ export class CrateSystem {
     const H = this.terrain.height;
 
     for (let attempt = 0; attempt < 30; attempt++) {
-      const x = Math.floor(15 + Math.random() * (W - 30));
+      const x = Math.floor(15 + this.rng.next() * (W - 30));
       for (let y = 15; y < H - 15; y++) {
         if (!this.terrain.isSolid(x, y) && this.terrain.isSolid(x, y + CRATE_HALF + 1)) {
           if (!this.terrain.isSolid(x, y - CRATE_HALF)) {

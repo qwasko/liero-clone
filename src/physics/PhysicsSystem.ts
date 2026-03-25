@@ -3,6 +3,7 @@ import { Projectile } from '../entities/Projectile';
 import { TerrainMap } from '../terrain/TerrainMap';
 import { CollisionUtils } from './CollisionUtils';
 import { GRAVITY, MAX_WORM_VX, MAX_WORM_VY } from '../game/constants';
+import { SeededRNG } from '../utils/SeededRNG';
 
 /** Maximum pixels a worm can "step up" to climb a slope in one frame. */
 const MAX_STEP_HEIGHT = 8;
@@ -16,6 +17,7 @@ const MAX_STEP_HEIGHT = 8;
  *                 vertical move → vertical resolve → grounded check.
  */
 export class PhysicsSystem {
+  constructor(private rng: SeededRNG) {}
   /**
    * Pass terrain = null during Phase 1 (floor-only mode).
    * Phase 2+ always passes a TerrainMap.
@@ -426,8 +428,8 @@ export class PhysicsSystem {
     // Angle jitter (±~5° base, escalated by stuck detection)
     const speed = Math.hypot(proj.vx, proj.vy);
     const jitter = 0.08 * proj.jitterMult;
-    proj.vx += (Math.random() * 2 - 1) * jitter * speed;
-    proj.vy += (Math.random() * 2 - 1) * jitter * speed;
+    proj.vx += (this.rng.next() * 2 - 1) * jitter * speed;
+    proj.vy += (this.rng.next() * 2 - 1) * jitter * speed;
   }
 
   /** Zimm stuck detection: progressive jitter escalation based on position uniqueness. */
@@ -451,8 +453,8 @@ export class PhysicsSystem {
 
       if (unique < 2) {
         // Truly stuck — random kick + reset
-        proj.vx += (Math.random() - 0.5) * 200;
-        proj.vy += (Math.random() - 0.5) * 200;
+        proj.vx += (this.rng.next() - 0.5) * 200;
+        proj.vy += (this.rng.next() - 0.5) * 200;
         proj.jitterMult = 1;
         proj.posHistory.length = 0;
       } else if (unique < 3) {

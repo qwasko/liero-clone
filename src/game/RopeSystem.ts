@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Worm } from '../entities/Worm';
 import { InputState } from '../input/InputState';
 import { TerrainMap } from '../terrain/TerrainMap';
+import { SeededRNG } from '../utils/SeededRNG';
 
 
 const MAX_ROPE_LENGTH     = 275;
@@ -63,11 +64,13 @@ export class RopeSystem {
   private prevJump   = new Map<Worm, boolean>();
   private jitterTime = new Map<Worm, number>();
 
+  constructor(private rng: SeededRNG) {}
+
   registerWorm(worm: Worm): void {
     this.ropes.set(worm, null);
     this.hooks.set(worm, null);
     this.prevJump.set(worm, false);
-    this.jitterTime.set(worm, Math.random() * 100); // random phase so worms don't sync
+    this.jitterTime.set(worm, this.rng.next() * 100); // random phase so worms don't sync
   }
 
   /** True only when rope is attached and constraint is active. */

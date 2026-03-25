@@ -26,6 +26,7 @@ import {
   MAX_WORM_VY,
 } from './constants';
 import { computeKnockback, getKnockbackForce } from '../utils/Knockback';
+import { SeededRNG } from '../utils/SeededRNG';
 
 export interface GameStateOptions {
   lives?: number;
@@ -33,6 +34,7 @@ export interface GameStateOptions {
   matchDurationSeconds?: number;
   p1Hp?: number;
   p2Hp?: number;
+  seed?: number;
 }
 
 /**
@@ -65,6 +67,7 @@ export class GameState {
   readonly spawnPoints: [{ x: number; y: number }, { x: number; y: number }];
 
   // ── Internal ─────────────────────────────────────────────────────────
+  readonly rng: SeededRNG;
   private controllers: [WormController, WormController];
   private lives: Map<Worm, number> = new Map();
   private respawnTimers: Map<Worm, number | null> = new Map();
@@ -86,6 +89,7 @@ export class GameState {
     const lives = options?.lives ?? DEFAULT_LIVES;
     this.reloadMultiplier = options?.reloadMultiplier ?? 1.0;
     this.timeRemaining = options?.matchDurationSeconds ?? MATCH_DURATION_SECONDS;
+    this.rng = new SeededRNG(options?.seed ?? (Math.random() * 0xffffffff) >>> 0);
 
     // ── Spawn points ───────────────────────────────────────────────────
     this.spawnPoints = [
@@ -111,11 +115,11 @@ export class GameState {
 
     // ── Systems ────────────────────────────────────────────────────────
     this.terrainDestroyer = new TerrainDestroyer(terrain);
-    this.physicsSystem    = new PhysicsSystem();
-    this.weaponSystem     = new WeaponSystem();
+    this.physicsSystem    = new PhysicsSystem(this.rng);
+    this.weaponSystem     = new WeaponSystem(this.rng);
     this.explosionSystem  = new ExplosionSystem(this.terrainDestroyer, this.worms);
 
-    this.ropeSystem = new RopeSystem();
+    this.ropeSystem = new RopeSystem(this.rng);
     this.ropeSystem.registerWorm(worm1);
     this.ropeSystem.registerWorm(worm2);
 
@@ -124,7 +128,7 @@ export class GameState {
     this.diggingSystem.registerWorm(worm2);
 
     this.crateSystem = new CrateSystem(
-      terrain, this.explosionSystem, this.worms, this.loadouts, this.maxHp,
+      terrain, this.explosionSystem, this.worms, this.loadouts, this.maxHp, this.rng,
     );
 
     // ── Tag mode ───────────────────────────────────────────────────────
@@ -250,8 +254,8 @@ export class GameState {
           );
           // Small jitter so trail particles spread out
           const jitter = 2.5;
-          trail.vx += (Math.random() * 2 - 1) * jitter;
-          trail.vy += (Math.random() * 2 - 1) * jitter;
+          trail.vx += (this.rng.next() * 2 - 1) * jitter;
+          trail.vy += (this.rng.next() * 2 - 1) * jitter;
           // Trail inherits parent's owner grace state
           trail.ownerGrace = Math.max(0, proj.ownerGrace);
           trailSpawns.push(trail);
@@ -319,14 +323,14 @@ export class GameState {
           const bombletDef = WeaponRegistry[proj.weapon.clusterWeapon];
           if (bombletDef) {
             for (let i = 0; i < proj.weapon.clusterCount; i++) {
-              const angle = Math.random() * Math.PI * 2;
+              const angle = this.rng.next() * Math.PI * 2;
               // Liero: speed=220, speedV=140, dist=10000 → scattered velocity
-              const speed = 56 + Math.random() * 98;     // (220-140..220) * 0.7
+              const speed = 56 + this.rng.next() * 98;     // (220-140..220) * 0.7
               const dist = 70;                            // Liero 10000 → ~70 px/s
               const bomblet = new Projectile(
                 hitX, hitY,
-                Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,
-                Math.sin(angle) * speed + (Math.random() * 2 - 1) * dist,
+                Math.cos(angle) * speed + (this.rng.next() * 2 - 1) * dist,
+                Math.sin(angle) * speed + (this.rng.next() * 2 - 1) * dist,
                 proj.ownerId,
                 bombletDef,
               );
@@ -357,19 +361,19 @@ export class GameState {
           if (fragDef) {
             const total = proj.weapon.chiquitaFragments;
             for (let i = 0; i < total; i++) {
-              const angle = Math.random() * Math.PI * 2;
+              const angle = this.rng.next() * Math.PI * 2;
               // Liero particle__small_damage: speed=160, speedV=140, dist=2000
               // → ~10-78 px/s base, ~14 px/s jitter (slow, gravity-driven)
               // Liero particle__larger_damage: speed=220, speedV=180, dist=2000
               // → ~28-154 px/s base, ~14 px/s jitter (faster, wider spread)
               const speed = usesSmallDamage
-                ? 10 + Math.random() * 68    // slow: 10-78 px/s (particle__small_damage)
-                : (56 + Math.random() * 98) * 2; // fast: 112-308 px/s (particle__larger_damage)
+                ? 10 + this.rng.next() * 68    // slow: 10-78 px/s (particle__small_damage)
+                : (56 + this.rng.next() * 98) * 2; // fast: 112-308 px/s (particle__larger_damage)
               const dist = 14;               // Liero 2000 → ~14 px/s jitter
               const frag = new Projectile(
                 hitX, hitY,
-                Math.cos(angle) * speed + (Math.random() * 2 - 1) * dist,
-                Math.sin(angle) * speed + (Math.random() * 2 - 1) * dist,
+                Math.cos(angle) * speed + (this.rng.next() * 2 - 1) * dist,
+                Math.sin(angle) * speed + (this.rng.next() * 2 - 1) * dist,
                 proj.ownerId,
                 fragDef,
               );
@@ -525,7 +529,7 @@ export class GameState {
     const enemy = this.worms.find(w => w !== worm);
 
     for (let attempt = 0; attempt < 40; attempt++) {
-      const x = Math.floor(20 + Math.random() * (W - 40));
+      const x = Math.floor(20 + this.rng.next() * (W - 40));
       for (let y = 20; y < H - 20; y++) {
         if (!this.terrain.isSolid(x, y) && !this.terrain.isSolid(x, y - worm.height)) {
           if (enemy && Math.hypot(x - enemy.x, y - enemy.y) < 80) continue;

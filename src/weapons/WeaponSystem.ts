@@ -2,9 +2,12 @@ import { Worm } from '../entities/Worm';
 import { Projectile } from '../entities/Projectile';
 import { Loadout } from './Loadout';
 import { WeaponDef } from './WeaponDef';
+import { SeededRNG } from '../utils/SeededRNG';
 
 export class WeaponSystem {
   private prevFire = new Map<Worm, boolean>();
+
+  constructor(private rng: SeededRNG) {}
 
   /**
    * Called every frame. Returns newly spawned projectiles (may be >1 for shotgun).
@@ -43,7 +46,7 @@ export class WeaponSystem {
 
     for (let i = 0; i < weapon.pellets; i++) {
       const speedMult = weapon.velocityVariance
-        ? 1 + (Math.random() - 0.5) * weapon.velocityVariance
+        ? 1 + (this.rng.next() - 0.5) * weapon.velocityVariance
         : 1;
 
       const baseVx = Math.cos(baseAngle) * weapon.projectileSpeed * speedMult;
@@ -56,15 +59,15 @@ export class WeaponSystem {
         // ── Liero-style per-axis velocity jitter ──────────────────────
         // Applied independently to vx and vy: rand(-dist, +dist) on each axis.
         const dist = weapon.distribution;
-        vx = baseVx + (Math.random() * 2 - 1) * dist;
-        vy = baseVy + (Math.random() * 2 - 1) * dist;
+        vx = baseVx + (this.rng.next() * 2 - 1) * dist;
+        vy = baseVy + (this.rng.next() * 2 - 1) * dist;
       } else if (weapon.spread) {
         // ── Legacy angle-based spread (used if no distribution set) ───
         let angleOffset: number;
         if (weapon.pellets === 1) {
-          angleOffset = (Math.random() - 0.5) * weapon.spread;
+          angleOffset = (this.rng.next() - 0.5) * weapon.spread;
         } else if (weapon.randomSpread) {
-          angleOffset = (Math.random() - 0.5) * weapon.spread;
+          angleOffset = (this.rng.next() - 0.5) * weapon.spread;
         } else {
           angleOffset = (i / (weapon.pellets - 1) - 0.5) * weapon.spread;
         }

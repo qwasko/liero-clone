@@ -1,5 +1,6 @@
 import { TerrainMap } from './TerrainMap';
 import { TerrainParams } from '../game/LevelPreset';
+import { SeededRNG } from '../utils/SeededRNG';
 
 interface Point { x: number; y: number }
 
@@ -17,12 +18,16 @@ export class TerrainGenerator {
   private static readonly ROCK_R_MIN  = 6;
   private static readonly ROCK_R_MAX  = 14;
 
+  private static rng: SeededRNG;
+
   static generate(
     width: number,
     height: number,
     spawnPoints: Point[],
     params: TerrainParams,
+    seed?: number,
   ): TerrainMap {
+    this.rng = new SeededRNG(seed ?? (Math.random() * 0xffffffff) >>> 0);
     const map  = new TerrainMap(width, height);
     const data = map.getData();
 
@@ -31,7 +36,7 @@ export class TerrainGenerator {
 
     // 2. Choose cave centers — spawn points become caves, plus a few extras
     const caves: Point[] = spawnPoints.map(p => ({ x: p.x, y: p.y }));
-    const extra = params.extraCaves + Math.floor(Math.random() * 3);
+    const extra = params.extraCaves + Math.floor(this.rng.next() * 3);
     for (let i = 0; i < extra; i++) {
       caves.push(this.randomCaveCenter(width, height, caves));
     }
@@ -70,8 +75,8 @@ export class TerrainGenerator {
 
     for (let attempt = 0; attempt < 30; attempt++) {
       const pt: Point = {
-        x: m + Math.random() * (width  - 2 * m),
-        y: m + Math.random() * (height - 2 * m),
+        x: m + this.rng.next() * (width  - 2 * m),
+        y: m + this.rng.next() * (height - 2 * m),
       };
       const minDist = existing.reduce(
         (min, e) => Math.min(min, Math.hypot(pt.x - e.x, pt.y - e.y)), Infinity,
@@ -85,11 +90,11 @@ export class TerrainGenerator {
   private static carveCaveBubble(
     data: Uint8Array, w: number, h: number, center: Point, params: TerrainParams,
   ): void {
-    const n = params.blobsMin + Math.floor(Math.random() * (params.blobsMax - params.blobsMin + 1));
+    const n = params.blobsMin + Math.floor(this.rng.next() * (params.blobsMax - params.blobsMin + 1));
     for (let i = 0; i < n; i++) {
-      const r  = params.blobRMin + Math.random() * (params.blobRMax - params.blobRMin);
-      const ox = (Math.random() - 0.5) * 2 * params.blobSpread;
-      const oy = (Math.random() - 0.5) * 2 * params.blobSpread;
+      const r  = params.blobRMin + this.rng.next() * (params.blobRMax - params.blobRMin);
+      const ox = (this.rng.next() - 0.5) * 2 * params.blobSpread;
+      const oy = (this.rng.next() - 0.5) * 2 * params.blobSpread;
       this.carveInData(data, w, h, center.x + ox, center.y + oy, r);
     }
   }
@@ -123,10 +128,10 @@ export class TerrainGenerator {
     }
 
     // 1-2 extra random edges for variety
-    const extras = 1 + Math.floor(Math.random() * 2);
+    const extras = 1 + Math.floor(this.rng.next() * 2);
     for (let i = 0; i < extras; i++) {
-      const a = Math.floor(Math.random() * caves.length);
-      let b = Math.floor(Math.random() * caves.length);
+      const a = Math.floor(this.rng.next() * caves.length);
+      let b = Math.floor(this.rng.next() * caves.length);
       if (b === a) b = (a + 1) % caves.length;
       edges.push([a, b]);
     }
@@ -150,12 +155,12 @@ export class TerrainGenerator {
       const dy = to.y - y;
       if (Math.hypot(dx, dy) < this.TUNNEL_R * 2) break;
 
-      const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * this.TUNNEL_WANDER;
-      const len = 3 + Math.random() * 4;
+      const angle = Math.atan2(dy, dx) + (this.rng.next() - 0.5) * this.TUNNEL_WANDER;
+      const len = 3 + this.rng.next() * 4;
       x += Math.cos(angle) * len;
       y += Math.sin(angle) * len;
 
-      const r = this.TUNNEL_R + (Math.random() - 0.5) * 3;
+      const r = this.TUNNEL_R + (this.rng.next() - 0.5) * 3;
       this.carveInData(data, w, h, x, y, Math.max(3, r));
     }
   }
@@ -169,8 +174,8 @@ export class TerrainGenerator {
     let placed = 0;
 
     for (let attempt = 0; attempt < rockClusters * 4 && placed < rockClusters; attempt++) {
-      const cx = margin + Math.random() * (w - 2 * margin);
-      const cy = margin + Math.random() * (h - 2 * margin);
+      const cx = margin + this.rng.next() * (w - 2 * margin);
+      const cy = margin + this.rng.next() * (h - 2 * margin);
 
       // Don't place rocks near spawn areas
       if (spawnPoints.some(sp => Math.hypot(cx - sp.x, cy - sp.y) < this.SPAWN_CLEAR + 20)) continue;
@@ -178,13 +183,13 @@ export class TerrainGenerator {
       const idx = Math.floor(cy) * w + Math.floor(cx);
       if (data[idx] !== 1) continue;
 
-      const r = this.ROCK_R_MIN + Math.random() * (this.ROCK_R_MAX - this.ROCK_R_MIN);
+      const r = this.ROCK_R_MIN + this.rng.next() * (this.ROCK_R_MAX - this.ROCK_R_MIN);
       // Irregular: 3-6 overlapping circles for organic shape
-      const blobs = 3 + Math.floor(Math.random() * 4);
+      const blobs = 3 + Math.floor(this.rng.next() * 4);
       for (let j = 0; j < blobs; j++) {
-        const bx = cx + (Math.random() - 0.5) * r * 1.4;
-        const by = cy + (Math.random() - 0.5) * r * 1.4;
-        const br = r * (0.5 + Math.random() * 0.5);
+        const bx = cx + (this.rng.next() - 0.5) * r * 1.4;
+        const by = cy + (this.rng.next() - 0.5) * r * 1.4;
+        const br = r * (0.5 + this.rng.next() * 0.5);
         this.stampCircleInData(data, w, h, bx, by, br, 2);
       }
       placed++;
