@@ -17,7 +17,6 @@ import { GameSettings, PlayerType, loadSettings } from '../game/GameSettings';
 import { NetworkClient } from '../network/NetworkClient';
 import { LockstepManager } from '../network/LockstepManager';
 import type { NetGameSettings } from '../network/protocol';
-import type { Socket } from 'socket.io-client';
 
 /**
  * Thin Phaser orchestrator with splitscreen:
@@ -77,7 +76,7 @@ export class GameScene extends Phaser.Scene {
   create(data?: {
     settings?: GameSettings;
     online?: {
-      socket: unknown;
+      socket: import('socket.io-client').Socket;
       seed: number;
       settings: NetGameSettings;
       playerIndex: 0 | 1;
@@ -275,8 +274,7 @@ export class GameScene extends Phaser.Scene {
 
     // ── Online multiplayer setup ────────────────────────────────────────
     if (online) {
-      const sock = online.socket as Socket;
-      this.networkClient = new NetworkClient(sock);
+      this.networkClient = new NetworkClient(online.socket);
       this.lockstepManager = new LockstepManager(
         this.networkClient,
         this.localPlayerIndex,

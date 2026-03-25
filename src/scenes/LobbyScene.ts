@@ -28,8 +28,8 @@ export class LobbyScene extends Phaser.Scene {
   private codeText!: Phaser.GameObjects.Text;
   private hintText!: Phaser.GameObjects.Text;
 
-  // Network
-  private socket: WebSocket | null = null;
+  // Network — stored as socket.io Socket (not WebSocket)
+  private socket: import('socket.io-client').Socket | null = null;
   private roomCode = '';
   private joinInput = '';
 
@@ -86,7 +86,8 @@ export class LobbyScene extends Phaser.Scene {
 
   private cleanup(): void {
     if (this.socket) {
-      this.socket.close();
+      this.socket.off(); // remove all listeners
+      this.socket.disconnect();
       this.socket = null;
     }
   }
@@ -199,53 +200,66 @@ export class LobbyScene extends Phaser.Scene {
   // ── Socket.io via raw WebSocket (socket.io-client not needed) ─────────
 
   private connectSocket(onConnect: () => void): void {
-    this.cleanup();
+    // If we already have a connected socket, reuse it
+    if (this.socket?.connected) {
+      this.socket.off(); // clear stale listeners
+      this.setupSocketListeners(this.socket, onConnect);
+      onConnect();
+      return;
+    }
 
-    // Socket.io uses Engine.IO transport — connect via polling then upgrade.
-    // For simplicity, use the socket.io-client library dynamically loaded,
-    // or use raw WebSocket. We'll use socket.io-client imported at runtime.
+    // Clean up any disconnected/stale socket before creating a new one
+    this.cleanup();
     this.loadSocketIO(onConnect);
   }
 
   private async loadSocketIO(onConnect: () => void): Promise<void> {
     try {
-      // Dynamic import of socket.io-client
       const { io } = await import('socket.io-client');
       const socket = io(SERVER_URL, {
         transports: ['websocket'],
         autoConnect: true,
       });
 
-      // Store as any since we're wrapping socket.io Socket as our interface
-      this.socket = socket as unknown as WebSocket;
-
-      socket.on('connect', () => {
-        onConnect();
-      });
-
-      socket.on('message', (msg: ServerMessage) => {
-        this.handleServerMessage(msg);
-      });
-
-      socket.on('connect_error', () => {
-        this.showError('Cannot connect to server');
-      });
-
-      socket.on('disconnect', () => {
-        if (this.state === 'hosting' || this.state === 'waiting') {
-          this.showError('Disconnected from server');
-        }
-      });
+      this.socket = socket;
+      this.setupSocketListeners(socket, onConnect);
     } catch {
       this.showError('Cannot connect to server');
     }
   }
 
+  private setupSocketListeners(
+    socket: import('socket.io-client').Socket,
+    onConnect: () => void,
+  ): void {
+    // Remove all existing listeners first to prevent stacking
+    socket.off('connect');
+    socket.off('message');
+    socket.off('connect_error');
+    socket.off('disconnect');
+
+    socket.on('connect', () => {
+      onConnect();
+    });
+
+    socket.on('message', (msg: ServerMessage) => {
+      this.handleServerMessage(msg);
+    });
+
+    socket.on('connect_error', () => {
+      this.showError('Cannot connect to server');
+    });
+
+    socket.on('disconnect', () => {
+      if (this.state === 'hosting' || this.state === 'waiting') {
+        this.showError('Disconnected from server');
+      }
+    });
+  }
+
   private sendMessage(msg: import('../network/protocol').ClientMessage): void {
     if (!this.socket) return;
-    // socket.io Socket wrapped as WebSocket — emit via the underlying socket.io API
-    const sock = this.socket as unknown as import('socket.io-client').Socket;
-    sock.emit('message', msg);
+    this.socket.emit('message', msg);
   }
 
   // ── Server message handling ───────────────────────────────────────────
@@ -262,17 +276,15 @@ export class LobbyScene extends Phaser.Scene {
 
       case 'game_start': {
         console.log('[LobbyScene] game_start! seed=', msg.seed, 'playerIndex=', msg.playerIndex);
-        // Remove all LobbyScene listeners before handing socket to GameScene
-        const sock = this.socket as unknown as import('socket.io-client').Socket;
-        sock.off('message');
-        sock.off('connect');
-        sock.off('connect_error');
-        sock.off('disconnect');
+        // Remove all listeners before handing socket to GameScene
+        const sock = this.socket;
+        if (!sock) break;
+        sock.off(); // remove all listeners — GameScene/NetworkClient will add its own
         // Transition to GameScene with network settings
         this.scene.start('GameScene', {
           settings: loadSettings(),
           online: {
-            socket: this.socket,
+            socket: sock,
             seed: msg.seed,
             settings: msg.settings,
             playerIndex: msg.playerIndex,

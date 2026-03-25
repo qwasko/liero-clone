@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Architecture docs + knockback/HP tuning (2026-03-25)
+## Last completed: Online multiplayer bug fix (2026-03-25)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -49,56 +49,23 @@
 - Ninja rope, digging, magazine ammo, bonus crates, procedural audio
 - Game of Tag mode (any death = become IT)
 - ARCHITECTURE.md documenting full system design
+- **Online multiplayer (lockstep)**:
+  - Server: Node.js + Socket.io, room creation with 4-char codes, input relay
+  - Client: LobbyScene (host/join UI), NetworkClient, LockstepManager
+  - Deterministic: SeededRNG replaces Math.random, shared seed for terrain
+  - INPUT_DELAY=3 frames, stall detection with 5s timeout
+  - Host settings propagated to joiner via server
 
 ## Known issues / bugs
 - No dedicated sounds for new weapons — they use generic fire/explosion audio
 - AI bot may need further tuning
-- `Math.random` not seeded — would block deterministic lockstep multiplayer
+- Online multiplayer not yet tested end-to-end after socket bug fix
+- No reconnection handling — WebSocket drop = 5s stall then disconnect
 
-## STOPPED HERE — end of session 2026-03-25
-
-### This session completed
-- Per-worm HP setting (P1 HP / P2 HP in settings menu)
-- Knockback: removed distance falloff (flat force, Liero-accurate)
-- Knockback tiers changed from crater-radius-based to splashDamage-based
-- Knockback values tuned: 150/100/40
-- Recoil tuned: Bazooka 100, Grenade 50, Minigun 11, Shotgun 200, Prox.Grenade 30
-- Velocity caps raised: VX 600, VY 700
-- ARCHITECTURE.md written (systems, data flow, dependencies, extension seams)
-
-### Next goal: Online Multiplayer
-
-Based on ARCHITECTURE.md analysis, here's what needs to change:
-
-**What's already multiplayer-ready:**
-- GameState is pure logic, no Phaser — can run on server
-- InputState is a simple interface — trivially serializable
-- GameEvent[] for side-effects — can be sent to clients
-- All entities (Worm, Projectile) are plain data — no Phaser objects
-
-**What needs to be built:**
-1. **Server** — Node.js process running GameState, accepting InputState from both clients via WebSocket
-2. **Network layer** — WebSocket (Socket.io) client/server for input + state sync
-3. **State serialization** — serialize/deserialize worms, projectiles, terrain damage, loadouts
-4. **Lobby/matchmaking** — scene for creating/joining games
-5. **Client prediction** — local InputState applied immediately, reconciled with server state
-6. **Terrain sync** — initial terrain seed shared; dirty regions broadcast on destruction
-
-**Key architectural decisions needed:**
-- Authority model: server-authoritative (recommended) vs lockstep
-- If server-authoritative: how much client prediction, how to handle rollback
-- If lockstep: need deterministic RNG (seed `Math.random` or use custom PRNG)
-- Tick rate: server simulation rate vs client render rate
-- Terrain: send full bitmap on join or regenerate from shared seed?
-- Latency compensation: input delay buffer, interpolation
-
-**Files that need changes:**
-- `GameScene.ts` — swap InputManager for network adapter (remote player)
-- `GameState.ts` — extract to run headless on server
-- New: `src/network/` — WebSocket client, server, protocol types
-- New: `src/scenes/LobbyScene.ts` — create/join game UI
-- `GameConfig.ts` — register LobbyScene
-- `TerrainGenerator.ts` — accept seed for deterministic generation
+## Next steps
+- Test online multiplayer end-to-end (two browser tabs)
+- Handle edge cases: mid-game disconnect UI, return to lobby
+- Consider adding latency display / frame counter for debugging
 
 ## Possible future steps (not planned)
 - Weapon-specific audio cues
