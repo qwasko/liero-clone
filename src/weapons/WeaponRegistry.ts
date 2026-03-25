@@ -59,7 +59,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 1,                                              // tuned: 1 per bullet
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only, no worm damage
-    recoilForce: 8,
+    recoilForce: 11,
     ammoPerMag: 70, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 7143,                    // Liero: delay=0, loadingTime=500
   },
