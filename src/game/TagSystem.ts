@@ -3,19 +3,16 @@ import { Worm } from '../entities/Worm';
 /**
  * Tracks who is "it" and how long each worm has been "it".
  *
- * Rules:
- *  - First death → that worm becomes "it".
- *  - When "it" dies → the other worm becomes "it".
- *  - Non-"it" death → no change.
+ * Rules (matches original Liero):
+ *  - Any worm that dies → becomes "it" (regardless of current state).
+ *  - If already "it" → stays "it" (no change).
+ *  - "It" timer accumulates while tagged.
  *  - Winner = least cumulative time as "it".
  */
 export class TagSystem {
   private itWorm: Worm | null = null;
   private timeAsIt: Map<Worm, number> = new Map();
-  private readonly worms: readonly Worm[];
-
   constructor(worms: readonly Worm[]) {
-    this.worms = worms;
     for (const w of worms) this.timeAsIt.set(w, 0);
   }
 
@@ -35,15 +32,8 @@ export class TagSystem {
    * Transfers "it" tag according to the rules above.
    */
   onDeath(deadWorm: Worm): void {
-    if (this.itWorm === null) {
-      // First death in the match — dead worm becomes "it"
-      this.itWorm = deadWorm;
-    } else if (this.itWorm === deadWorm) {
-      // "it" died — pass the tag to the other worm
-      const other = this.worms.find(w => w !== deadWorm) ?? null;
-      this.itWorm = other;
-    }
-    // Non-"it" death: no change
+    // Any death → that worm becomes "it" (or stays "it")
+    this.itWorm = deadWorm;
   }
 
   getTime(worm: Worm): number {
