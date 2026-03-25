@@ -100,6 +100,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     proximityDelayMs: 857,                               // 60 frames @ 70fps — prevents self-trigger
     chiquitaFragments: 35,                               // weaker: 35 vs grenade's 50
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,
+    recoilForce: 30,
     ammoPerMag: 1, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 5000,                     // loadingTime=350 frames (longer than grenade 260)
   },

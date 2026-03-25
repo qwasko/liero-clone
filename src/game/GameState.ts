@@ -279,7 +279,7 @@ export class GameState {
         );
 
         // ── Mine knockback: detach deployed mines and give them velocity ─
-        const mineKbForce = getKnockbackForce(proj.weapon.explosionRadius) * KNOCKBACK_MINE_FACTOR;
+        const mineKbForce = getKnockbackForce(proj.weapon.splashDamage) * KNOCKBACK_MINE_FACTOR;
         for (const mine of this.activeProjectiles) {
           if (!mine.active || mine.weapon.behavior !== 'mine' || !mine.deployed) continue;
           if (mine === proj) continue; // skip the exploding projectile itself

@@ -34,9 +34,9 @@ export function computeKnockback(
   return { dvx: nx * baseForce, dvy: ny * baseForce };
 }
 
-/** Base knockback force for a given explosion crater radius. */
-export function getKnockbackForce(explosionRadius: number): number {
-  if (explosionRadius >= 8) return KNOCKBACK_FORCE_LARGE;
-  if (explosionRadius >= 6) return KNOCKBACK_FORCE_MEDIUM;
+/** Base knockback force based on splash damage. */
+export function getKnockbackForce(splashDamage: number): number {
+  if (splashDamage > 30) return KNOCKBACK_FORCE_LARGE;
+  if (splashDamage >= 10) return KNOCKBACK_FORCE_MEDIUM;
   return KNOCKBACK_FORCE_SMALL;
 }

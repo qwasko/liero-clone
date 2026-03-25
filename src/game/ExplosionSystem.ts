@@ -29,7 +29,7 @@ export class ExplosionSystem {
   ): void {
     this.terrainDestroyer.carveCircle(x, y, explosionRadius);
 
-    const kbForce = getKnockbackForce(explosionRadius);
+    const kbForce = getKnockbackForce(splashDamage);
 
     for (const worm of this.worms) {
       if (worm.isDead) continue;
