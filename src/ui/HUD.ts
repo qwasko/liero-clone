@@ -105,11 +105,12 @@ export class HUD {
     worm2: Worm, load2: Loadout, lives2: number,
     timeRemaining: number,
     tagSystem?: TagSystem | null,
+    maxHp?: Map<Worm, number>,
   ): void {
     this.bars.clear();
 
-    this.drawBar(this.bars, worm1, this.barX1);
-    this.drawBar(this.bars, worm2, this.barX2);
+    this.drawBar(this.bars, worm1, this.barX1, maxHp?.get(worm1));
+    this.drawBar(this.bars, worm2, this.barX2, maxHp?.get(worm2));
 
     // Reload progress bars (below HP bars)
     this.drawReloadBar(this.bars, this.barX1, this.barY + BAR_H + 1, BAR_W, load1.reloadProgress);
@@ -145,12 +146,12 @@ export class HUD {
     }
   }
 
-  private drawBar(g: Phaser.GameObjects.Graphics, worm: Worm, x: number): void {
+  private drawBar(g: Phaser.GameObjects.Graphics, worm: Worm, x: number, wormMaxHp?: number): void {
     if (worm.isDead) {
       g.fillStyle(0x444444, 1).fillRect(x, this.barY, BAR_W, BAR_H);
       return;
     }
-    const pct  = worm.hp / WORM_MAX_HP;
+    const pct  = worm.hp / (wormMaxHp ?? WORM_MAX_HP);
     const fill = Math.round(BAR_W * pct);
     g.fillStyle(0x222222, 1).fillRect(x, this.barY, BAR_W, BAR_H);
     g.fillStyle(hpColour(pct), 1).fillRect(x, this.barY, fill, BAR_H);

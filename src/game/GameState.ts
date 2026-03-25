@@ -31,6 +31,8 @@ export interface GameStateOptions {
   lives?: number;
   reloadMultiplier?: number;
   matchDurationSeconds?: number;
+  p1Hp?: number;
+  p2Hp?: number;
 }
 
 /**
@@ -67,6 +69,7 @@ export class GameState {
   private lives: Map<Worm, number> = new Map();
   private respawnTimers: Map<Worm, number | null> = new Map();
   private readonly reloadMultiplier: number;
+  readonly maxHp: Map<Worm, number> = new Map();
 
   // Weapon cycling state per player
   private cycleState: [
@@ -95,6 +98,13 @@ export class GameState {
     const worm2 = new Worm(this.spawnPoints[1].x, this.spawnPoints[1].y, 2);
     this.worms = [worm1, worm2];
 
+    const p1Hp = options?.p1Hp ?? WORM_MAX_HP;
+    const p2Hp = options?.p2Hp ?? WORM_MAX_HP;
+    this.maxHp.set(worm1, p1Hp);
+    this.maxHp.set(worm2, p2Hp);
+    worm1.hp = p1Hp;
+    worm2.hp = p2Hp;
+
     // ── Loadouts ───────────────────────────────────────────────────────
     this.loadouts.set(worm1, new Loadout([...DEFAULT_LOADOUT], this.reloadMultiplier));
     this.loadouts.set(worm2, new Loadout([...DEFAULT_LOADOUT], this.reloadMultiplier));
@@ -114,7 +124,7 @@ export class GameState {
     this.diggingSystem.registerWorm(worm2);
 
     this.crateSystem = new CrateSystem(
-      terrain, this.explosionSystem, this.worms, this.loadouts,
+      terrain, this.explosionSystem, this.worms, this.loadouts, this.maxHp,
     );
 
     // ── Tag mode ───────────────────────────────────────────────────────
@@ -503,7 +513,7 @@ export class GameState {
     worm.y     = pos.y;
     worm.vx    = 0;
     worm.vy    = 0;
-    worm.hp    = WORM_MAX_HP;
+    worm.hp    = this.maxHp.get(worm) ?? WORM_MAX_HP;
     worm.state = 'airborne';
     this.respawnTimers.set(worm, null);
     this.loadouts.set(worm, new Loadout([...DEFAULT_LOADOUT], this.reloadMultiplier));

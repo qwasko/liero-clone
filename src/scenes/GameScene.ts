@@ -92,6 +92,8 @@ export class GameScene extends Phaser.Scene {
       lives: settings.lives,
       reloadMultiplier,
       matchDurationSeconds: matchDuration,
+      p1Hp: settings.p1Hp,
+      p2Hp: settings.p2Hp,
     });
     this.gameRenderer = new GameRenderer();
 
@@ -322,6 +324,7 @@ export class GameScene extends Phaser.Scene {
       worm2, state.loadouts.get(worm2)!, state.getLives(worm2),
       state.timeRemaining,
       state.tagSystem,
+      state.maxHp,
     );
   }
 

@@ -19,6 +19,8 @@ export interface GameSettings {
   // Players
   player1Type: PlayerType;
   player2Type: PlayerType;
+  p1Hp: number;  // 50-500
+  p2Hp: number;  // 50-500
 
   // Camera
   p1Zoom: number;  // 0.5-3.0
@@ -56,6 +58,8 @@ export const DEFAULT_SETTINGS: Readonly<GameSettings> = {
   lives: 3,
   player1Type: 'human',
   player2Type: 'ai_medium',
+  p1Hp: 100,
+  p2Hp: 100,
   p1Zoom: 2.5,
   p2Zoom: 2.5,
   minimapEnabled: true,

@@ -148,6 +148,8 @@ export class SettingsScene extends Phaser.Scene {
     this.rows.push({ type: 'header', label: 'Players' });
     this.rows.push(this.playerRow('Player 1', 'player1Type'));
     this.rows.push(this.playerRow('Player 2', 'player2Type'));
+    this.rows.push(this.hpRow('P1 HP', 'p1Hp'));
+    this.rows.push(this.hpRow('P2 HP', 'p2Hp'));
 
     // ── Camera ──
     this.rows.push({ type: 'header', label: 'Camera' });
@@ -196,6 +198,24 @@ export class SettingsScene extends Phaser.Scene {
       onRight: () => {
         const idx = PLAYER_TYPES.findIndex(p => p.key === this.settings[key]);
         this.settings[key] = PLAYER_TYPES[(idx + 1) % PLAYER_TYPES.length].key;
+      },
+    };
+  }
+
+  private static readonly HP_OPTIONS = [50, 100, 150, 200, 300, 500];
+
+  private hpRow(label: string, key: 'p1Hp' | 'p2Hp'): Row {
+    const opts = SettingsScene.HP_OPTIONS;
+    return {
+      type: 'option', label,
+      getValue: () => `${this.settings[key]}`,
+      onLeft: () => {
+        const idx = opts.indexOf(this.settings[key]);
+        this.settings[key] = opts[(idx - 1 + opts.length) % opts.length];
+      },
+      onRight: () => {
+        const idx = opts.indexOf(this.settings[key]);
+        this.settings[key] = opts[(idx + 1) % opts.length];
       },
     };
   }

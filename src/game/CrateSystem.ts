@@ -3,7 +3,7 @@ import { TerrainMap } from '../terrain/TerrainMap';
 import { ExplosionSystem } from './ExplosionSystem';
 import { Loadout } from '../weapons/Loadout';
 import { WeaponRegistry } from '../weapons/WeaponRegistry';
-import { WORM_MAX_HP } from '../game/constants';
+import { WORM_MAX_HP } from './constants';
 
 export type CrateKind = 'weapon' | 'health' | 'booby';
 
@@ -49,6 +49,7 @@ export class CrateSystem {
     private explosionSystem: ExplosionSystem,
     private worms:           Worm[],
     private loadouts:        Map<Worm, Loadout>,
+    private maxHp:           Map<Worm, number> = new Map(),
   ) {}
 
   getCrates(): readonly CrateData[] { return this.crates; }
@@ -121,7 +122,8 @@ export class CrateSystem {
         break;
       }
       case 'health': {
-        worm.hp = Math.min(WORM_MAX_HP, worm.hp + crate.healAmount!);
+        const cap = this.maxHp.get(worm) ?? WORM_MAX_HP;
+        worm.hp = Math.min(cap, worm.hp + crate.healAmount!);
         break;
       }
       case 'booby': {
