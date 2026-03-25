@@ -123,14 +123,19 @@ export class HUD {
     this.p2Hp.setText(worm2.isDead ? 'DEAD' : `${worm2.hp}hp`);
     this.p1Weapon.setText(this.weaponLine(load1));
     this.p2Weapon.setText(this.weaponLine(load2));
-    this.p1Lives.setText('♥'.repeat(lives1));
-    this.p2Lives.setText('♥'.repeat(lives2));
+    this.p1Lives.setText(`♥ ${lives1}`);
+    this.p2Lives.setText(`♥ ${lives2}`);
 
-    const secs = Math.max(0, Math.ceil(timeRemaining));
-    const mm   = String(Math.floor(secs / 60)).padStart(2, '0');
-    const ss   = String(secs % 60).padStart(2, '0');
-    this.timer.setText(`${mm}:${ss}`);
-    this.timer.setColor(timeRemaining < 30 ? '#ff4444' : '#ffffff');
+    if (!isFinite(timeRemaining)) {
+      this.timer.setText('--:--');
+      this.timer.setColor('#ffffff');
+    } else {
+      const secs = Math.max(0, Math.ceil(timeRemaining));
+      const mm   = String(Math.floor(secs / 60)).padStart(2, '0');
+      const ss   = String(secs % 60).padStart(2, '0');
+      this.timer.setText(`${mm}:${ss}`);
+      this.timer.setColor(timeRemaining < 30 ? '#ff4444' : '#ffffff');
+    }
 
     if (tagSystem) {
       const t1 = tagSystem.getTime(worm1);

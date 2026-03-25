@@ -8,10 +8,11 @@ import { Minimap } from '../ui/Minimap';
 import { GameState } from '../game/GameState';
 import { GameRenderer } from '../game/GameRenderer';
 import { GameEvent } from '../game/GameEvents';
-import { LevelPreset, LEVEL_PRESETS } from '../game/LevelPreset';
+import { LEVEL_PRESETS } from '../game/LevelPreset';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { CRATE_HALF } from '../game/CrateSystem';
 import { AIController, AI_DIFFICULTIES } from '../ai/AIController';
+import { GameSettings, PlayerType, loadSettings } from '../game/GameSettings';
 
 /**
  * Thin Phaser orchestrator with splitscreen:
@@ -42,8 +43,9 @@ export class GameScene extends Phaser.Scene {
   private cameraFocusP2!: Phaser.GameObjects.Zone;
   private divider!: Phaser.GameObjects.Rectangle;
 
-  // AI controller (null = 2P local)
-  private aiController: AIController | null = null;
+  // AI controllers (null = human)
+  private aiController1: AIController | null = null;
+  private aiController2: AIController | null = null;
 
   // Tag mode "IT" indicator
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
@@ -55,7 +57,7 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
-  create(data?: { mode?: 'normal' | 'tag'; level?: LevelPreset; vsAI?: boolean; aiDifficulty?: string }): void {
+  create(data?: { settings?: GameSettings }): void {
     // ── Clean up stale state from previous game ──────────────────────────
     if (this.textures.exists('terrain')) {
       this.textures.remove('terrain');
@@ -64,8 +66,14 @@ export class GameScene extends Phaser.Scene {
     if (this.textures.exists('minimap2')) this.textures.remove('minimap2');
     this.crateVisuals.clear();
 
-    const mode  = data?.mode ?? 'normal';
-    const level = data?.level ?? LEVEL_PRESETS[0];
+    // ── Settings ─────────────────────────────────────────────────────────
+    const settings = data?.settings ?? loadSettings();
+    const mode  = settings.gameMode;
+    const level = LEVEL_PRESETS[settings.levelIndex] ?? LEVEL_PRESETS[0];
+    const reloadMultiplier = settings.reloadSpeedPercent / 100;
+    const matchDuration = settings.matchTimerMinutes > 0
+      ? settings.matchTimerMinutes * 60
+      : Infinity;
     const halfW = CANVAS_WIDTH / 2;
 
     // ── Terrain ──────────────────────────────────────────────────────────
@@ -75,7 +83,11 @@ export class GameScene extends Phaser.Scene {
     this.terrainRenderer = new TerrainRenderer(this, terrain);
 
     // ── GameState ────────────────────────────────────────────────────────
-    this.gameState    = new GameState(terrain, level, mode);
+    this.gameState = new GameState(terrain, level, mode, {
+      lives: settings.lives,
+      reloadMultiplier,
+      matchDurationSeconds: matchDuration,
+    });
     this.gameRenderer = new GameRenderer();
 
     // ── Graphics layers ──────────────────────────────────────────────────
@@ -93,14 +105,15 @@ export class GameScene extends Phaser.Scene {
     this.inputManager = new InputManager(this.input.keyboard!);
     this.audio        = new AudioManager();
 
-    // ── AI controller (when vs AI mode) ────────────────────────────────
-    if (data?.vsAI) {
-      const diffKey = data.aiDifficulty ?? 'medium';
+    // ── AI controllers (per player) ──────────────────────────────────────
+    const makeAI = (playerType: PlayerType): AIController | null => {
+      if (playerType === 'human') return null;
+      const diffKey = playerType.replace('ai_', '');
       const diff = AI_DIFFICULTIES[diffKey] ?? AI_DIFFICULTIES['medium'];
-      this.aiController = new AIController(diff);
-    } else {
-      this.aiController = null;
-    }
+      return new AIController(diff, settings.botUseMinimap);
+    };
+    this.aiController1 = makeAI(settings.player1Type);
+    this.aiController2 = makeAI(settings.player2Type);
 
     // ════════════════════════════════════════════════════════════════════
     //  Splitscreen camera setup
@@ -109,7 +122,7 @@ export class GameScene extends Phaser.Scene {
     // ── P1 camera (left half) ────────────────────────────────────────────
     const cam1 = this.cameras.main;
     cam1.setViewport(0, 0, halfW, CANVAS_HEIGHT);
-    cam1.setZoom(2.5);
+    cam1.setZoom(settings.p1Zoom);
     cam1.setBounds(0, 0, level.width, level.height);
     cam1.setRoundPixels(true);
 
@@ -118,7 +131,7 @@ export class GameScene extends Phaser.Scene {
 
     // ── P2 camera (right half) ───────────────────────────────────────────
     this.p2Camera = this.cameras.add(halfW, 0, halfW, CANVAS_HEIGHT);
-    this.p2Camera.setZoom(2.5);
+    this.p2Camera.setZoom(settings.p2Zoom);
     this.p2Camera.setBounds(0, 0, level.width, level.height);
     this.p2Camera.setRoundPixels(true);
 
@@ -142,6 +155,9 @@ export class GameScene extends Phaser.Scene {
 
     // ── Minimap ────────────────────────────────────────────────────────────
     this.minimap = new Minimap(this, terrain);
+    if (!settings.minimapEnabled) {
+      this.minimap.toggle();
+    }
 
     // Toggle minimap with Tab
     this.input.keyboard!.on('keydown-TAB', (e: KeyboardEvent) => {
@@ -186,25 +202,41 @@ export class GameScene extends Phaser.Scene {
     if (this.gameState.matchOver) return;
 
     const dt     = delta / 1000;
-    const input1 = this.inputManager.getPlayer1();
+    const state  = this.gameState;
+    const [worm1, worm2] = state.worms;
+
+    // ── P1 input: keyboard or AI ───────────────────────────────────────
+    let input1;
+    if (this.aiController1) {
+      const loadout1 = state.loadouts.get(worm1)!;
+      const zoom1 = this.cameras.main.zoom;
+      const vpW1  = (CANVAS_WIDTH / 2) / zoom1;
+      const vpH1  = CANVAS_HEIGHT / zoom1;
+      const crates = state.crateSystem.getCrates().filter(c => c.active);
+      const rope   = state.ropeSystem;
+      input1 = this.aiController1.getInput(
+        worm1, worm2, loadout1,
+        state.terrain, state.activeProjectiles,
+        crates, vpW1, vpH1, dt,
+        rope.hasRope(worm1), rope.hasHook(worm1),
+      );
+    } else {
+      input1 = this.inputManager.getPlayer1();
+    }
 
     // ── P2 input: keyboard or AI ───────────────────────────────────────
     let input2;
-    if (this.aiController) {
-      const [, worm2] = this.gameState.worms;
-      const [worm1]   = this.gameState.worms;
-      const loadout2  = this.gameState.loadouts.get(worm2)!;
-      // Viewport dimensions in world pixels (canvas half-width / zoom)
-      const zoom = this.p2Camera.zoom;
-      const vpW  = (CANVAS_WIDTH / 2) / zoom;
-      const vpH  = CANVAS_HEIGHT / zoom;
-      const crates = this.gameState.crateSystem.getCrates().filter(c => c.active);
-      const rope   = this.gameState.ropeSystem;
-      input2 = this.aiController.getInput(
+    if (this.aiController2) {
+      const loadout2 = state.loadouts.get(worm2)!;
+      const zoom2 = this.p2Camera.zoom;
+      const vpW2  = (CANVAS_WIDTH / 2) / zoom2;
+      const vpH2  = CANVAS_HEIGHT / zoom2;
+      const crates = state.crateSystem.getCrates().filter(c => c.active);
+      const rope   = state.ropeSystem;
+      input2 = this.aiController2.getInput(
         worm2, worm1, loadout2,
-        this.gameState.terrain,
-        this.gameState.activeProjectiles,
-        crates, vpW, vpH, dt,
+        state.terrain, state.activeProjectiles,
+        crates, vpW2, vpH2, dt,
         rope.hasRope(worm2), rope.hasHook(worm2),
       );
     } else {
@@ -212,7 +244,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── Tick game logic ──────────────────────────────────────────────────
-    const events = this.gameState.update(dt, input1, input2);
+    const events = state.update(dt, input1, input2);
 
     // ── Process events ───────────────────────────────────────────────────
     for (const event of events) {
@@ -220,10 +252,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── Sync terrain renderer ────────────────────────────────────────────
-    const dirty = this.gameState.terrainDestroyer.flushDirty();
+    const dirty = state.terrainDestroyer.flushDirty();
     for (const region of dirty) {
       this.terrainRenderer.redrawRegion(
-        this.gameState.terrain, region.x, region.y, region.w, region.h,
+        state.terrain, region.x, region.y, region.w, region.h,
       );
     }
 
@@ -231,8 +263,6 @@ export class GameScene extends Phaser.Scene {
     this.syncCrateVisuals();
 
     // ── Draw ─────────────────────────────────────────────────────────────
-    const state = this.gameState;
-
     this.gameRenderer.drawWorms(this.wormLayer, state.worms);
     this.particleLayer.clear();
 
@@ -254,7 +284,6 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── Cameras: each follows its worm ───────────────────────────────────
-    const [worm1, worm2] = state.worms;
     this.cameraFocusP1.setPosition(Math.round(worm1.x), Math.round(worm1.y));
     this.cameraFocusP2.setPosition(Math.round(worm2.x), Math.round(worm2.y));
 

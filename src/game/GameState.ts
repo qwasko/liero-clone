@@ -27,6 +27,12 @@ import {
 } from './constants';
 import { computeKnockback, getKnockbackForce } from '../utils/Knockback';
 
+export interface GameStateOptions {
+  lives?: number;
+  reloadMultiplier?: number;
+  matchDurationSeconds?: number;
+}
+
 /**
  * Pure game logic — owns all systems, has no Phaser dependency.
  * GameScene creates one GameState and calls update() each frame.
@@ -51,7 +57,7 @@ export class GameState {
   readonly terrainDestroyer: TerrainDestroyer;
 
   // ── Match state ──────────────────────────────────────────────────────
-  timeRemaining: number = MATCH_DURATION_SECONDS;
+  timeRemaining: number;
   matchOver: boolean = false;
   readonly gameMode: 'normal' | 'tag';
   readonly spawnPoints: [{ x: number; y: number }, { x: number; y: number }];
@@ -60,6 +66,7 @@ export class GameState {
   private controllers: [WormController, WormController];
   private lives: Map<Worm, number> = new Map();
   private respawnTimers: Map<Worm, number | null> = new Map();
+  private readonly reloadMultiplier: number;
 
   // Weapon cycling state per player
   private cycleState: [
@@ -70,9 +77,12 @@ export class GameState {
     { dir: 0, holdMs: 0, repeatMs: 0 },
   ];
 
-  constructor(terrain: TerrainMap, level: LevelPreset, mode: 'normal' | 'tag') {
+  constructor(terrain: TerrainMap, level: LevelPreset, mode: 'normal' | 'tag', options?: GameStateOptions) {
     this.terrain = terrain;
     this.gameMode = mode;
+    const lives = options?.lives ?? DEFAULT_LIVES;
+    this.reloadMultiplier = options?.reloadMultiplier ?? 1.0;
+    this.timeRemaining = options?.matchDurationSeconds ?? MATCH_DURATION_SECONDS;
 
     // ── Spawn points ───────────────────────────────────────────────────
     this.spawnPoints = [
@@ -86,8 +96,8 @@ export class GameState {
     this.worms = [worm1, worm2];
 
     // ── Loadouts ───────────────────────────────────────────────────────
-    this.loadouts.set(worm1, new Loadout([...DEFAULT_LOADOUT]));
-    this.loadouts.set(worm2, new Loadout([...DEFAULT_LOADOUT]));
+    this.loadouts.set(worm1, new Loadout([...DEFAULT_LOADOUT], this.reloadMultiplier));
+    this.loadouts.set(worm2, new Loadout([...DEFAULT_LOADOUT], this.reloadMultiplier));
 
     // ── Systems ────────────────────────────────────────────────────────
     this.terrainDestroyer = new TerrainDestroyer(terrain);
@@ -115,7 +125,7 @@ export class GameState {
 
     // ── Lives ──────────────────────────────────────────────────────────
     for (const worm of this.worms) {
-      this.lives.set(worm, DEFAULT_LIVES);
+      this.lives.set(worm, lives);
       this.respawnTimers.set(worm, null);
     }
   }
@@ -496,7 +506,7 @@ export class GameState {
     worm.hp    = WORM_MAX_HP;
     worm.state = 'airborne';
     this.respawnTimers.set(worm, null);
-    this.loadouts.set(worm, new Loadout([...DEFAULT_LOADOUT]));
+    this.loadouts.set(worm, new Loadout([...DEFAULT_LOADOUT], this.reloadMultiplier));
   }
 
   private findRespawnPosition(worm: Worm): { x: number; y: number } {

@@ -1,5 +1,4 @@
 import { WeaponDef } from './WeaponDef';
-import { LOADING_TIMES_MULTIPLIER } from '../game/constants';
 
 interface Slot {
   def:          WeaponDef;
@@ -22,8 +21,10 @@ interface Slot {
 export class Loadout {
   private slots: Slot[];
   activeIndex: number = 0;
+  private readonly reloadMultiplier: number;
 
-  constructor(weapons: WeaponDef[]) {
+  constructor(weapons: WeaponDef[], reloadMultiplier: number = 1.0) {
+    this.reloadMultiplier = reloadMultiplier;
     this.slots = weapons.map(def => ({
       def,
       magAmmo: def.ammoPerMag,
@@ -41,7 +42,7 @@ export class Loadout {
   get reloadProgress(): number {
     const slot = this.slots[this.activeIndex];
     if (slot.reloadTimer <= 0 || slot.def.loadingTimeMs <= 0) return 0;
-    const total = slot.def.loadingTimeMs * LOADING_TIMES_MULTIPLIER;
+    const total = slot.def.loadingTimeMs * this.reloadMultiplier;
     return 1 - slot.reloadTimer / total;
   }
 
@@ -104,7 +105,7 @@ export class Loadout {
 
   private startReload(slot: Slot): void {
     if (slot.totalAmmo <= 0 && !slot.def.infiniteAmmo) return; // no reserve left
-    slot.reloadTimer = slot.def.loadingTimeMs * LOADING_TIMES_MULTIPLIER;
+    slot.reloadTimer = slot.def.loadingTimeMs * this.reloadMultiplier;
   }
 
   private finishReload(slot: Slot): void {

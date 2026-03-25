@@ -165,6 +165,7 @@ const SUPPRESSION_MAX_DURATION = 4.0;
 
 export class AIController {
   private difficulty: AIDifficulty;
+  private fullMapVision: boolean;
 
   // ── State machine ──────────────────────────────────────────────────
   private state: AIState = 'explore';
@@ -258,8 +259,9 @@ export class AIController {
   /** Whether loop break chose rope instead of horizontal move. */
   private jumpLoopRope = false;
 
-  constructor(difficulty: AIDifficulty) {
+  constructor(difficulty: AIDifficulty, fullMapVision: boolean = false) {
     this.difficulty = difficulty;
+    this.fullMapVision = fullMapVision;
     this.exploreTimer = this.randomExploreTime();
     this.currentAimJitter = this.randomJitter();
   }
@@ -284,7 +286,7 @@ export class AIController {
     if (self.isDead) return emptyInputState();
 
     // ── Build vision rect ────────────────────────────────────────────
-    const vm = this.difficulty.visionMultiplier;
+    const vm = this.fullMapVision ? 100 : this.difficulty.visionMultiplier;
     const vw = viewportW * vm;
     const vh = viewportH * vm;
     const vision: VisionRect = {

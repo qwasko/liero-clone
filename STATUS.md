@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Knockback and recoil physics
+## Last completed: Settings menu + per-player configuration
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -152,7 +152,10 @@
     - Easy: 0.8× vision, 30f delay, ±15°, slow reactions, ~50% rule adherence
     - Medium: 1.0× vision, 15f delay, ±7°, human-like mistakes, ~70% rules
     - Hard: 6× vision, 5f delay, ±2°, fast tactical, ~90% rules (not perfect)
-  - Menu: TAB toggles 2P Local / vs AI, 1/2/3 selects difficulty
+  - **Reload awareness**: auto-switches to best loaded weapon when current reloads
+    - Situation-based candidates (close/medium/no LOS/enclosed/long range)
+    - Retreat when no loaded weapon fits, erratic movement when all reloading
+  - Full map vision mode: when "Bot uses map" enabled, sees entire map
 
 - **Knockback & recoil physics**:
   - Explosion knockback: worms pushed away from blast center, force scales with proximity
@@ -168,27 +171,45 @@
   - Worm on rope: knockback applies normally, rope spring handles the swing
   - Shared utility: `computeKnockback()` + `getKnockbackForce()` in `src/utils/Knockback.ts`
 
+- **Settings menu** (`src/game/GameSettings.ts` + `src/scenes/SettingsScene.ts`):
+  - Persisted to localStorage, loaded on startup
+  - Main menu redesigned: NEW GAME / SETTINGS / CONTROLS (placeholder) / QUIT
+  - Settings summary shown on main menu
+  - **Game settings**: Reload Speed 0-500% (0=instant, 100=normal, 500=5x slower), Match Timer (1/2/3/5 min / Unlimited), Lives 1-10
+  - **Player settings**: P1 and P2 independently: Human / AI Easy / AI Medium / AI Hard
+  - **Bot vs bot**: both players AI — fully supported
+  - **Camera settings**: P1 and P2 zoom independently 0.5-3.0
+  - **Minimap settings**: On/Off, Bot uses map (Yes = full map vision for AI)
+  - **Map settings**: Level Size (Tiny/Normal/Large), Game Mode (Deathmatch/Tag)
+  - HUD lives display: `♥ N` (scales to 10)
+  - Unlimited timer: `--:--` display
+
 ## Known issues / bugs
 - No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita, sticky_mine, proximity_grenade)
   — they use generic fire/explosion audio
-- Diagnostic console.log still active in ExplosionSystem, GameState, ParticleSystem
-  — remove before release
 - AI bot not yet tested in-game — may need tuning
 - Knockback/recoil values may need in-game tuning
 
-## STOPPED HERE — end of session 2026-03-24
+## STOPPED HERE — end of session 2026-03-25
 
 ### This session completed
-- Knockback and recoil physics (full implementation)
+- Settings menu with localStorage persistence
+- Per-player AI/human configuration (bot vs bot support)
+- Per-player camera zoom
+- Configurable reload speed, match timer, lives
+- Minimap toggle + bot full-map-vision option
+- AI reload awareness (from previous session, not in STATUS)
+- Mine knockback terrain fix (from previous session)
 
 ### Next task to start
-- Test knockback/recoil in-game and tune values
-- Test AI in-game and tune all new systems
+- Test settings in-game (all combinations)
+- Test bot vs bot mode
+- Controls key binding menu (placeholder exists)
 
 ## Possible next steps (not planned)
+- Key binding configuration (Controls menu)
 - Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
 - Flamethrower / homing missile (spec: do not implement yet)
 - Animated worm sprites instead of circle-segments
 - Sound effects from files instead of procedural Web Audio
 - Online multiplayer (WebSocket / Socket.io)
-- Remove diagnostic console.log statements
