@@ -22,7 +22,7 @@ function hpColour(pct: number): number {
  *   Timer   → top center (spans divider)
  */
 export class HUD {
-  static readonly HEIGHT = 36;
+  static readonly HEIGHT = 40;
 
   private bars:     Phaser.GameObjects.Graphics;
   private p1Hp:     Phaser.GameObjects.Text;
@@ -46,18 +46,14 @@ export class HUD {
     const H = canvasHeight;
     const DEPTH = 20;
 
-    this.barY = H - HUD.HEIGHT + PAD;
+    const hudTop = H - HUD.HEIGHT;
+    this.barY = hudTop + PAD;
 
-    // ── Bottom HUD backgrounds (one per viewport half) ─────────────────
-    const bgLeft = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
-      .fillStyle(0x000000, 0.72)
-      .fillRect(0, H - HUD.HEIGHT, W / 2 - 1, HUD.HEIGHT);
-    this.objects.push(bgLeft);
-
-    const bgRight = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
-      .fillStyle(0x000000, 0.72)
-      .fillRect(W / 2 + 1, H - HUD.HEIGHT, W / 2 - 1, HUD.HEIGHT);
-    this.objects.push(bgRight);
+    // ── Full-width HUD background below viewport ─────────────────────────
+    const bg = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)
+      .fillStyle(0x111111, 1)
+      .fillRect(0, hudTop, W, HUD.HEIGHT);
+    this.objects.push(bg);
 
     // ── Timer background (top center, spans both viewports) ────────────
     const timerBg = scene.add.graphics().setDepth(DEPTH).setScrollFactor(0)

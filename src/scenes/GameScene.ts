@@ -124,9 +124,10 @@ export class GameScene extends Phaser.Scene {
     //  Splitscreen camera setup
     // ════════════════════════════════════════════════════════════════════
 
-    // ── P1 camera (left half) ────────────────────────────────────────────
+    // ── P1 camera (left half, above HUD) ──────────────────────────────────
+    const vpH = CANVAS_HEIGHT - HUD.HEIGHT;
     const cam1 = this.cameras.main;
-    cam1.setViewport(0, 0, halfW, CANVAS_HEIGHT);
+    cam1.setViewport(0, 0, halfW, vpH);
     cam1.setZoom(settings.p1Zoom);
     cam1.setBounds(0, 0, level.width, level.height);
     cam1.setRoundPixels(true);
@@ -134,8 +135,8 @@ export class GameScene extends Phaser.Scene {
     this.cameraFocusP1 = this.add.zone(spawnP1.x, spawnP1.y, 1, 1);
     cam1.startFollow(this.cameraFocusP1);
 
-    // ── P2 camera (right half) ───────────────────────────────────────────
-    this.p2Camera = this.cameras.add(halfW, 0, halfW, CANVAS_HEIGHT);
+    // ── P2 camera (right half, above HUD) ────────────────────────────────
+    this.p2Camera = this.cameras.add(halfW, 0, halfW, vpH);
     this.p2Camera.setZoom(settings.p2Zoom);
     this.p2Camera.setBounds(0, 0, level.width, level.height);
     this.p2Camera.setRoundPixels(true);
@@ -151,8 +152,8 @@ export class GameScene extends Phaser.Scene {
     this.flashRect = this.add.rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, 0xff2200, 0)
       .setOrigin(0, 0).setDepth(50).setScrollFactor(0);
 
-    // ── Divider line (2px dark line at center) ───────────────────────────
-    this.divider = this.add.rectangle(halfW, CANVAS_HEIGHT / 2, 2, CANVAS_HEIGHT, 0x222222, 1)
+    // ── Divider line (2px dark line at center, viewport height only) ─────
+    this.divider = this.add.rectangle(halfW, vpH / 2, 2, vpH, 0x222222, 1)
       .setScrollFactor(0).setDepth(55);
 
     // ── HUD (splitscreen layout) ─────────────────────────────────────────
@@ -226,7 +227,7 @@ export class GameScene extends Phaser.Scene {
       const loadout1 = state.loadouts.get(worm1)!;
       const zoom1 = this.cameras.main.zoom;
       const vpW1  = (CANVAS_WIDTH / 2) / zoom1;
-      const vpH1  = CANVAS_HEIGHT / zoom1;
+      const vpH1  = (CANVAS_HEIGHT - HUD.HEIGHT) / zoom1;
       const crates = state.crateSystem.getCrates().filter(c => c.active);
       const rope   = state.ropeSystem;
       input1 = this.aiController1.getInput(
@@ -245,7 +246,7 @@ export class GameScene extends Phaser.Scene {
       const loadout2 = state.loadouts.get(worm2)!;
       const zoom2 = this.p2Camera.zoom;
       const vpW2  = (CANVAS_WIDTH / 2) / zoom2;
-      const vpH2  = CANVAS_HEIGHT / zoom2;
+      const vpH2  = (CANVAS_HEIGHT - HUD.HEIGHT) / zoom2;
       const crates = state.crateSystem.getCrates().filter(c => c.active);
       const rope   = state.ropeSystem;
       input2 = this.aiController2.getInput(
