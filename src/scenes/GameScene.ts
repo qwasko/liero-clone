@@ -107,7 +107,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── Input + audio ────────────────────────────────────────────────────
-    this.inputManager = new InputManager(this.input.keyboard!);
+    this.inputManager = new InputManager(this.input.keyboard!, settings.p1Keys, settings.p2Keys);
     this.audio        = new AudioManager();
 
     // ── AI controllers (per player) ──────────────────────────────────────

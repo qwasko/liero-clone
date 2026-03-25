@@ -1,12 +1,10 @@
 import Phaser from 'phaser';
 import { InputState, emptyInputState } from './InputState';
+import { KeyBindings } from '../game/GameSettings';
 
 /**
  * Reads keyboard state each frame and exposes two InputState objects,
- * one per player. Swap key bindings here without touching game logic.
- *
- * Player 1: Arrow keys + Right-Shift (jump) + Right-Ctrl (fire) + Period (CHANGE)
- * Player 2: WASD      + Space        (jump) + F           (fire) + E      (CHANGE)
+ * one per player. Key bindings are configurable via GameSettings.
  *
  * The CHANGE key is held to: cycle weapons (+ LEFT/RIGHT), fire rope (+ JUMP),
  * and adjust rope length (+ UP/DOWN). It disables movement and FIRE while held.
@@ -32,27 +30,25 @@ export class InputManager {
     change: Phaser.Input.Keyboard.Key;
   };
 
-  constructor(keyboard: Phaser.Input.Keyboard.KeyboardPlugin) {
-    const K = Phaser.Input.Keyboard.KeyCodes;
-
+  constructor(keyboard: Phaser.Input.Keyboard.KeyboardPlugin, p1: KeyBindings, p2: KeyBindings) {
     this.keys1 = {
-      left:   keyboard.addKey(K.LEFT),
-      right:  keyboard.addKey(K.RIGHT),
-      up:     keyboard.addKey(K.UP),
-      down:   keyboard.addKey(K.DOWN),
-      jump:   keyboard.addKey(K.SHIFT),
-      fire:   keyboard.addKey(K.CTRL),
-      change: keyboard.addKey(K.FORWARD_SLASH),
+      left:   keyboard.addKey(p1.left),
+      right:  keyboard.addKey(p1.right),
+      up:     keyboard.addKey(p1.up),
+      down:   keyboard.addKey(p1.down),
+      jump:   keyboard.addKey(p1.jump),
+      fire:   keyboard.addKey(p1.fire),
+      change: keyboard.addKey(p1.change),
     };
 
     this.keys2 = {
-      left:   keyboard.addKey(K.A),
-      right:  keyboard.addKey(K.D),
-      up:     keyboard.addKey(K.W),
-      down:   keyboard.addKey(K.S),
-      jump:   keyboard.addKey(K.SPACE),
-      fire:   keyboard.addKey(K.F),
-      change: keyboard.addKey(K.E),
+      left:   keyboard.addKey(p2.left),
+      right:  keyboard.addKey(p2.right),
+      up:     keyboard.addKey(p2.up),
+      down:   keyboard.addKey(p2.down),
+      jump:   keyboard.addKey(p2.jump),
+      fire:   keyboard.addKey(p2.fire),
+      change: keyboard.addKey(p2.change),
     };
   }
 

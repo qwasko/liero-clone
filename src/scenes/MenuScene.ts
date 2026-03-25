@@ -45,11 +45,11 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Control hints
-    this.add.text(cx, cy + 195, 'P1: Arrows+Shift/Ctrl   P2: WASD+Space/F', {
+    this.add.text(cx, cy + 195, 'Key bindings: see CONTROLS menu', {
       fontSize: '11px', color: '#444444', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    this.add.text(cx, cy + 213, 'Change weapon: CHANGE+LEFT/RIGHT', {
+    this.add.text(cx, cy + 213, 'CHANGE + LEFT/RIGHT = cycle weapons', {
       fontSize: '11px', color: '#444444', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
@@ -100,13 +100,10 @@ export class MenuScene extends Phaser.Scene {
         this.starting = true;
         this.scene.start('SettingsScene');
         break;
-      case 2: { // CONTROLS (placeholder)
-        const msg = this.add.text(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 165, 'Coming soon...', {
-          fontSize: '14px', color: '#ffaa00', fontFamily: 'monospace',
-        }).setOrigin(0.5);
-        this.time.delayedCall(1500, () => msg.destroy());
+      case 2: // CONTROLS
+        this.starting = true;
+        this.scene.start('ControlsScene');
         break;
-      }
       case 3: // QUIT
         break;
     }
