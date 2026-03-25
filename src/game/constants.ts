@@ -15,14 +15,14 @@ export const WORM_MAX_HP = 100;
 export const LOADING_TIMES_MULTIPLIER = 1.0; // global multiplier for magazine reload times
 
 // Knockback
-export const KNOCKBACK_FORCE_LARGE  = 150; // px/s — large explosion (crater >= 8px)
-export const KNOCKBACK_FORCE_MEDIUM = 100; // px/s — medium explosion (crater >= 6px)
-export const KNOCKBACK_FORCE_SMALL  = 40;  // px/s — small explosion (crater < 6px)
+export const KNOCKBACK_FORCE_LARGE  = 200; // px/s — large explosion (crater >= 8px)
+export const KNOCKBACK_FORCE_MEDIUM = 130; // px/s — medium explosion (crater >= 6px)
+export const KNOCKBACK_FORCE_SMALL  = 50;  // px/s — small explosion (crater < 6px)
 export const KNOCKBACK_MINE_FACTOR  = 0.5; // deployed mines receive 50% knockback
 
 // Velocity caps
-export const MAX_WORM_VX = 400; // px/s horizontal
-export const MAX_WORM_VY = 500; // px/s vertical
+export const MAX_WORM_VX = 600; // px/s horizontal
+export const MAX_WORM_VY = 700; // px/s vertical
 
 // Match
 export const MATCH_DURATION_SECONDS = 180;

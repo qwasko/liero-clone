@@ -41,7 +41,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     hitDamage: 12,                                             // Liero: hitDmg=12
     chiquitaFragments: 12,                              // 12 splinters (particle__small_damage)
     explosionRadius: 8, splashDamage: 50, splashRadius: 20,   // large_explosion, boosted damage
-    recoilForce: 80,
+    recoilForce: 100,
     ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 1071, loadingTimeMs: 5857,                 // Liero: delay=75, loadingTime=410
   },
@@ -59,7 +59,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 1,                                              // tuned: 1 per bullet
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only, no worm damage
-    recoilForce: 15,
+    recoilForce: 8,
     ammoPerMag: 70, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 7143,                    // Liero: delay=0, loadingTime=500
   },
@@ -80,7 +80,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     wormCollide: false,                                  // passes through worms, fuse-only detonation
     chiquitaFragments: 50,                               // 50 fragments (Liero-accurate)
     explosionRadius: 8, splashDamage: 15, splashRadius: 20,   // large_explosion
-    recoilForce: 30,
+    recoilForce: 50,
     ammoPerMag: 2, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 0, loadingTimeMs: 3714,                    // Liero: delay=0, loadingTime=260
   },
@@ -117,7 +117,7 @@ export const WeaponRegistry: Record<string, WeaponDef> = {
     behavior: 'normal', maxBounces: 0, fuseMs: null,
     hitDamage: 4,                                              // direct pellet hit only, no splash
     explosionRadius: 4, splashDamage: 0, splashRadius: 8,   // small_explosion: carve only
-    recoilForce: 120,
+    recoilForce: 200,
     ammoPerMag: 3, totalAmmo: 10000, infiniteAmmo: false,
     delayMs: 814, loadingTimeMs: 3357,                  // Liero: delay=57, loadingTime=235
   },
