@@ -71,11 +71,14 @@ export class LockstepManager {
   update(localInput: InputState): void {
     if (this.disconnected) return;
 
-    // Buffer local input for frame currentFrame + INPUT_DELAY
-    const targetFrame = this.currentFrame + INPUT_DELAY;
-    if (!this.localInputs.has(targetFrame)) {
-      this.localInputs.set(targetFrame, { ...localInput });
-      this.network.sendInput(targetFrame, this.toNetInput(localInput));
+    // Buffer local input for all frames that need it.
+    // tryAdvance() may consume multiple frames per call, so we must ensure
+    // every frame from currentFrame up to currentFrame + INPUT_DELAY has local input.
+    for (let f = this.currentFrame; f <= this.currentFrame + INPUT_DELAY; f++) {
+      if (!this.localInputs.has(f)) {
+        this.localInputs.set(f, { ...localInput });
+        this.network.sendInput(f, this.toNetInput(localInput));
+      }
     }
 
     // Try to advance as many frames as possible
@@ -97,8 +100,10 @@ export class LockstepManager {
         if (!this.stalled) {
           this.stalled = true;
           this.stallStartTime = performance.now();
+          console.log('[lockstep] stall detected frame=', frame, 'hasLocal=', !!local, 'hasRemote=', !!remote);
           this.onStall(true);
         } else if (this.stallStartTime && performance.now() - this.stallStartTime > STALL_TIMEOUT_MS) {
+          console.log('[lockstep] disconnect timeout fired at frame=', frame);
           this.disconnected = true;
           this.onDisconnect();
         }

@@ -20,6 +20,9 @@ export class NetworkClient {
     this.socket.on('message', (msg: ServerMessage) => {
       this.handler?.(msg);
     });
+    this.socket.on('disconnect', (reason: string) => {
+      console.log('[net] disconnected, reason:', reason);
+    });
   }
 
   /** Set the handler for all incoming server messages. */
