@@ -105,7 +105,9 @@ export class Loadout {
 
   private startReload(slot: Slot): void {
     if (slot.totalAmmo <= 0 && !slot.def.infiniteAmmo) return; // no reserve left
-    slot.reloadTimer = slot.def.loadingTimeMs * this.reloadMultiplier;
+    slot.reloadTimer = this.reloadMultiplier === 0
+      ? 1   // instant reload (1ms — finishes next frame)
+      : slot.def.loadingTimeMs * this.reloadMultiplier;
   }
 
   private finishReload(slot: Slot): void {
