@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Settings menu + per-player configuration
+## Last completed: Architecture docs + knockback/HP tuning (2026-03-25)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -28,188 +28,80 @@
   - TerrainDestroyer: decoupled from renderer, dirty region tracking
   - CrateSystem: decoupled from Phaser, pure data + events
 - Full weapon loadout (11 weapons, cycle with CHANGE+LEFT/RIGHT):
-  - Bazooka — impact explode, 20px crater, 15 splash dmg, 12 fragments
-  - Minigun — rapid fire, per-axis jitter, 8px crater, 5 splash dmg
-  - Grenade — bounce (40%), 1640ms fuse, 35 fragments, 20px crater, 15 splash dmg, 2/mag
-  - Shotgun — 15 pellets, hitDamage 4/pellet, carve-only explosions, 3/mag
-  - Proximity Grenade — bounce, proximity trigger (20px), 857ms activation delay, 35 fragments, 5000ms loading
-  - Bouncy Larpa — elastic bounce (100%), 8000ms fuse, trail particles (3 dmg each), ownerGrace 857ms, 8 fragments, self-damage after grace
-  - Zimm — gravity 0.15, elastic terrain bounce, worm-only explode, 49 HP direct hit, speed 400, visual trail (white→blue), self-damage, ownerGrace 429ms, 15px spawn offset, progressive anti-stuck (jitter escalation + position tracking)
-  - Cluster Bomb — bounce (50%), 1930ms fuse, 20 bomblets (bounce+430ms fuse), 20px crater
-  - Mine — deploys on terrain, 857ms arm delay, proximity trigger (22px), 20 splash dmg, 8 fragments
-  - Sticky Mine — fires with no gravity, attaches to terrain, detaches when terrain destroyed, re-attaches on fall, 857ms arm delay, proximity (25px), 60 HP flat damage, 8 dedicated fragments (8 dmg each), ownerGrace 857ms
-  - Chiquita Bomb — bounce (40%), 2140ms fuse, 22 bomblets (bounce+430ms fuse), 20px crater
-- **Explosion damage scaling**: effective splash radius = crater × 3
-  - Fragment 8px crater → 24px damage zone
-  - Medium 14px crater → 42px damage zone
-  - Large 20px crater → 60px damage zone
-- Fragment/bomblet types:
-  - chiquita_fragment: impact-explode (8px crater, 5 dmg) — used by grenade/proximity_grenade
-  - bazooka_fragment: impact-explode — used by bazooka/larpa/larpa_trail/mine
-  - sticky_mine_fragment: impact-explode (hitDamage 8, gravity 0.7)
-  - cluster_bomblet: bounce + 430ms fuse (14px crater, 10 dmg)
-  - chiquita_bomblet: bounce + 430ms fuse (20px crater, 15 dmg)
-- Fragment terrain grace: 150ms immunity to terrain collision after spawn (escape crater)
-- **Owner grace system**: ownerGraceMs on weapons, projectile ownerGrace timer; while > 0 owner excluded from damage, after expiry full self-damage
-- **Trail particle system**: data-driven (trailWeaponId/trailIntervalMs on WeaponDef), trail particles inherit parent ownerGrace
-- **flatDamage**: ExplosionSystem option for full damage within radius (no distance falloff)
-- **hitsAllWorms**: fragments, larpa, larpa_trail, sticky_mine, sticky_mine_fragment, zimm skip owner exclusion on direct hit
-- **Zimm anti-resonance system**:
-  - Slight gravity (0.15) curves trajectory over time
-  - ±5° base jitter on each terrain bounce (escalated by stuck detection)
-  - Progressive stuck detection: track 20 positions on 5px grid
-    - < 4 unique → 2x jitter, < 3 → 4x jitter, < 2 → random velocity kick
-    - Reset escalation when projectile moves > 30px between frames
-  - 429ms owner grace (30 frames) prevents self-hit on spawn
-  - 15px spawn offset clears worm body and adjacent terrain
-- Object-pooled particle system (200 pool) with 3-phase animation
-- Self-damage: 50% of splash damage when owner worm is caught in own explosion (except fullSelfDamage weapons)
-- Ninja rope with spring/elastic physics (CHANGE+JUMP; anchor destruction releases rope)
-- Sub-pixel vy clamp: grounded worms with |vy| < 0.5 snapped to 0
-- Terrain digging in crosshair direction; block zone ±10° of straight up only
-- Lives system (3 lives each) + respawn after 2s
-- Win condition (elimination or timer expiry)
-- Bonus crates: spawn every ~18s, max 5 on map
-- Procedural audio (fire, explosion, jump, pickup, rope)
-- Explosion screen flash (red vignette) + impact ring visual
-- **Magazine ammo system**: per-weapon magazine size, shot delay, and loading time
-  - HUD shows ammo count + blue reload progress bar
-- Level selection menu (Normal / Large Open / Tiny)
-- Projectiles travel full map dimensions before despawning
-- 4-segment worm sprites with aim-tracking eye (P1 green, P2 red)
-- Mode selection: Normal Deathmatch or Game of Tag
-- **Minimap** — per-viewport overlay (Tab to toggle):
-  - ~120×80px, proportional to map aspect ratio
-  - P1: bottom-right of left viewport, P2: bottom-left of right viewport
-  - Terrain: brown=dirt, gray=rock, black=air (redraws every 10 frames)
-  - Green dot=P1, red dot=P2, yellow dots=projectiles, white squares=crates
-- **AI bot opponent** (vs AI mode):
-  - AIController produces InputState — same interface as keyboard, game can't distinguish
-  - Vision-limited: AI sees only a viewport-sized rectangle centered on its worm
-  - Vision rect scales with camera zoom and difficulty visionMultiplier
-  - 4 behavior states: ENGAGE, APPROACH, SEARCH, EXPLORE
-  - Override states: DANGER (critical threat), REPOSITION (suppressed)
-  - Enemy memory: remembers last known position for 3 seconds after losing sight
-  - Reaction delay buffer: raw perceptions delayed by N frames before acting
-  - Aim jitter: re-rolled every 0.8-2s for natural-looking inaccuracy
-  - Fire control: respects single/auto fire modes, cooldown between shots
-  - Navigation: jump, dig (2-frame rising edge), rock reroute, rope swing
-  - **Threat scoring system**: damage × (150/distance) × approachFactor per projectile
-    - Critical (>80): DANGER state — drop everything, flee, rope to ceiling
-    - Moderate (30-80): sidestep while maintaining attack
-    - Low (<30): ignore, continue current action
-  - **Suppression detection**: tracks damage taken + frames without effective shot
-    - Triggers when: >15HP damage in 2s, no LOS, 120+ frames without clear shot
-    - REPOSITION: moves to find new angle, lobs area denial grenades, uses rope
-    - Exits when: LOS restored or 4s timeout
-    - Difficulty scaling: Easy 3s delay, Medium 2s, Hard 1s
-  - **Grenade trajectory intuition**: rejects steep upward grenade shots
-    - >60° upward: suppressed (grenade arcs back to self)
-    - 30-60° upward: allowed with self-damage estimate check
-    - Hard bot exception: allows if landing >200px away
-    - Scaling: Easy 40%, Medium 75%, Hard 95% awareness
-  - **Full tactical weapon selection**:
-    - Enclosed space: larpa (bouncing coverage) > zimm
-    - Enemy above: bazooka/minigun (straight fire), avoid grenades
-    - Enemy below: zimm (bounces reach), avoid grenades
-    - Corridor/approaching: proximity grenade as trap, mines
-    - Close range: shotgun > minigun (no explosives)
-    - Medium range: bazooka > minigun; proximity grenade if approaching
-    - Long range: minigun > zimm
-    - Behind rock: larpa bounce > grenade lob
-    - Retreating/suppressed: grenade area denial
-  - **Proximity grenade tactics**: corridor traps, approaching enemy traps, pursuit deterrent
-  - **Larpa tactics**: enclosed spaces, wall bounces around obstacles, area denial
-  - **Self-damage awareness**: ballistic landing estimate, enclosed space detection
-    - Explosive weapons suppressed when blast would hit self (splashRadius × 1.5)
-    - Tunnel detection: terrain in 4+ of 8 directions → avoid all explosives
-    - Auto-switch to safe weapon (shotgun/minigun) when explosive is unsafe
-  - **Throw-and-swing escape**: after firing explosive, rope away from blast
-    - Checks for ceiling within 150px before attempting
-    - Sequence: fire → wait 20-30 frames → launch rope → swing away from enemy
-    - Probability: Easy 15%, Medium 45%, Hard 75%
-  - **Rope escape direction**: fires rope away from grenade, not toward it
-  - **Upward weapon selection with self-damage awareness**:
-    - Vertical clearance scan: tight tunnel (<100px) forces minigun/shotgun
-    - Difficulty-scaled error rates (Easy 50%, Medium 25%, Hard 8% misjudge)
-    - Burn learning: tracks self-damage over 3s window, 5s explosive cooldown
-    - Enemy-above branch uses clearance + escape route checks
-  - **Dead angle below response**:
-    - Detects enemy in ±30° cone below bot (>20px below)
-    - Updates facing toward enemy X immediately every frame
-    - Option A: dig down (shift sideways + dig, if diggable dirt)
-    - Option B: drop grenade (Hard only, 40%, >80px open below)
-    - Option C: reposition horizontally until enemy exits cone
-    - Priority: A → C (B for Hard bot), commits for ~2s
-  - **Jump loop breaker** (global, all states):
-    - Tracks consecutive jumps without >15px horizontal progress
-    - After 5 stuck jumps: suppress all jumping for 2s
-    - 60% force horizontal move (1.5s) with dig-through-dirt
-    - 40% fire rope toward nearest ceiling
-  - **Facing direction fix**: updates toward enemy X every frame when idle
-  - Dead angle escape: strafes out when enemy is in aim dead zone
-  - 3 difficulty presets with full tuning:
-    - Easy: 0.8× vision, 30f delay, ±15°, slow reactions, ~50% rule adherence
-    - Medium: 1.0× vision, 15f delay, ±7°, human-like mistakes, ~70% rules
-    - Hard: 6× vision, 5f delay, ±2°, fast tactical, ~90% rules (not perfect)
-  - **Reload awareness**: auto-switches to best loaded weapon when current reloads
-    - Situation-based candidates (close/medium/no LOS/enclosed/long range)
-    - Retreat when no loaded weapon fits, erratic movement when all reloading
-  - Full map vision mode: when "Bot uses map" enabled, sees entire map
-
-- **Knockback & recoil physics**:
-  - Explosion knockback: worms pushed away from blast center, force scales with proximity
-    - Large explosion (crater >= 8px): 150 px/s base
-    - Medium explosion (crater >= 6px): 100 px/s base
-    - Small explosion (crater < 6px): 40 px/s base
-  - Weapon recoil: shooter pushed opposite to aim direction on fire
-    - Shotgun 120, Bazooka 80, Zimm 60, Larpa/Cluster/Chiquita 40, Grenade 30, Minigun 15
-    - Deployables (mine, sticky mine, proximity grenade): 0
-  - Mine knockback: deployed mines detached and flung by nearby explosions (50% force)
-  - Velocity caps: 400 px/s horizontal, 500 px/s vertical
-  - Air friction: airborne worms preserve horizontal momentum with natural decay (~95% gone in 1s)
-  - Worm on rope: knockback applies normally, rope spring handles the swing
-  - Shared utility: `computeKnockback()` + `getKnockbackForce()` in `src/utils/Knockback.ts`
-
-- **Settings menu** (`src/game/GameSettings.ts` + `src/scenes/SettingsScene.ts`):
-  - Persisted to localStorage, loaded on startup
-  - Main menu redesigned: NEW GAME / SETTINGS / CONTROLS (placeholder) / QUIT
-  - Settings summary shown on main menu
-  - **Game settings**: Reload Speed 0-500% (0=instant, 100=normal, 500=5x slower), Match Timer (1/2/3/5 min / Unlimited), Lives 1-10
-  - **Player settings**: P1 and P2 independently: Human / AI Easy / AI Medium / AI Hard
-  - **Bot vs bot**: both players AI — fully supported
-  - **Camera settings**: P1 and P2 zoom independently 0.5-3.0
-  - **Minimap settings**: On/Off, Bot uses map (Yes = full map vision for AI)
-  - **Map settings**: Level Size (Tiny/Normal/Large), Game Mode (Deathmatch/Tag)
-  - HUD lives display: `♥ N` (scales to 10)
-  - Unlimited timer: `--:--` display
+  - Bazooka, Minigun, Grenade, Shotgun, Proximity Grenade
+  - Bouncy Larpa, Zimm, Cluster Bomb, Mine, Sticky Mine, Chiquita Bomb
+- **Knockback & recoil physics** (flat force, no distance falloff):
+  - Knockback tiers based on splashDamage: >30 Large (150), 10-30 Medium (100), <10 Small (40)
+  - Recoil: Shotgun 200, Bazooka 100, Zimm 60, Grenade 50, Larpa/Cluster/Chiquita 40, Prox.Grenade 30, Minigun 11
+  - Mine knockback: deployed mines detached by nearby explosions (50% force)
+  - Velocity caps: 600 px/s horizontal, 700 px/s vertical
+- **Per-worm HP setting**: 50/100/150/200/300/500, applied at spawn/respawn, heal crate capped
+- **Settings menu** with localStorage persistence:
+  - Reload Speed 0-500%, Match Timer, Lives 1-10, P1/P2 HP
+  - P1/P2 type: Human / AI Easy / AI Medium / AI Hard (bot vs bot supported)
+  - P1/P2 camera zoom 0.5-3.0
+  - Minimap On/Off, Bot uses map
+  - Level Size, Game Mode (Deathmatch/Tag)
+- **Controls menu**: configurable key bindings per player, rebind with ENTER, saved to localStorage
+- **Pause menu**: ESC → Continue / New Game
+- **AI bot** with 3 difficulty presets, tactical weapon selection, threat scoring, rope escape
+- **Minimap** per-viewport overlay (TAB toggle)
+- Ninja rope, digging, magazine ammo, bonus crates, procedural audio
+- Game of Tag mode (any death = become IT)
+- ARCHITECTURE.md documenting full system design
 
 ## Known issues / bugs
-- No dedicated sounds for new weapons (larpa, zimm, cluster, mine, chiquita, sticky_mine, proximity_grenade)
-  — they use generic fire/explosion audio
-- AI bot not yet tested in-game — may need tuning
-- Knockback/recoil values may need in-game tuning
+- No dedicated sounds for new weapons — they use generic fire/explosion audio
+- AI bot may need further tuning
+- `Math.random` not seeded — would block deterministic lockstep multiplayer
 
 ## STOPPED HERE — end of session 2026-03-25
 
 ### This session completed
-- Settings menu with localStorage persistence
-- Per-player AI/human configuration (bot vs bot support)
-- Per-player camera zoom
-- Configurable reload speed, match timer, lives
-- Minimap toggle + bot full-map-vision option
-- AI reload awareness (from previous session, not in STATUS)
-- Mine knockback terrain fix (from previous session)
+- Per-worm HP setting (P1 HP / P2 HP in settings menu)
+- Knockback: removed distance falloff (flat force, Liero-accurate)
+- Knockback tiers changed from crater-radius-based to splashDamage-based
+- Knockback values tuned: 150/100/40
+- Recoil tuned: Bazooka 100, Grenade 50, Minigun 11, Shotgun 200, Prox.Grenade 30
+- Velocity caps raised: VX 600, VY 700
+- ARCHITECTURE.md written (systems, data flow, dependencies, extension seams)
 
-### Next task to start
-- Test settings in-game (all combinations)
-- Test bot vs bot mode
-- Controls key binding menu (placeholder exists)
+### Next goal: Online Multiplayer
 
-## Possible next steps (not planned)
-- Key binding configuration (Controls menu)
-- Weapon-specific audio cues (zimm ricochet ping, mine arm click, etc.)
-- Flamethrower / homing missile (spec: do not implement yet)
-- Animated worm sprites instead of circle-segments
-- Sound effects from files instead of procedural Web Audio
-- Online multiplayer (WebSocket / Socket.io)
+Based on ARCHITECTURE.md analysis, here's what needs to change:
+
+**What's already multiplayer-ready:**
+- GameState is pure logic, no Phaser — can run on server
+- InputState is a simple interface — trivially serializable
+- GameEvent[] for side-effects — can be sent to clients
+- All entities (Worm, Projectile) are plain data — no Phaser objects
+
+**What needs to be built:**
+1. **Server** — Node.js process running GameState, accepting InputState from both clients via WebSocket
+2. **Network layer** — WebSocket (Socket.io) client/server for input + state sync
+3. **State serialization** — serialize/deserialize worms, projectiles, terrain damage, loadouts
+4. **Lobby/matchmaking** — scene for creating/joining games
+5. **Client prediction** — local InputState applied immediately, reconciled with server state
+6. **Terrain sync** — initial terrain seed shared; dirty regions broadcast on destruction
+
+**Key architectural decisions needed:**
+- Authority model: server-authoritative (recommended) vs lockstep
+- If server-authoritative: how much client prediction, how to handle rollback
+- If lockstep: need deterministic RNG (seed `Math.random` or use custom PRNG)
+- Tick rate: server simulation rate vs client render rate
+- Terrain: send full bitmap on join or regenerate from shared seed?
+- Latency compensation: input delay buffer, interpolation
+
+**Files that need changes:**
+- `GameScene.ts` — swap InputManager for network adapter (remote player)
+- `GameState.ts` — extract to run headless on server
+- New: `src/network/` — WebSocket client, server, protocol types
+- New: `src/scenes/LobbyScene.ts` — create/join game UI
+- `GameConfig.ts` — register LobbyScene
+- `TerrainGenerator.ts` — accept seed for deterministic generation
+
+## Possible future steps (not planned)
+- Weapon-specific audio cues
+- Flamethrower / homing missile
+- Animated worm sprites
+- Sound effects from files
