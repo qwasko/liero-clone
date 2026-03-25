@@ -30,10 +30,8 @@ export function computeKnockback(
     ny = dy / dist;
   }
 
-  // Force scales linearly: full at center, zero at edge
-  const force = baseForce * (1 - dist / radius);
-
-  return { dvx: nx * force, dvy: ny * force };
+  // Flat force — full knockback for anything within blast radius (Liero behavior)
+  return { dvx: nx * baseForce, dvy: ny * baseForce };
 }
 
 /** Base knockback force for a given explosion crater radius. */
