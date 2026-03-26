@@ -17,9 +17,9 @@ import { NetworkClient } from './NetworkClient';
 import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60;          // 16.67ms per sim tick
-const INPUT_DELAY = 6;             // frames of input delay (~100ms, responsive on home networks)
+const INPUT_DELAY = 20;            // frames of input delay (~333ms, covers real network latency)
 const MAX_CATCH_UP = 4;            // max sim ticks per render frame
-const STALL_TIMEOUT_MS = 15000;    // disconnect after 15s without remote input
+const STALL_TIMEOUT_MS = 30000;    // disconnect after 30s without remote input
 const STALL_DISPLAY_MS  = 300;     // only show overlay after 300ms of real stalling
 
 export type TickCallback = (dt: number, input1: InputState, input2: InputState) => void;
