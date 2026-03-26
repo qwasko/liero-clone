@@ -20,17 +20,19 @@ import { NetworkClient } from './NetworkClient';
 import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60;          // 16.67ms per sim tick
-const INITIAL_DELAY = 8;           // starting input delay (frames)
-const MIN_DELAY     = 6;           // lowest adaptive delay
-const MAX_DELAY     = 20;          // highest adaptive delay
+const INITIAL_DELAY = 20;          // starting input delay (frames) — start high, decrease gradually
+const MIN_DELAY     = 10;          // lowest adaptive delay
+const MAX_DELAY     = 30;          // highest adaptive delay
 const MAX_CATCH_UP  = 4;           // max sim ticks per render frame
 const STALL_TIMEOUT_MS = 30000;    // disconnect after 30s without remote input
 const STALL_DISPLAY_MS = 300;      // only show overlay after 300ms of real stalling
+const GRACE_FRAMES  = 60;          // ignore stalls during initial network stabilization
 
 // Adaptive delay tuning
 const STALL_WINDOW_UP   = 60;     // look-back window for increase decision
-const STALL_THRESHOLD   = 3;      // stalls in window → increase delay
-const CLEAN_WINDOW_DOWN = 120;    // consecutive clean frames before decreasing
+const STALL_THRESHOLD   = 1;      // stalls in window → increase delay (1 = immediate)
+const DELAY_INCREASE    = 2;      // frames to add per stall event
+const CLEAN_WINDOW_DOWN = 300;    // consecutive clean frames (~5s) before decreasing
 
 export type TickCallback = (dt: number, input1: InputState, input2: InputState) => void;
 
@@ -201,17 +203,20 @@ export class LockstepManager {
     this.stallHistory.push(this.currentFrame);
     this.framesSinceLastStall = 0;
 
+    // Don't adjust delay during initial grace period
+    if (this.currentFrame < GRACE_FRAMES) return;
+
     // Prune old entries outside the look-back window
     const cutoff = this.currentFrame - STALL_WINDOW_UP;
     while (this.stallHistory.length > 0 && this.stallHistory[0] < cutoff) {
       this.stallHistory.shift();
     }
 
-    // Too many recent stalls → increase delay
+    // Stall detected → increase delay immediately by DELAY_INCREASE
     if (this.stallHistory.length >= STALL_THRESHOLD && this.inputDelay < MAX_DELAY) {
-      this.inputDelay++;
+      this.inputDelay = Math.min(this.inputDelay + DELAY_INCREASE, MAX_DELAY);
       this.stallHistory.length = 0; // reset after adjustment
-      console.log('[lockstep] delay adjusted to', this.inputDelay, '(increased — stalls detected)');
+      console.log('[lockstep] delay adjusted to', this.inputDelay, '(increased — stall detected)');
     }
   }
 
