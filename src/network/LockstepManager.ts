@@ -16,7 +16,8 @@ import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60; // 16.67ms per tick
 const INPUT_DELAY = 3;    // frames of input delay
-const STALL_TIMEOUT_MS = 5000; // disconnect after 5s without remote input
+const STALL_TIMEOUT_MS = 5000;   // disconnect after 5s without remote input
+const STALL_DISPLAY_MS  = 300;   // only show overlay after 300ms of real stalling
 
 export type TickCallback = (dt: number, input1: InputState, input2: InputState) => void;
 
@@ -32,6 +33,7 @@ export class LockstepManager {
   // Stall detection
   private stallStartTime: number | null = null;
   private stalled = false;
+  private stallDisplayed = false; // true once overlay has been shown for this stall
   private disconnected = false;
 
   // Callback
@@ -101,11 +103,19 @@ export class LockstepManager {
           this.stalled = true;
           this.stallStartTime = performance.now();
           console.log('[lockstep] stall detected frame=', frame, 'hasLocal=', !!local, 'hasRemote=', !!remote);
-          this.onStall(true);
-        } else if (this.stallStartTime && performance.now() - this.stallStartTime > STALL_TIMEOUT_MS) {
-          console.log('[lockstep] disconnect timeout fired at frame=', frame);
-          this.disconnected = true;
-          this.onDisconnect();
+        } else if (this.stallStartTime) {
+          const elapsed = performance.now() - this.stallStartTime;
+          if (!this.stallDisplayed && elapsed > STALL_DISPLAY_MS) {
+            // Only show overlay after a real stall, not brief 1-2 frame gaps
+            this.stallDisplayed = true;
+            console.log('[lockstep] stall overlay shown at elapsed=', elapsed.toFixed(0), 'ms, frame=', frame);
+            this.onStall(true);
+          }
+          if (elapsed > STALL_TIMEOUT_MS) {
+            console.log('[lockstep] disconnect timeout fired at frame=', frame);
+            this.disconnected = true;
+            this.onDisconnect();
+          }
         }
         return;
       }
@@ -114,7 +124,11 @@ export class LockstepManager {
       if (this.stalled) {
         this.stalled = false;
         this.stallStartTime = null;
-        this.onStall(false);
+        if (this.stallDisplayed) {
+          this.stallDisplayed = false;
+          console.log('[lockstep] stall cleared, hiding overlay at frame=', frame);
+          this.onStall(false);
+        }
       }
 
       // Determine which input is P1 and which is P2

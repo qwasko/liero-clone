@@ -303,7 +303,9 @@ export class GameScene extends Phaser.Scene {
       this.lockstepManager.update(localInput);
     } else {
       // ── Local mode: get inputs and tick directly ──────────────────────
-      const dt     = delta / 1000;
+      // Cap dt to 1/60 so local physics matches lockstep (which runs at fixed 1/60).
+      // Without the cap, >60fps monitors get smaller dt per tick, making forces feel lighter.
+      const dt     = Math.min(delta / 1000, 1 / 60);
       const state  = this.gameState;
       const [worm1, worm2] = state.worms;
 
@@ -429,8 +431,10 @@ export class GameScene extends Phaser.Scene {
   // ════════════════════════════════════════════════════════════════════════
 
   private onStallChange(stalled: boolean): void {
+    console.log('[GameScene] onStallChange:', stalled, 'stallText exists:', !!this.stallText);
     if (this.stallText) {
       this.stallText.setVisible(stalled);
+      console.log('[GameScene] stallText.visible set to:', stalled);
     }
   }
 
