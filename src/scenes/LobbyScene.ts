@@ -5,7 +5,9 @@ import type { NetGameSettings, ServerMessage } from '../network/protocol';
 
 type LobbyState = 'menu' | 'hosting' | 'joining' | 'waiting' | 'error';
 
-const SERVER_URL = 'http://localhost:3001';
+const SERVER_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:3001'
+  : 'https://liero-clone.onrender.com';
 
 /**
  * Lobby scene for online multiplayer.
