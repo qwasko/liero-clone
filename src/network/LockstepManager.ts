@@ -7,18 +7,20 @@
  *   3. Wait until both inputs are available for the current frame
  *   4. Advance GameState with both inputs
  *
- * Tick rate is controlled by a real-time accumulator: one sim tick fires
- * per FIXED_DT of elapsed wall-clock time, regardless of monitor refresh
- * rate. This prevents the double-speed bug on >60 Hz displays.
+ * Tick rate is controlled by a real-time accumulator so the sim always
+ * runs at ~60 ticks/s regardless of monitor refresh rate. A bounded
+ * catch-up loop (max MAX_CATCH_UP ticks per render frame) lets the sim
+ * recover after brief stalls without fast-forwarding.
  */
 import { InputState, emptyInputState } from '../input/InputState';
 import { NetworkClient } from './NetworkClient';
 import type { NetInputState, ServerMessage } from './protocol';
 
-const FIXED_DT = 1 / 60; // 16.67ms per tick
-const INPUT_DELAY = 3;    // frames of input delay
-const STALL_TIMEOUT_MS = 5000;  // disconnect after 5s without remote input
-const STALL_DISPLAY_MS  = 300;  // only show overlay after 300ms of real stalling
+const FIXED_DT = 1 / 60;         // 16.67ms per sim tick
+const INPUT_DELAY = 3;            // frames of input delay
+const MAX_CATCH_UP = 4;           // max sim ticks per render frame
+const STALL_TIMEOUT_MS = 5000;    // disconnect after 5s without remote input
+const STALL_DISPLAY_MS  = 300;    // only show overlay after 300ms of real stalling
 
 export type TickCallback = (dt: number, input1: InputState, input2: InputState) => void;
 
@@ -74,7 +76,7 @@ export class LockstepManager {
   /**
    * Called every render frame by GameScene.update().
    * Measures real elapsed time, buffers local input, then advances the
-   * simulation by exactly one tick if enough time has accumulated.
+   * simulation by up to MAX_CATCH_UP ticks if enough time has accumulated.
    */
   update(localInput: InputState): void {
     if (this.disconnected) return;
@@ -84,7 +86,7 @@ export class LockstepManager {
     const now = performance.now();
     const elapsed = now - this.lastRenderTime;
     this.lastRenderTime = now;
-    this.accumulatedTime += Math.min(elapsed / 1000, FIXED_DT * 4);
+    this.accumulatedTime += Math.min(elapsed / 1000, FIXED_DT * MAX_CATCH_UP);
 
     // Buffer local input for all frames that need it.
     for (let f = this.currentFrame; f <= this.currentFrame + INPUT_DELAY; f++) {
@@ -98,62 +100,64 @@ export class LockstepManager {
   }
 
   private tryAdvance(): void {
-    // Only tick when enough real time has elapsed for one sim frame.
-    // Advance exactly one frame per call — no catch-up loop — so sim
-    // speed is always 1:1 with wall-clock time regardless of refresh rate.
-    if (this.accumulatedTime < FIXED_DT) return;
+    let advanced = 0;
 
-    const frame  = this.currentFrame;
-    const local  = this.localInputs.get(frame);
-    const remote = this.remoteInputs.get(frame);
+    // Advance up to MAX_CATCH_UP ticks per render frame, gated by both
+    // the real-time accumulator AND input availability.
+    while (advanced < MAX_CATCH_UP && this.accumulatedTime >= FIXED_DT) {
+      const frame  = this.currentFrame;
+      const local  = this.localInputs.get(frame);
+      const remote = this.remoteInputs.get(frame);
 
-    if (!local || !remote) {
-      // Stall — waiting for remote input
-      if (!this.stalled) {
-        this.stalled = true;
-        this.stallStartTime = performance.now();
-      } else if (this.stallStartTime) {
-        const stallElapsed = performance.now() - this.stallStartTime;
-        if (!this.stallDisplayed && stallElapsed > STALL_DISPLAY_MS) {
-          this.stallDisplayed = true;
-          this.onStall(true);
+      if (!local || !remote) {
+        // Stall — waiting for remote input
+        if (!this.stalled) {
+          this.stalled = true;
+          this.stallStartTime = performance.now();
+        } else if (this.stallStartTime) {
+          const stallElapsed = performance.now() - this.stallStartTime;
+          if (!this.stallDisplayed && stallElapsed > STALL_DISPLAY_MS) {
+            this.stallDisplayed = true;
+            this.onStall(true);
+          }
+          if (stallElapsed > STALL_TIMEOUT_MS) {
+            this.disconnected = true;
+            this.onDisconnect();
+          }
         }
-        if (stallElapsed > STALL_TIMEOUT_MS) {
-          this.disconnected = true;
-          this.onDisconnect();
+        // Don't consume accumulatedTime while stalled — we'll catch up
+        // on the next call once remote input arrives.
+        return;
+      }
+
+      // Unstall
+      if (this.stalled) {
+        this.stalled = false;
+        this.stallStartTime = null;
+        if (this.stallDisplayed) {
+          this.stallDisplayed = false;
+          this.onStall(false);
         }
+        // Cap accumulated time so catch-up is bounded, but don't zero it —
+        // zeroing throws away real elapsed time causing permanent slowdown.
+        this.accumulatedTime = Math.min(this.accumulatedTime, FIXED_DT * MAX_CATCH_UP);
       }
-      // Do NOT consume accumulatedTime while stalled — resume from here
-      // once remote input arrives rather than trying to catch up.
-      return;
+
+      // Determine which input is P1 and which is P2
+      const [input1, input2] = this.localPlayerIndex === 0
+        ? [local, remote]
+        : [remote, local];
+
+      this.onTick(FIXED_DT, input1, input2);
+      this.accumulatedTime -= FIXED_DT;
+
+      // Clean up consumed frames
+      this.localInputs.delete(frame);
+      this.remoteInputs.delete(frame);
+
+      this.currentFrame++;
+      advanced++;
     }
-
-    // Unstall
-    if (this.stalled) {
-      this.stalled = false;
-      this.stallStartTime = null;
-      if (this.stallDisplayed) {
-        this.stallDisplayed = false;
-        this.onStall(false);
-      }
-      // Drop accumulated time built up during the stall to avoid a burst
-      // of catch-up ticks that would fast-forward the simulation.
-      this.accumulatedTime = 0;
-    }
-
-    // Determine which input is P1 and which is P2
-    const [input1, input2] = this.localPlayerIndex === 0
-      ? [local, remote]
-      : [remote, local];
-
-    this.onTick(FIXED_DT, input1, input2);
-    this.accumulatedTime -= FIXED_DT;
-
-    // Clean up consumed frames
-    this.localInputs.delete(frame);
-    this.remoteInputs.delete(frame);
-
-    this.currentFrame++;
   }
 
   // ── Network message handling ──────────────────────────────────────────
