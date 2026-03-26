@@ -17,7 +17,7 @@ import { NetworkClient } from './NetworkClient';
 import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60;          // 16.67ms per sim tick
-const INPUT_DELAY = 30;            // frames of input delay (~500ms, covers Render free-tier RTT)
+const INPUT_DELAY = 6;             // frames of input delay (~100ms, responsive on home networks)
 const MAX_CATCH_UP = 4;            // max sim ticks per render frame
 const STALL_TIMEOUT_MS = 15000;    // disconnect after 15s without remote input
 const STALL_DISPLAY_MS  = 300;     // only show overlay after 300ms of real stalling
