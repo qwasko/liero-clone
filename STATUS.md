@@ -60,6 +60,7 @@
 ## Known issues / bugs
 - No dedicated sounds for new weapons — they use generic fire/explosion audio
 - AI bot may need further tuning
+- ~~Rare respawn outside map bounds~~ — fixed: multi-pass distance relaxation + ground check + safe fallback
 - **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine), but worth noting
 - **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine), but worth noting
 
@@ -69,6 +70,7 @@
 - **Fix: stall overlay stuck visible** — `tryAdvance()` would unstall one frame then immediately re-stall; added `STALL_DISPLAY_MS=300` so brief 1-2 frame gaps don't show the overlay.
 - **Fix: local dt cap** — capped local `dt` to `Math.min(delta/1000, 1/60)`.
 - **Fix: online sim runs 2× faster than local** — root cause confirmed via logging: `tryAdvance()` while-loop ran 2 iterations per render frame at 120fps (INPUT_DELAY pre-fills made 2 remote frames always available). Fixed by replacing the loop with a real-time accumulator: `accumulatedTime += elapsed`, advance exactly one tick per call when `accumulatedTime >= FIXED_DT`. Accumulated time is zeroed on unstall to prevent catch-up burst.
+- **Fix: rare respawn outside map bounds** — fallback spawnPoint was inside solid rock; all 40 RNG attempts could fail the 80px enemy-distance check. Fixed with multi-pass distance relaxation (80→40→0), ground check (solid within 30px below), and upward push on absolute fallback.
 
 ### Next session: online multiplayer polish / new features
 
