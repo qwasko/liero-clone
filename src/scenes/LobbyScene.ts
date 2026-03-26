@@ -226,6 +226,7 @@ export class LobbyScene extends Phaser.Scene {
       const socket = io(SERVER_URL, {
         transports: ['websocket'],
         autoConnect: true,
+        extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
       });
 
       this.socket = socket;
