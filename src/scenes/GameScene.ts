@@ -291,6 +291,10 @@ export class GameScene extends Phaser.Scene {
       }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setVisible(false);
       cam1.ignore(this.stallText);
       this.p2Camera.ignore(this.stallText);
+
+      // Prevent Phaser from pausing the game loop when the tab loses focus.
+      // Without this, the unfocused client stops sending lockstep inputs.
+      this.game.events.on('blur', () => { /* no-op: keep loop alive */ });
     }
   }
 

@@ -14,7 +14,6 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   width: CANVAS_WIDTH,
   height: CANVAS_HEIGHT,
   backgroundColor: '#1a1a2e',
-  pauseOnBlur: false, // keep game loop running when tab loses focus (critical for online multiplayer)
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
