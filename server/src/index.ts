@@ -173,6 +173,10 @@ function leaveCurrentRoom(socket: import('socket.io').Socket): void {
 
 // ── Health check ────────────────────────────────────────────────────────
 
+app.get('/', (_req, res) => {
+  res.send('OK');
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', rooms: rooms.size });
 });
