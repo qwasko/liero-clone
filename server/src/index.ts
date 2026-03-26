@@ -17,7 +17,12 @@ const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: '*' },
+  cors: {
+    origin: [
+      'http://localhost:3000',
+      'https://peaceful-brioche-9ec55d.netlify.app',
+    ],
+  },
 });
 
 // ── Room storage ────────────────────────────────────────────────────────
