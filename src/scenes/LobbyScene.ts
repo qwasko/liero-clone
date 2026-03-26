@@ -288,6 +288,8 @@ export class LobbyScene extends Phaser.Scene {
         const sock = this.socket;
         if (!sock) break;
         sock.off(); // remove all listeners — GameScene/NetworkClient will add its own
+        // Null out BEFORE scene transition so shutdown→cleanup() won't disconnect it
+        this.socket = null;
         // Transition to GameScene with network settings
         this.scene.start('GameScene', {
           settings: loadSettings(),
@@ -298,8 +300,6 @@ export class LobbyScene extends Phaser.Scene {
             playerIndex: msg.playerIndex,
           },
         });
-        // Don't close socket — GameScene takes ownership
-        this.socket = null;
         break;
       }
 
