@@ -47,6 +47,7 @@ export class LockstepManager {
   private inputDelay = INITIAL_DELAY;
   private stallHistory: number[] = [];    // frame numbers where stalls occurred
   private framesSinceLastStall = 0;       // consecutive clean frames
+  private diagLogTime = performance.now();
 
   // Accumulator: real elapsed time waiting to be consumed as sim ticks
   private accumulatedTime = 0;
@@ -129,6 +130,7 @@ export class LockstepManager {
         if (!this.stalled) {
           this.stalled = true;
           this.stallStartTime = performance.now();
+          console.log('[lockstep] STALL frame=', frame, 'delay=', this.inputDelay);
           this.recordStall();
         } else if (this.stallStartTime) {
           const stallElapsed = performance.now() - this.stallStartTime;
@@ -181,6 +183,15 @@ export class LockstepManager {
 
       // Adaptive delay: try decreasing after sustained clean run
       this.maybeDecreaseDelay();
+
+      // Status log once per second
+      const logNow = performance.now();
+      if (logNow - this.diagLogTime >= 1000) {
+        const cutoff = this.currentFrame - STALL_WINDOW_UP;
+        const recentStalls = this.stallHistory.filter(f => f >= cutoff).length;
+        console.log('[lockstep] delay=', this.inputDelay, 'stalls_last60=', recentStalls, 'frame=', this.currentFrame);
+        this.diagLogTime = logNow;
+      }
     }
   }
 
