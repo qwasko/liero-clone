@@ -527,16 +527,42 @@ export class GameState {
     const W = this.terrain.width;
     const H = this.terrain.height;
     const enemy = this.worms.find(w => w !== worm);
+    const MAX_GROUND_DIST = 30; // max air gap below spawn before solid ground
 
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const x = Math.floor(20 + this.rng.next() * (W - 40));
-      for (let y = 20; y < H - 20; y++) {
-        if (!this.terrain.isSolid(x, y) && !this.terrain.isSolid(x, y - worm.height)) {
-          if (enemy && Math.hypot(x - enemy.x, y - enemy.y) < 80) continue;
+    // Try with full enemy distance (80px), then relaxed (40px), then no check
+    const passes: { attempts: number; minDist: number }[] = [
+      { attempts: 40, minDist: 80 },
+      { attempts: 20, minDist: 40 },
+      { attempts: 40, minDist: 0 },
+    ];
+
+    for (const pass of passes) {
+      for (let attempt = 0; attempt < pass.attempts; attempt++) {
+        const x = Math.floor(20 + this.rng.next() * (W - 40));
+        for (let y = 20; y < H - 20; y++) {
+          if (this.terrain.isSolid(x, y) || this.terrain.isSolid(x, y - worm.height)) continue;
+
+          // Ground check: solid terrain must exist within MAX_GROUND_DIST below feet
+          let hasGround = false;
+          for (let dy = 1; dy <= MAX_GROUND_DIST; dy++) {
+            if (this.terrain.isSolid(x, y + dy)) { hasGround = true; break; }
+          }
+          if (!hasGround) continue;
+
+          // Enemy distance check (skipped when minDist is 0)
+          if (pass.minDist > 0 && enemy && Math.hypot(x - enemy.x, y - enemy.y) < pass.minDist) continue;
+
           return { x, y };
         }
       }
     }
-    return worm.playerId === 1 ? this.spawnPoints[0] : this.spawnPoints[1];
+
+    // Absolute last resort: use hardcoded spawn point but push upward out of solid terrain
+    const fallback = worm.playerId === 1 ? this.spawnPoints[0] : this.spawnPoints[1];
+    let fy = fallback.y;
+    while (fy > 0 && this.terrain.isSolid(fallback.x, fy)) {
+      fy--;
+    }
+    return { x: fallback.x, y: fy };
   }
 }
