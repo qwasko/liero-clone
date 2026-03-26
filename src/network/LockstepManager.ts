@@ -7,8 +7,9 @@
  *   3. Wait until both inputs are available for the current frame
  *   4. Advance GameState with both inputs
  *
- * Input delay (2-4 frames) hides network latency by delaying local
- * input execution to match the time it takes for remote input to arrive.
+ * Tick rate is controlled by a real-time accumulator: one sim tick fires
+ * per FIXED_DT of elapsed wall-clock time, regardless of monitor refresh
+ * rate. This prevents the double-speed bug on >60 Hz displays.
  */
 import { InputState, emptyInputState } from '../input/InputState';
 import { NetworkClient } from './NetworkClient';
@@ -16,8 +17,8 @@ import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60; // 16.67ms per tick
 const INPUT_DELAY = 3;    // frames of input delay
-const STALL_TIMEOUT_MS = 5000;   // disconnect after 5s without remote input
-const STALL_DISPLAY_MS  = 300;   // only show overlay after 300ms of real stalling
+const STALL_TIMEOUT_MS = 5000;  // disconnect after 5s without remote input
+const STALL_DISPLAY_MS  = 300;  // only show overlay after 300ms of real stalling
 
 export type TickCallback = (dt: number, input1: InputState, input2: InputState) => void;
 
@@ -30,15 +31,19 @@ export class LockstepManager {
   private localInputs  = new Map<number, InputState>();
   private remoteInputs = new Map<number, InputState>();
 
+  // Accumulator: real elapsed time waiting to be consumed as sim ticks
+  private accumulatedTime = 0;
+  private lastRenderTime  = performance.now();
+
   // Stall detection
   private stallStartTime: number | null = null;
-  private stalled = false;
-  private stallDisplayed = false; // true once overlay has been shown for this stall
-  private disconnected = false;
+  private stalled       = false;
+  private stallDisplayed = false;
+  private disconnected  = false;
 
-  // Callback
-  private onTick: TickCallback;
-  private onStall: (stalled: boolean) => void;
+  // Callbacks
+  private onTick:       TickCallback;
+  private onStall:      (stalled: boolean) => void;
   private onDisconnect: () => void;
 
   constructor(
@@ -68,14 +73,20 @@ export class LockstepManager {
 
   /**
    * Called every render frame by GameScene.update().
-   * Buffers local input, sends it, and advances simulation if both sides are ready.
+   * Measures real elapsed time, buffers local input, then advances the
+   * simulation by exactly one tick if enough time has accumulated.
    */
   update(localInput: InputState): void {
     if (this.disconnected) return;
 
+    // Accumulate real elapsed time; clamp to avoid spiral-of-death after
+    // tab focus loss or debugger pause.
+    const now = performance.now();
+    const elapsed = now - this.lastRenderTime;
+    this.lastRenderTime = now;
+    this.accumulatedTime += Math.min(elapsed / 1000, FIXED_DT * 4);
+
     // Buffer local input for all frames that need it.
-    // tryAdvance() may consume multiple frames per call, so we must ensure
-    // every frame from currentFrame up to currentFrame + INPUT_DELAY has local input.
     for (let f = this.currentFrame; f <= this.currentFrame + INPUT_DELAY; f++) {
       if (!this.localInputs.has(f)) {
         this.localInputs.set(f, { ...localInput });
@@ -83,68 +94,66 @@ export class LockstepManager {
       }
     }
 
-    // Try to advance as many frames as possible
     this.tryAdvance();
   }
 
   private tryAdvance(): void {
-    // Process up to a few frames per render tick to catch up
-    let advanced = 0;
-    const maxCatchUp = 4;
+    // Only tick when enough real time has elapsed for one sim frame.
+    // Advance exactly one frame per call — no catch-up loop — so sim
+    // speed is always 1:1 with wall-clock time regardless of refresh rate.
+    if (this.accumulatedTime < FIXED_DT) return;
 
-    while (advanced < maxCatchUp) {
-      const frame = this.currentFrame;
-      const local  = this.localInputs.get(frame);
-      const remote = this.remoteInputs.get(frame);
+    const frame  = this.currentFrame;
+    const local  = this.localInputs.get(frame);
+    const remote = this.remoteInputs.get(frame);
 
-      if (!local || !remote) {
-        // Stall — waiting for input
-        if (!this.stalled) {
-          this.stalled = true;
-          this.stallStartTime = performance.now();
-          console.log('[lockstep] stall detected frame=', frame, 'hasLocal=', !!local, 'hasRemote=', !!remote);
-        } else if (this.stallStartTime) {
-          const elapsed = performance.now() - this.stallStartTime;
-          if (!this.stallDisplayed && elapsed > STALL_DISPLAY_MS) {
-            // Only show overlay after a real stall, not brief 1-2 frame gaps
-            this.stallDisplayed = true;
-            console.log('[lockstep] stall overlay shown at elapsed=', elapsed.toFixed(0), 'ms, frame=', frame);
-            this.onStall(true);
-          }
-          if (elapsed > STALL_TIMEOUT_MS) {
-            console.log('[lockstep] disconnect timeout fired at frame=', frame);
-            this.disconnected = true;
-            this.onDisconnect();
-          }
+    if (!local || !remote) {
+      // Stall — waiting for remote input
+      if (!this.stalled) {
+        this.stalled = true;
+        this.stallStartTime = performance.now();
+      } else if (this.stallStartTime) {
+        const stallElapsed = performance.now() - this.stallStartTime;
+        if (!this.stallDisplayed && stallElapsed > STALL_DISPLAY_MS) {
+          this.stallDisplayed = true;
+          this.onStall(true);
         }
-        return;
-      }
-
-      // Unstall
-      if (this.stalled) {
-        this.stalled = false;
-        this.stallStartTime = null;
-        if (this.stallDisplayed) {
-          this.stallDisplayed = false;
-          console.log('[lockstep] stall cleared, hiding overlay at frame=', frame);
-          this.onStall(false);
+        if (stallElapsed > STALL_TIMEOUT_MS) {
+          this.disconnected = true;
+          this.onDisconnect();
         }
       }
-
-      // Determine which input is P1 and which is P2
-      const [input1, input2] = this.localPlayerIndex === 0
-        ? [local, remote]
-        : [remote, local];
-
-      this.onTick(FIXED_DT, input1, input2);
-
-      // Clean up old frames
-      this.localInputs.delete(frame);
-      this.remoteInputs.delete(frame);
-
-      this.currentFrame++;
-      advanced++;
+      // Do NOT consume accumulatedTime while stalled — resume from here
+      // once remote input arrives rather than trying to catch up.
+      return;
     }
+
+    // Unstall
+    if (this.stalled) {
+      this.stalled = false;
+      this.stallStartTime = null;
+      if (this.stallDisplayed) {
+        this.stallDisplayed = false;
+        this.onStall(false);
+      }
+      // Drop accumulated time built up during the stall to avoid a burst
+      // of catch-up ticks that would fast-forward the simulation.
+      this.accumulatedTime = 0;
+    }
+
+    // Determine which input is P1 and which is P2
+    const [input1, input2] = this.localPlayerIndex === 0
+      ? [local, remote]
+      : [remote, local];
+
+    this.onTick(FIXED_DT, input1, input2);
+    this.accumulatedTime -= FIXED_DT;
+
+    // Clean up consumed frames
+    this.localInputs.delete(frame);
+    this.remoteInputs.delete(frame);
+
+    this.currentFrame++;
   }
 
   // ── Network message handling ──────────────────────────────────────────
@@ -166,24 +175,24 @@ export class LockstepManager {
 
   private toNetInput(input: InputState): NetInputState {
     return {
-      left: input.left,
-      right: input.right,
-      up: input.up,
-      down: input.down,
-      jump: input.jump,
-      fire: input.fire,
+      left:   input.left,
+      right:  input.right,
+      up:     input.up,
+      down:   input.down,
+      jump:   input.jump,
+      fire:   input.fire,
       change: input.change,
     };
   }
 
   private fromNetInput(net: NetInputState): InputState {
     return {
-      left: net.left,
-      right: net.right,
-      up: net.up,
-      down: net.down,
-      jump: net.jump,
-      fire: net.fire,
+      left:   net.left,
+      right:  net.right,
+      up:     net.up,
+      down:   net.down,
+      jump:   net.jump,
+      fire:   net.fire,
       change: net.change,
     };
   }
@@ -193,15 +202,7 @@ export class LockstepManager {
     this.network.disconnect();
   }
 
-  get isDisconnected(): boolean {
-    return this.disconnected;
-  }
-
-  get isStalled(): boolean {
-    return this.stalled;
-  }
-
-  get frame(): number {
-    return this.currentFrame;
-  }
+  get isDisconnected(): boolean { return this.disconnected; }
+  get isStalled():      boolean { return this.stalled; }
+  get frame():          number  { return this.currentFrame; }
 }

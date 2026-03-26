@@ -431,10 +431,8 @@ export class GameScene extends Phaser.Scene {
   // ════════════════════════════════════════════════════════════════════════
 
   private onStallChange(stalled: boolean): void {
-    console.log('[GameScene] onStallChange:', stalled, 'stallText exists:', !!this.stallText);
     if (this.stallText) {
       this.stallText.setVisible(stalled);
-      console.log('[GameScene] stallText.visible set to:', stalled);
     }
   }
 
