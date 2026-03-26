@@ -148,10 +148,11 @@ export class LockstepManager {
         ? [local, remote]
         : [remote, local];
 
+      console.log('[tick] frame=', this.currentFrame);
       try {
         this.onTick(FIXED_DT, input1, input2);
       } catch (err) {
-        console.error(`[lockstep] tick error at frame=${this.currentFrame}:`, err);
+        console.error('[tick ERROR] frame=', this.currentFrame, err);
       }
       this.accumulatedTime -= FIXED_DT;
 
