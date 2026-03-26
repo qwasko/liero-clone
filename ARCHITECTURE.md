@@ -70,7 +70,7 @@ Browser-based 2-player worm combat game. Core design principle: **pure game logi
 |---|---|
 | `protocol.ts` | Shared message types for client↔server communication. `ClientMessage`, `ServerMessage`, `NetInputState`, `NetGameSettings`. Used by both browser client and Node server. |
 | `NetworkClient.ts` | Thin wrapper around a socket.io `Socket`. Sends `ClientInput` messages, routes incoming `ServerMessage` to a single handler. |
-| `LockstepManager.ts` | Deterministic lockstep synchronization. Buffers local input with INPUT_DELAY=3 frames, waits for remote input before advancing `GameState`. Stall detection with 5s disconnect timeout. |
+| `LockstepManager.ts` | Deterministic lockstep synchronization. Adaptive input delay (starts 20 frames, min 10, max 30) adjusts based on stall frequency. Real-time accumulator gates sim at 60fps with bounded catch-up. Stall detection with 30s disconnect timeout. |
 
 ### Server (`server/src/`)
 
@@ -209,11 +209,31 @@ LobbyScene (HOST)                    Server                    LobbyScene (JOIN)
      │                                  │  room.start()              │
      │◄─ game_start(seed, P0) ──────────┤                            │
      │                                  ├──── game_start(seed, P1) ──►│
+     │  this.socket = null              │          this.socket = null
      │  sock.off() → GameScene          │          sock.off() → GameScene
      │  GameScene.create({ online })    │          GameScene.create({ online })
      │  TerrainGenerator(seed) ─────────────────── TerrainGenerator(seed)  [identical]
      │  NetworkClient + LockstepManager │          NetworkClient + LockstepManager
      └─ [game loop begins] ─────────────────────── [game loop begins]
+```
+
+### Network Topology (current development setup)
+
+```
+Browser (localhost:3000)          Browser (remote machine)
+  │  Vite dev server                │
+  │                                 │
+  └─── socket.io ──►  ngrok tunnel  ◄─── socket.io ───┘
+                       (free tier)
+                          │
+                     localhost:3001
+                     Node.js + Socket.io server
+
+Production alternative:
+  Netlify (static client)  ──►  Render.com (Node.js server)
+
+Note: ngrok free tier URL changes on every restart.
+Current URL hardcoded in LobbyScene.ts getServerUrl().
 ```
 
 ### Settings Flow

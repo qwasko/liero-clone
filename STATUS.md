@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Online multiplayer physics speed fix (2026-03-26)
+## Last completed: Online multiplayer working end-to-end (2026-03-26)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -42,44 +42,53 @@
   - P1/P2 camera zoom 0.5-3.0
   - Minimap On/Off, Bot uses map
   - Level Size, Game Mode (Deathmatch/Tag)
-- **Controls menu**: configurable key bindings per player, rebind with ENTER, saved to localStorage
+- **Controls menu**: configurable key bindings per player, rebind with ENTER, captures next keypress
 - **Pause menu**: ESC → Continue / New Game
 - **AI bot** with 3 difficulty presets, tactical weapon selection, threat scoring, rope escape
 - **Minimap** per-viewport overlay (TAB toggle)
 - Ninja rope, digging, magazine ammo, bonus crates, procedural audio
 - Game of Tag mode (any death = become IT)
 - ARCHITECTURE.md documenting full system design
-- **Online multiplayer (lockstep) — partially working**:
+- **Online multiplayer (lockstep) — working**:
   - Server: Node.js + Socket.io, room creation with 4-char codes, input relay
   - Client: LobbyScene (host/join UI), NetworkClient, LockstepManager
   - Deterministic: SeededRNG replaces Math.random, shared seed for terrain
-  - INPUT_DELAY=3 frames, stall detection with 5s timeout
+  - Adaptive input delay: starts at 20 frames, adjusts down to ~15 based on network conditions (min 10, max 30)
+  - Stall detection with 30s timeout, overlay shown after 300ms
+  - Grace period: first 60 frames ignore stalls for initial network stabilization
   - Host settings propagated to joiner via server
-  - Worms appear and move on both clients — basic lockstep is functional
+  - Deployed: client on Netlify, server via ngrok tunnel to localhost
+  - Browser tab blur handled (game loop continues in background)
 
 ## Known issues / bugs
 - No dedicated sounds for new weapons — they use generic fire/explosion audio
 - AI bot may need further tuning
-- ~~Rare respawn outside map bounds~~ — fixed: multi-pass distance relaxation + ground check + safe fallback
-- **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine), but worth noting
-- **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine), but worth noting
+- **[ONLINE] ngrok URL changes on every restart** — hardcoded in `src/scenes/LobbyScene.ts` `getServerUrl()`, needs manual update each time ngrok restarts
+- **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine)
+- **[ONLINE] Diagnostic console.logs active** — per-frame tick logs, stall logs, adaptive delay logs still present for debugging
 
 ## STOPPED HERE — end of session 2026-03-26
 
 ### This session completed
-- **Fix: stall overlay stuck visible** — `tryAdvance()` would unstall one frame then immediately re-stall; added `STALL_DISPLAY_MS=300` so brief 1-2 frame gaps don't show the overlay.
-- **Fix: local dt cap** — capped local `dt` to `Math.min(delta/1000, 1/60)`.
-- **Fix: online sim runs 2× faster than local** — root cause confirmed via logging: `tryAdvance()` while-loop ran 2 iterations per render frame at 120fps (INPUT_DELAY pre-fills made 2 remote frames always available). Fixed by replacing the loop with a real-time accumulator: `accumulatedTime += elapsed`, advance exactly one tick per call when `accumulatedTime >= FIXED_DT`. Accumulated time is zeroed on unstall to prevent catch-up burst.
-- **Fix: rare respawn outside map bounds** — fallback spawnPoint was inside solid rock; all 40 RNG attempts could fail the 80px enemy-distance check. Fixed with multi-pass distance relaxation (80→40→0), ground check (solid within 30px below), and upward push on absolute fallback.
+- **Fix: stall overlay stuck visible** — added `STALL_DISPLAY_MS=300` so brief 1-2 frame gaps don't show the overlay
+- **Fix: local dt cap** — capped local `dt` to `Math.min(delta/1000, 1/60)`
+- **Fix: online sim runs 2x faster** — replaced unbounded loop with real-time accumulator gated by `FIXED_DT`
+- **Fix: rare respawn outside map bounds** — multi-pass distance relaxation + ground check + upward push
+- **Fix: browser tab blur pausing game loop** — added blur event no-op handler in GameScene
+- **Fix: frame-40 disconnect with ngrok** — added `ngrok-skip-browser-warning` header
+- **Feat: adaptive input delay** — starts at 20 frames, decreases by 1 after 300 clean frames, increases by 2 on stall
+- **Fix: socket disconnect on scene transition** — nulled `this.socket` before `scene.start()` in LobbyScene to prevent `shutdown→cleanup()` from killing the socket GameScene just received
+- **Deployed** server to Render.com (CommonJS build), client to Netlify
+- **Configured** CORS, ngrok tunneling, server URL routing in LobbyScene
 
-### Next session: online multiplayer polish / new features
-
-- Online multiplayer is now functionally stable. Consider testing end-to-end before picking next feature.
-- Possible next steps (see "Possible future steps" below).
+### Next steps
+1. Test stability with more play sessions
+2. Replace ngrok with permanent server solution (Render paid tier or alternative)
+3. Remove diagnostic console.logs when multiplayer is stable
 
 ## Possible future steps (not planned)
 - Weapon-specific audio cues
 - Flamethrower / homing missile
 - Animated worm sprites
 - Sound effects from files
-- Reconnection handling (currently: 5s stall → disconnect → return to menu)
+- Reconnection handling (currently: 30s stall → disconnect → return to menu)

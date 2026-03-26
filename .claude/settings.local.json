@@ -19,7 +19,12 @@
       "Bash(taskkill //F //IM node.exe)",
       "Bash(timeout 5 npx tsx src/index.ts)",
       "Bash(git status:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git push:*)",
+      "Bash(rm -rf dist)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(powershell -c \"Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \\\\$_.OwningProcess -Force -ErrorAction SilentlyContinue }\")",
+      "Bash(grep \"''OK''\" dist/server/src/index.js)"
     ]
   }
 }
