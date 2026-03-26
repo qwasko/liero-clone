@@ -11,16 +11,26 @@
  * runs at ~60 ticks/s regardless of monitor refresh rate. A bounded
  * catch-up loop (max MAX_CATCH_UP ticks per render frame) lets the sim
  * recover after brief stalls without fast-forwarding.
+ *
+ * Input delay is adaptive: starts at INITIAL_DELAY and adjusts based
+ * on stall frequency to find the sweet spot for current conditions.
  */
 import { InputState, emptyInputState } from '../input/InputState';
 import { NetworkClient } from './NetworkClient';
 import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60;          // 16.67ms per sim tick
-const INPUT_DELAY = 12;            // frames of input delay (~200ms)
-const MAX_CATCH_UP = 4;            // max sim ticks per render frame
+const INITIAL_DELAY = 8;           // starting input delay (frames)
+const MIN_DELAY     = 6;           // lowest adaptive delay
+const MAX_DELAY     = 20;          // highest adaptive delay
+const MAX_CATCH_UP  = 4;           // max sim ticks per render frame
 const STALL_TIMEOUT_MS = 30000;    // disconnect after 30s without remote input
-const STALL_DISPLAY_MS  = 300;     // only show overlay after 300ms of real stalling
+const STALL_DISPLAY_MS = 300;      // only show overlay after 300ms of real stalling
+
+// Adaptive delay tuning
+const STALL_WINDOW_UP   = 60;     // look-back window for increase decision
+const STALL_THRESHOLD   = 3;      // stalls in window → increase delay
+const CLEAN_WINDOW_DOWN = 120;    // consecutive clean frames before decreasing
 
 export type TickCallback = (dt: number, input1: InputState, input2: InputState) => void;
 
@@ -32,6 +42,11 @@ export class LockstepManager {
   private currentFrame = 0;
   private localInputs  = new Map<number, InputState>();
   private remoteInputs = new Map<number, InputState>();
+
+  // Adaptive input delay
+  private inputDelay = INITIAL_DELAY;
+  private stallHistory: number[] = [];    // frame numbers where stalls occurred
+  private framesSinceLastStall = 0;       // consecutive clean frames
 
   // Accumulator: real elapsed time waiting to be consumed as sim ticks
   private accumulatedTime = 0;
@@ -67,7 +82,7 @@ export class LockstepManager {
     });
 
     // Pre-fill empty inputs for the initial delay frames
-    for (let f = 0; f < INPUT_DELAY; f++) {
+    for (let f = 0; f < this.inputDelay; f++) {
       this.localInputs.set(f, emptyInputState());
       this.remoteInputs.set(f, emptyInputState());
     }
@@ -89,7 +104,7 @@ export class LockstepManager {
     this.accumulatedTime += Math.min(elapsed / 1000, FIXED_DT * MAX_CATCH_UP);
 
     // Buffer local input for all frames that need it.
-    for (let f = this.currentFrame; f <= this.currentFrame + INPUT_DELAY; f++) {
+    for (let f = this.currentFrame; f <= this.currentFrame + this.inputDelay; f++) {
       if (!this.localInputs.has(f)) {
         this.localInputs.set(f, { ...localInput });
         this.network.sendInput(f, this.toNetInput(localInput));
@@ -114,6 +129,7 @@ export class LockstepManager {
         if (!this.stalled) {
           this.stalled = true;
           this.stallStartTime = performance.now();
+          this.recordStall();
         } else if (this.stallStartTime) {
           const stallElapsed = performance.now() - this.stallStartTime;
           if (!this.stallDisplayed && stallElapsed > STALL_DISPLAY_MS) {
@@ -148,11 +164,10 @@ export class LockstepManager {
         ? [local, remote]
         : [remote, local];
 
-      console.log('[tick] frame=', this.currentFrame);
       try {
         this.onTick(FIXED_DT, input1, input2);
       } catch (err) {
-        console.error('[tick ERROR] frame=', this.currentFrame, err);
+        console.error('[lockstep] tick error at frame=', this.currentFrame, err);
       }
       this.accumulatedTime -= FIXED_DT;
 
@@ -161,7 +176,39 @@ export class LockstepManager {
       this.remoteInputs.delete(frame);
 
       this.currentFrame++;
+      this.framesSinceLastStall++;
       advanced++;
+
+      // Adaptive delay: try decreasing after sustained clean run
+      this.maybeDecreaseDelay();
+    }
+  }
+
+  // ── Adaptive delay ────────────────────────────────────────────────────
+
+  private recordStall(): void {
+    this.stallHistory.push(this.currentFrame);
+    this.framesSinceLastStall = 0;
+
+    // Prune old entries outside the look-back window
+    const cutoff = this.currentFrame - STALL_WINDOW_UP;
+    while (this.stallHistory.length > 0 && this.stallHistory[0] < cutoff) {
+      this.stallHistory.shift();
+    }
+
+    // Too many recent stalls → increase delay
+    if (this.stallHistory.length >= STALL_THRESHOLD && this.inputDelay < MAX_DELAY) {
+      this.inputDelay++;
+      this.stallHistory.length = 0; // reset after adjustment
+      console.log('[lockstep] delay adjusted to', this.inputDelay, '(increased — stalls detected)');
+    }
+  }
+
+  private maybeDecreaseDelay(): void {
+    if (this.framesSinceLastStall >= CLEAN_WINDOW_DOWN && this.inputDelay > MIN_DELAY) {
+      this.inputDelay--;
+      this.framesSinceLastStall = 0;
+      console.log('[lockstep] delay adjusted to', this.inputDelay, '(decreased — stable)');
     }
   }
 
