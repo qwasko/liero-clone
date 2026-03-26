@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Online multiplayer bug fixes (2026-03-26)
+## Last completed: Online multiplayer physics speed fix (2026-03-26)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -66,9 +66,9 @@
 ## STOPPED HERE — end of session 2026-03-26
 
 ### This session completed
-- **Fix: stall overlay stuck visible** — root cause: `tryAdvance()` would unstall one frame then immediately re-stall on the next, leaving the overlay permanently visible. Fix: added `STALL_DISPLAY_MS=300` delay before showing the overlay; brief 1-2 frame input gaps are invisible to the player.
-- **Fix: local physics faster than online** — capped local `dt` to `Math.min(delta/1000, 1/60)` so >60fps monitors no longer accumulate forces more slowly than lockstep's fixed `FIXED_DT=1/60`.
-- Added console.log traces in `onStallChange` and `LockstepManager` for future debugging.
+- **Fix: stall overlay stuck visible** — `tryAdvance()` would unstall one frame then immediately re-stall; added `STALL_DISPLAY_MS=300` so brief 1-2 frame gaps don't show the overlay.
+- **Fix: local dt cap** — capped local `dt` to `Math.min(delta/1000, 1/60)`.
+- **Fix: online sim runs 2× faster than local** — root cause confirmed via logging: `tryAdvance()` while-loop ran 2 iterations per render frame at 120fps (INPUT_DELAY pre-fills made 2 remote frames always available). Fixed by replacing the loop with a real-time accumulator: `accumulatedTime += elapsed`, advance exactly one tick per call when `accumulatedTime >= FIXED_DT`. Accumulated time is zeroed on unstall to prevent catch-up burst.
 
 ### Next session: online multiplayer polish / new features
 
