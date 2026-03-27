@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Online multiplayer working end-to-end (2026-03-26)
+## Last completed: Infrastructure fixes + online stability (2026-03-27)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -53,37 +53,39 @@
   - Server: Node.js + Socket.io, room creation with 4-char codes, input relay
   - Client: LobbyScene (host/join UI), NetworkClient, LockstepManager
   - Deterministic: SeededRNG replaces Math.random, shared seed for terrain
-  - Adaptive input delay: starts at 20 frames, adjusts down to ~15 based on network conditions (min 10, max 30)
+  - Adaptive input delay: starts at 15 frames, adjusts down based on network conditions (min 6, max 30)
+    - Decreases by 1 every 180 clean frames (~3s); increases by 2 on stall
+  - Stall logging throttled: max 1 stall log/second; at MAX_DELAY logs summary every 60 frames
   - Stall detection with 30s timeout, overlay shown after 300ms
   - Grace period: first 60 frames ignore stalls for initial network stabilization
   - Host settings propagated to joiner via server
-  - Deployed: client on Netlify, server via ngrok tunnel to localhost
+  - **Deployed: client on GitHub Pages, server on Render.com**
+  - Server URL override via `?server=URL` query parameter (for ngrok tunnels)
   - Browser tab blur handled (game loop continues in background)
+  - **Automatic reconnect**: 3 attempts × 2s delay on transport drop
+    - Shows "Reconnecting... (N/3)" overlay; resumes game on success
+    - Shows "Connection lost" and returns to menu after all attempts fail
 
 ## Known issues / bugs
 - No dedicated sounds for new weapons — they use generic fire/explosion audio
 - AI bot may need further tuning
-- **[ONLINE] ngrok URL changes on every restart** — hardcoded in `src/scenes/LobbyScene.ts` `getServerUrl()`, needs manual update each time ngrok restarts
 - **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine)
 - **[ONLINE] Diagnostic console.logs active** — per-frame tick logs, stall logs, adaptive delay logs still present for debugging
 
-## STOPPED HERE — end of session 2026-03-26
+## STOPPED HERE — end of session 2026-03-27
 
 ### This session completed
-- **Fix: stall overlay stuck visible** — added `STALL_DISPLAY_MS=300` so brief 1-2 frame gaps don't show the overlay
-- **Fix: local dt cap** — capped local `dt` to `Math.min(delta/1000, 1/60)`
-- **Fix: online sim runs 2x faster** — replaced unbounded loop with real-time accumulator gated by `FIXED_DT`
-- **Fix: rare respawn outside map bounds** — multi-pass distance relaxation + ground check + upward push
-- **Fix: browser tab blur pausing game loop** — added blur event no-op handler in GameScene
-- **Fix: frame-40 disconnect with ngrok** — added `ngrok-skip-browser-warning` header
-- **Feat: adaptive input delay** — starts at 20 frames, decreases by 1 after 300 clean frames, increases by 2 on stall
-- **Fix: socket disconnect on scene transition** — nulled `this.socket` before `scene.start()` in LobbyScene to prevent `shutdown→cleanup()` from killing the socket GameScene just received
-- **Deployed** server to Render.com (CommonJS build), client to Netlify
-- **Configured** CORS, ngrok tunneling, server URL routing in LobbyScene
+- **Infra: GitHub Pages deploy** — `base: '/liero-clone/'` in vite.config.ts, `.github/workflows/deploy.yml` auto-deploys on push to main (enable in repo Settings → Pages → Source: GitHub Actions)
+- **Infra: server URL parameter** — `?server=URL` query param overrides server URL; removed stale Netlify hostname check; fallback is Render.com
+- **Tune: MIN_DELAY** — reduced from 10 to 6 frames (lower floor on good connections)
+- **Tune: INITIAL_DELAY** — reduced from 20 to 15 frames (less buffering at game start)
+- **Tune: CLEAN_WINDOW_DOWN** — reduced from 300 to 180 frames (~3s instead of ~5s for delay decrease)
+- **Fix: stall log throttling** — max one stall log per second; at MAX_DELAY logs summary every 60 frames instead of per-frame
+- **Feat: automatic reconnect** — 3 attempts × 2s on transport drop; "Reconnecting... (N/3)" overlay; "Connection lost" on failure
 
 ### Next steps
-1. Test stability with more play sessions
-2. Replace ngrok with permanent server solution (Render paid tier or alternative)
+1. Enable GitHub Pages in repo Settings → Pages → Source: GitHub Actions (one-time manual step)
+2. Test stability with more play sessions — especially reconnect behavior
 3. Remove diagnostic console.logs when multiplayer is stable
 
 ## Possible future steps (not planned)
@@ -91,4 +93,4 @@
 - Flamethrower / homing missile
 - Animated worm sprites
 - Sound effects from files
-- Reconnection handling (currently: 30s stall → disconnect → return to menu)
+- Server-side reconnect session preservation (currently relies on socket.io session staying alive during brief drop)
