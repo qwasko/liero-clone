@@ -20,7 +20,7 @@ import { NetworkClient } from './NetworkClient';
 import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60;          // 16.67ms per sim tick
-const INITIAL_DELAY = 15;          // starting input delay (frames) — start high, decrease gradually
+const INITIAL_DELAY = 20;          // starting input delay (frames) — start high, decrease gradually
 const MIN_DELAY     = 6;           // lowest adaptive delay
 const MAX_DELAY     = 30;          // highest adaptive delay
 const MAX_CATCH_UP  = 4;           // max sim ticks per render frame
@@ -32,7 +32,7 @@ const GRACE_FRAMES  = 60;          // ignore stalls during initial network stabi
 const STALL_WINDOW_UP   = 60;     // look-back window for increase decision
 const STALL_THRESHOLD   = 1;      // stalls in window → increase delay (1 = immediate)
 const DELAY_INCREASE    = 2;      // frames to add per stall event
-const CLEAN_WINDOW_DOWN = 180;    // consecutive clean frames (~3s) before decreasing
+const CLEAN_WINDOW_DOWN = 300;    // consecutive clean frames (~5s) before decreasing
 
 export type TickCallback = (dt: number, input1: InputState, input2: InputState) => void;
 
