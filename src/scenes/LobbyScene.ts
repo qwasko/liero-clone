@@ -6,10 +6,13 @@ import type { NetGameSettings, ServerMessage } from '../network/protocol';
 type LobbyState = 'menu' | 'hosting' | 'joining' | 'waiting' | 'error';
 
 function getServerUrl(): string {
+  // Allow overriding server URL via ?server= query parameter
+  const params = new URLSearchParams(window.location.search);
+  const serverParam = params.get('server');
+  if (serverParam) return serverParam;
+
   const host = window.location.hostname;
   if (host === 'localhost') return 'http://localhost:3001';
-  if (host === 'peaceful-brioche-9ec55d.netlify.app')
-    return 'https://nonrevertive-nonapparently-kandi.ngrok-free.dev';
   return 'https://liero-clone.onrender.com';
 }
 const SERVER_URL = getServerUrl();
