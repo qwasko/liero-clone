@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: Infrastructure fixes + online stability (2026-03-27)
+## Last completed: README + infrastructure (2026-03-27)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -82,9 +82,10 @@
 - **Tune: CLEAN_WINDOW_DOWN** — reduced from 300 to 180 frames (~3s instead of ~5s for delay decrease)
 - **Fix: stall log throttling** — max one stall log per second; at MAX_DELAY logs summary every 60 frames instead of per-frame
 - **Feat: automatic reconnect** — 3 attempts × 2s on transport drop; "Reconnecting... (N/3)" overlay; "Connection lost" on failure
+- **Docs: README.md** — features list, multiplayer instructions, `?server=` param note, Render cold-start warning, tech stack, local dev instructions, Built with Claude Code note
 
 ### Next steps
-1. Enable GitHub Pages in repo Settings → Pages → Source: GitHub Actions (one-time manual step)
+1. Enable GitHub Pages in repo Settings → Pages → Source: GitHub Actions (one-time manual step, if not done yet)
 2. Test stability with more play sessions — especially reconnect behavior
 3. Remove diagnostic console.logs when multiplayer is stable
 
