@@ -230,6 +230,9 @@ export class LobbyScene extends Phaser.Scene {
         transports: ['websocket'],
         autoConnect: true,
         extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
+        reconnectionAttempts: 3,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 2000,
       });
 
       this.socket = socket;

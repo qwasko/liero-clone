@@ -283,6 +283,10 @@ export class GameScene extends Phaser.Scene {
         () => this.onNetworkDisconnect(),
       );
 
+      this.networkClient.onReconnecting((attempt) => this.onReconnecting(attempt));
+      this.networkClient.onReconnected(() => this.onReconnected());
+      this.networkClient.onReconnectFailed(() => this.onReconnectFailed());
+
       // Stall overlay text (hidden by default)
       this.stallText = this.add.text(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 'Waiting for opponent...', {
         fontSize: '20px', color: '#ffcc00', fontFamily: 'monospace',
@@ -436,13 +440,63 @@ export class GameScene extends Phaser.Scene {
 
   private onStallChange(stalled: boolean): void {
     if (this.stallText) {
-      this.stallText.setVisible(stalled);
+      // Only show the generic stall text if we're not already showing a reconnect message
+      if (stalled) {
+        if (this.stallText.text === 'Waiting for opponent...') {
+          this.stallText.setVisible(true);
+        }
+      } else {
+        if (this.stallText.text === 'Waiting for opponent...') {
+          this.stallText.setVisible(false);
+        }
+      }
     }
   }
 
+  private onReconnecting(attempt: number): void {
+    if (this.stallText) {
+      this.stallText.setText(`Reconnecting... (${attempt}/3)`);
+      this.stallText.setStyle({
+        fontSize: '20px', color: '#ffcc00', fontFamily: 'monospace',
+        backgroundColor: '#000000aa',
+        padding: { x: 16, y: 8 },
+      });
+      this.stallText.setVisible(true);
+    }
+  }
+
+  private onReconnected(): void {
+    if (this.stallText) {
+      this.stallText.setText('Waiting for opponent...');
+      this.stallText.setVisible(false);
+    }
+  }
+
+  private onReconnectFailed(): void {
+    if (!this.lockstepManager) return; // already cleaned up
+    this.lockstepManager.destroy();
+    this.lockstepManager = null;
+    this.networkClient = null;
+
+    if (this.stallText) {
+      this.stallText.setText('Connection lost');
+      this.stallText.setStyle({
+        fontSize: '20px', color: '#ff4444', fontFamily: 'monospace',
+        backgroundColor: '#000000aa',
+        padding: { x: 16, y: 8 },
+      });
+      this.stallText.setVisible(true);
+    }
+    this.time.delayedCall(2000, () => {
+      this.scene.start('MenuScene');
+    });
+  }
+
   private onNetworkDisconnect(): void {
+    if (!this.lockstepManager) return; // already cleaned up (e.g. after reconnect failed)
+
     // Clean up network
-    this.lockstepManager?.destroy();
+    this.lockstepManager.destroy();
     this.lockstepManager = null;
     this.networkClient = null;
 
