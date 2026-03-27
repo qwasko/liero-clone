@@ -21,7 +21,7 @@ import type { NetInputState, ServerMessage } from './protocol';
 
 const FIXED_DT = 1 / 60;          // 16.67ms per sim tick
 const INITIAL_DELAY = 20;          // starting input delay (frames) — start high, decrease gradually
-const MIN_DELAY     = 10;          // lowest adaptive delay
+const MIN_DELAY     = 6;           // lowest adaptive delay
 const MAX_DELAY     = 30;          // highest adaptive delay
 const MAX_CATCH_UP  = 4;           // max sim ticks per render frame
 const STALL_TIMEOUT_MS = 30000;    // disconnect after 30s without remote input
