@@ -54,7 +54,7 @@ export class GameScene extends Phaser.Scene {
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
   // Crate visuals synced to GameState crate data
-  private crateVisuals = new Map<number, { gfx: Phaser.GameObjects.Graphics }>();
+  private crateVisuals = new Map<number, Phaser.GameObjects.Graphics>();
 
   // Pause menu
   private paused = false;
@@ -670,9 +670,8 @@ export class GameScene extends Phaser.Scene {
 
     // Treasure chest: 18×16px centered on (x, y)
     const cx     = Math.round(x);
-    const cy     = Math.round(y);
     const lx     = cx - 9;   // left edge
-    const ty     = cy - 8;   // top edge
+    const ty     = Math.round(y) - 8;   // top edge
     const w      = 18;
     const h      = 16;
     const splitY = ty + 7;   // lid/body seam — lid is 7px (domed), body is 9px
@@ -710,13 +709,13 @@ export class GameScene extends Phaser.Scene {
     gfx.fillRect(cx - 2, splitY - 2, 4, 4);
 
     this.hudCamera.ignore(gfx);
-    this.crateVisuals.set(id, { gfx });
+    this.crateVisuals.set(id, gfx);
   }
 
   private destroyCrateVisual(crateId: number): void {
-    const visual = this.crateVisuals.get(crateId);
-    if (visual) {
-      visual.gfx.destroy();
+    const gfx = this.crateVisuals.get(crateId);
+    if (gfx) {
+      gfx.destroy();
       this.crateVisuals.delete(crateId);
     }
   }
@@ -727,9 +726,9 @@ export class GameScene extends Phaser.Scene {
         .filter(c => c.active)
         .map(c => c.id),
     );
-    for (const [id, visual] of this.crateVisuals) {
+    for (const [id, gfx] of this.crateVisuals) {
       if (!activeCrates.has(id)) {
-        visual.gfx.destroy();
+        gfx.destroy();
         this.crateVisuals.delete(id);
       }
     }
