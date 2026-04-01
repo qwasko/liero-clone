@@ -55,7 +55,7 @@ export class GameScene extends Phaser.Scene {
   private tagItGraphics: Phaser.GameObjects.Text | null = null;
 
   // Crate visuals synced to GameState crate data
-  private crateVisuals = new Map<number, { body: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Text }>();
+  private crateVisuals = new Map<number, { gfx: Phaser.GameObjects.Graphics }>();
 
   // Pause menu
   private paused = false;
@@ -667,25 +667,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createCrateVisual(id: number, x: number, y: number): void {
-    const body = this.add
-      .rectangle(x, y, CRATE_HALF * 2, CRATE_HALF * 2, 0xddaa00)
-      .setDepth(6);
-    const icon = this.add
-      .text(x, y, '?', { fontSize: '10px', color: '#000000', fontFamily: 'monospace' })
-      .setOrigin(0.5)
-      .setDepth(7);
+    const size = CRATE_HALF * 2; // 14px
+    const lx = x - CRATE_HALF;
+    const ly = y - CRATE_HALF;
 
-    this.hudCamera.ignore(body);
-    this.hudCamera.ignore(icon);
+    const gfx = this.add.graphics().setDepth(6);
 
-    this.crateVisuals.set(id, { body, icon });
+    // Main wood fill (tan)
+    gfx.fillStyle(0xc8a060);
+    gfx.fillRect(lx, ly, size, size);
+
+    // Cross plank dividers (darker brown)
+    gfx.fillStyle(0x7b4f2e);
+    gfx.fillRect(lx, y - 1, size, 2);   // horizontal bar
+    gfx.fillRect(x - 1, ly, 2, size);   // vertical bar
+
+    // Border outline
+    gfx.lineStyle(1, 0x4a2e10);
+    gfx.strokeRect(lx, ly, size, size);
+
+    this.hudCamera.ignore(gfx);
+    this.crateVisuals.set(id, { gfx });
   }
 
   private destroyCrateVisual(crateId: number): void {
     const visual = this.crateVisuals.get(crateId);
     if (visual) {
-      visual.body.destroy();
-      visual.icon.destroy();
+      visual.gfx.destroy();
       this.crateVisuals.delete(crateId);
     }
   }
@@ -698,8 +706,7 @@ export class GameScene extends Phaser.Scene {
     );
     for (const [id, visual] of this.crateVisuals) {
       if (!activeCrates.has(id)) {
-        visual.body.destroy();
-        visual.icon.destroy();
+        visual.gfx.destroy();
         this.crateVisuals.delete(id);
       }
     }
