@@ -1,6 +1,6 @@
 # Liero Clone — Status
 
-## Last completed: README + infrastructure (2026-03-27)
+## Last completed: Treasure chest crate sprite (2026-04-01)
 
 ## What is currently working
 - Two-player same-keyboard match (P1: arrows/Shift/Ctrl, P2: WASD/Space/F)
@@ -65,6 +65,10 @@
   - **Automatic reconnect**: 3 attempts × 2s delay on transport drop
     - Shows "Reconnecting... (N/3)" overlay; resumes game on success
     - Shows "Connection lost" and returns to menu after all attempts fail
+- **Bonus crate sprite**: pixel-art treasure chest (18×16px, Phaser Graphics)
+  - Dark brown wood body + domed lid with rounded top corners
+  - Gold border stroke, seam band, corner rivets, center clasp
+  - Dark outline halo
 
 ## Known issues / bugs
 - No dedicated sounds for new weapons — they use generic fire/explosion audio
@@ -72,25 +76,22 @@
 - **[ONLINE] Both players use P1 keybindings** — by design (each player is local P1 on their own machine)
 - **[ONLINE] Diagnostic console.logs active** — per-frame tick logs, stall logs, adaptive delay logs still present for debugging
 
-## STOPPED HERE — end of session 2026-03-27
+## STOPPED HERE — end of session 2026-04-01
 
 ### This session completed
-- **Infra: GitHub Pages deploy** — `base: '/liero-clone/'` in vite.config.ts, `.github/workflows/deploy.yml` auto-deploys on push to main (enable in repo Settings → Pages → Source: GitHub Actions)
-- **Infra: server URL parameter** — `?server=URL` query param overrides server URL; removed stale Netlify hostname check; fallback is Render.com
-- **Tune: MIN_DELAY** — reduced from 10 to 6 frames (lower floor on good connections)
-- **Tune: INITIAL_DELAY** — reduced from 20 to 15 frames (less buffering at game start)
-- **Tune: CLEAN_WINDOW_DOWN** — reduced from 300 to 180 frames (~3s instead of ~5s for delay decrease)
-- **Fix: stall log throttling** — max one stall log per second; at MAX_DELAY logs summary every 60 frames instead of per-frame
-- **Feat: automatic reconnect** — 3 attempts × 2s on transport drop; "Reconnecting... (N/3)" overlay; "Connection lost" on failure
-- **Docs: README.md** — features list, multiplayer instructions, `?server=` param note, Render cold-start warning, tech stack, local dev instructions, Built with Claude Code note
+- **Visual: wooden crate sprite** — replaced yellow `?` square with 14×14 Graphics-drawn wooden box (tan fill, brown cross planks, dark border)
+- **Visual: treasure chest sprite** — redesigned bonus crate as 18×16px pixel-art treasure chest:
+  - Dark brown wood (#5C3317) body + domed lid (rounded top corners)
+  - Gold trim (#DAA520): border stroke, horizontal seam band, 4 corner rivets, center clasp
+  - Dark outline halo (#2C1810)
+  - Removed unused `CRATE_HALF` import from GameScene.ts
 
 ### Next steps
-1. Enable GitHub Pages in repo Settings → Pages → Source: GitHub Actions (one-time manual step, if not done yet)
-2. Test stability with more play sessions — especially reconnect behavior
-3. Remove diagnostic console.logs when multiplayer is stable
+1. Enable GitHub Pages in repo Settings → Pages → Source: GitHub Actions (one-time manual step, if not done)
+2. Remove diagnostic console.logs when multiplayer is stable (confirmed stable enough)
+3. Weapon-specific audio cues (nice to have)
 
 ## Possible future steps (not planned)
-- Weapon-specific audio cues
 - Flamethrower / homing missile
 - Animated worm sprites
 - Sound effects from files
