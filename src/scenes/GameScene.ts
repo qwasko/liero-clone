@@ -11,7 +11,6 @@ import { GameRenderer } from '../game/GameRenderer';
 import { GameEvent } from '../game/GameEvents';
 import { LEVEL_PRESETS } from '../game/LevelPreset';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
-import { CRATE_HALF } from '../game/CrateSystem';
 import { AIController, AI_DIFFICULTIES } from '../ai/AIController';
 import { GameSettings, PlayerType, loadSettings } from '../game/GameSettings';
 import { NetworkClient } from '../network/NetworkClient';
@@ -667,24 +666,48 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createCrateVisual(id: number, x: number, y: number): void {
-    const size = CRATE_HALF * 2; // 14px
-    const lx = x - CRATE_HALF;
-    const ly = y - CRATE_HALF;
-
     const gfx = this.add.graphics().setDepth(6);
 
-    // Main wood fill (tan)
-    gfx.fillStyle(0xc8a060);
-    gfx.fillRect(lx, ly, size, size);
+    // Treasure chest: 18×16px centered on (x, y)
+    const cx     = Math.round(x);
+    const cy     = Math.round(y);
+    const lx     = cx - 9;   // left edge
+    const ty     = cy - 8;   // top edge
+    const w      = 18;
+    const h      = 16;
+    const splitY = ty + 7;   // lid/body seam — lid is 7px (domed), body is 9px
 
-    // Cross plank dividers (darker brown)
-    gfx.fillStyle(0x7b4f2e);
-    gfx.fillRect(lx, y - 1, size, 2);   // horizontal bar
-    gfx.fillRect(x - 1, ly, 2, size);   // vertical bar
+    const WOOD = 0x5C3317;
+    const GOLD = 0xDAA520;
+    const DARK = 0x2C1810;
 
-    // Border outline
-    gfx.lineStyle(1, 0x4a2e10);
-    gfx.strokeRect(lx, ly, size, size);
+    // Dark outline — 1px halo around whole chest shape
+    gfx.fillStyle(DARK);
+    gfx.fillRoundedRect(lx - 1, ty - 1, w + 2, h + 2, 4);
+
+    // Wood body — flat-topped lower rectangle
+    gfx.fillStyle(WOOD);
+    gfx.fillRect(lx, splitY, w, h - 7);
+
+    // Wood lid — rounded top corners give dome silhouette
+    gfx.fillRoundedRect(lx, ty, w, 8, { tl: 3, tr: 3, bl: 0, br: 0 });
+
+    // Gold border stroke around entire chest
+    gfx.lineStyle(1, GOLD);
+    gfx.strokeRoundedRect(lx, ty, w, h, 3);
+
+    // Gold horizontal seam band where lid meets body (2px)
+    gfx.fillStyle(GOLD);
+    gfx.fillRect(lx, splitY - 1, w, 2);
+
+    // Corner rivets — small gold dots at all four corners
+    gfx.fillCircle(lx + 2,     ty + 2,     1.5);
+    gfx.fillCircle(lx + w - 3, ty + 2,     1.5);
+    gfx.fillCircle(lx + 2,     ty + h - 3, 1.5);
+    gfx.fillCircle(lx + w - 3, ty + h - 3, 1.5);
+
+    // Central clasp — small gold square on the seam
+    gfx.fillRect(cx - 2, splitY - 2, 4, 4);
 
     this.hudCamera.ignore(gfx);
     this.crateVisuals.set(id, { gfx });
