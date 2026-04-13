@@ -3,6 +3,8 @@ import { InputManager } from '../input/InputManager';
 import { InputState } from '../input/InputState';
 import { TerrainGenerator } from '../terrain/TerrainGenerator';
 import { TerrainRenderer } from '../terrain/TerrainRenderer';
+import { loadTerrainFromPng } from '../terrain/TerrainLoader';
+import { TerrainMap } from '../terrain/TerrainMap';
 import { AudioManager } from '../utils/AudioManager';
 import { HUD } from '../ui/HUD';
 import { Minimap } from '../ui/Minimap';
@@ -56,6 +58,9 @@ export class GameScene extends Phaser.Scene {
   // Crate visuals synced to GameState crate data
   private crateVisuals = new Map<number, Phaser.GameObjects.Graphics>();
 
+  // Async create() guard — prevents update() from running before create() finishes
+  private ready = false;
+
   // Pause menu
   private paused = false;
   private pauseOverlay: Phaser.GameObjects.GameObject[] = [];
@@ -72,7 +77,7 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
-  create(data?: {
+  async create(data?: {
     settings?: GameSettings;
     online?: {
       socket: import('socket.io-client').Socket;
@@ -80,7 +85,7 @@ export class GameScene extends Phaser.Scene {
       settings: NetGameSettings;
       playerIndex: 0 | 1;
     };
-  }): void {
+  }): Promise<void> {
     // ── Clean up stale state from previous game ──────────────────────────
     if (this.textures.exists('terrain')) {
       this.textures.remove('terrain');
@@ -133,13 +138,35 @@ export class GameScene extends Phaser.Scene {
     const halfW = CANVAS_WIDTH / 2;
 
     // ── Terrain ──────────────────────────────────────────────────────────
-    const spawnP1 = { x: level.width * 0.25, y: level.height * 0.44 };
-    const spawnP2 = { x: level.width * 0.75, y: level.height * 0.44 };
-    const terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain, seed);
+    const mapUrl = new URLSearchParams(window.location.search).get('map');
+    let activeLevel = level;
+    let terrain: TerrainMap;
+    if (mapUrl) {
+      terrain = await loadTerrainFromPng(mapUrl);
+      const matchedPreset = LEVEL_PRESETS.find(
+        p => p.width === terrain.width && p.height === terrain.height,
+      );
+      if (!matchedPreset) {
+        throw new Error(
+          `TerrainLoader: no preset for ${terrain.width}×${terrain.height} — this should have been caught earlier`,
+        );
+      }
+      activeLevel = matchedPreset;
+    } else {
+      terrain = TerrainGenerator.generate(level.width, level.height, [], level.terrain, seed);
+    }
+    const spawnP1 = { x: activeLevel.width * 0.25, y: activeLevel.height * 0.44 };
+    const spawnP2 = { x: activeLevel.width * 0.75, y: activeLevel.height * 0.44 };
+    if (!mapUrl) {
+      // Carve spawn areas after the fact (generator needs spawn points for rock avoidance,
+      // but spawn clearing is already handled inside generate() when points are passed).
+      // Re-generate with spawn points so clearing works correctly.
+      terrain = TerrainGenerator.generate(level.width, level.height, [spawnP1, spawnP2], level.terrain, seed);
+    }
     this.terrainRenderer = new TerrainRenderer(this, terrain);
 
     // ── GameState ────────────────────────────────────────────────────────
-    this.gameState = new GameState(terrain, level, mode, {
+    this.gameState = new GameState(terrain, activeLevel, mode, {
       lives,
       reloadMultiplier,
       matchDurationSeconds: matchDuration,
@@ -187,7 +214,7 @@ export class GameScene extends Phaser.Scene {
     const cam1 = this.cameras.main;
     cam1.setViewport(0, 0, halfW, vpH);
     cam1.setZoom(settings.p1Zoom);
-    cam1.setBounds(0, 0, level.width, level.height);
+    cam1.setBounds(0, 0, activeLevel.width, activeLevel.height);
     cam1.setRoundPixels(true);
 
     this.cameraFocusP1 = this.add.zone(spawnP1.x, spawnP1.y, 1, 1);
@@ -196,7 +223,7 @@ export class GameScene extends Phaser.Scene {
     // ── P2 camera (right half, above HUD) ────────────────────────────────
     this.p2Camera = this.cameras.add(halfW, 0, halfW, vpH);
     this.p2Camera.setZoom(settings.p2Zoom);
-    this.p2Camera.setBounds(0, 0, level.width, level.height);
+    this.p2Camera.setBounds(0, 0, activeLevel.width, activeLevel.height);
     this.p2Camera.setRoundPixels(true);
 
     this.cameraFocusP2 = this.add.zone(spawnP2.x, spawnP2.y, 1, 1);
@@ -299,9 +326,12 @@ export class GameScene extends Phaser.Scene {
       // Without this, the unfocused client stops sending lockstep inputs.
       this.game.events.on('blur', () => { /* no-op: keep loop alive */ });
     }
+
+    this.ready = true;
   }
 
   update(_time: number, delta: number): void {
+    if (!this.ready) return;
     if (this.paused || this.gameState.matchOver) return;
 
     if (this.isOnline && this.lockstepManager) {
